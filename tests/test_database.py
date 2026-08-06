@@ -1,5 +1,6 @@
+from datetime import datetime
 import pytest
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.database import Base, Signal, User, Watchlist, get_engine, get_session_maker
 
@@ -20,12 +21,14 @@ async def test_models_and_session():
 
     session_factory = get_session_maker(engine)
     async with session_factory() as session:
-        user = User(telegram_id=12345678, username="testuser")
+        # Test large 64-bit Telegram ID
+        big_telegram_id = 9876543210123
+        user = User(telegram_id=big_telegram_id, username="testuser")
         session.add(user)
         await session.commit()
         await session.refresh(user)
         assert user.id is not None
-        assert user.telegram_id == 12345678
+        assert user.telegram_id == big_telegram_id
         assert user.username == "testuser"
 
         watchlist = Watchlist(user_id=user.id, symbol="AAPL", market="US")
@@ -49,3 +52,17 @@ async def test_models_and_session():
         fetched_signal = res_signal.scalar_one()
         assert fetched_signal.grade == 4
         assert fetched_signal.confidence == 90
+        assert fetched_signal.created_at is not None
+
+
+def test_watchlist_foreign_key():
+    fk_list = list(Watchlist.__table__.foreign_keys)
+    assert len(fk_list) == 1
+    fk = fk_list[0]
+    assert fk.target_fullname == "users.id"
+
+
+def test_requirements_contains_asyncpg():
+    with open("requirements.txt") as f:
+        content = f.read()
+    assert "asyncpg" in content
