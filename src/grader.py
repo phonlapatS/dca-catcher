@@ -3,7 +3,7 @@ import logging
 import re
 from dataclasses import dataclass
 
-import google.generativeai as genai
+from google import genai
 
 from src.transform import EnrichedSignal
 
@@ -23,11 +23,15 @@ class GradeResult:
 class SignalGrader:
     """Uses Google Gemini to grade enriched stock signals."""
 
-    def __init__(self, api_key: str, models: list[str] = None):
-        """Configure Gemini with the provided API key and fallback models."""
-        genai.configure(api_key=api_key)
-        # Default fallback models based on user quota preferences
-        self.models = models or ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]
+    def __init__(self, api_key: str):
+        """Configure Gemini with the provided API key and hybrid fallback models."""
+        self.client = genai.Client(api_key=api_key)
+        
+        # Flash Lite is ultra-fast, perfect for simple indicator grading
+        self.scan_models = ["gemini-2.5-flash-lite", "gemini-2.5-flash"]
+        
+        # Advice needs deeper reasoning for portfolio generation
+        self.advice_models = ["gemini-2.5-pro", "gemini-2.5-flash"]
 
     def grade(self, signal: EnrichedSignal, news: list[str] = None, risk_profile: str = None) -> GradeResult:
         """Send enriched signal dimensions to Gemini for grading.
@@ -39,10 +43,12 @@ class SignalGrader:
         prompt = self._build_prompt(signal, news, risk_profile)
         last_error = None
         
-        for model_name in self.models:
+        for model_name in self.scan_models:
             try:
-                model = genai.GenerativeModel(model_name)
-                response = model.generate_content(prompt)
+                response = self.client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
                 return self._parse_response(response.text, signal.symbol)
             except Exception as e:
                 logger.warning(f"Model {model_name} failed for {signal.symbol}: {e}")
@@ -210,10 +216,12 @@ Make sure the {count} recommended stocks are real, well-known US or global stock
 """
         
         last_error = None
-        for model_name in self.models:
+        for model_name in self.advice_models:
             try:
-                model = genai.GenerativeModel(model_name)
-                response = model.generate_content(prompt)
+                response = self.client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
                 return response.text.strip()
             except Exception as e:
                 logger.warning(f"Model {model_name} failed for advice generation: {e}")

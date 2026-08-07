@@ -55,7 +55,7 @@ def test_build_prompt(sample_enriched_signal):
 def test_parse_response_valid_json():
     grader = SignalGrader(api_key="fake-key")
     raw_json = json.dumps({
-        "grade": 4,
+        "score": 4,
         "confidence": 85,
         "advice": "ราคาย่อตัวลงมาน่าสนใจ DCA เพิ่มเติม",
         "reasons": ["✅ Drawdown > 20%", "🟡 Flow hold"],
@@ -64,7 +64,7 @@ def test_parse_response_valid_json():
     res = grader._parse_response(raw_json, "AAPL")
     assert isinstance(res, GradeResult)
     assert res.symbol == "AAPL"
-    assert res.grade == 4
+    assert res.score == 4
     assert res.confidence == 85
     assert res.advice == "ราคาย่อตัวลงมาน่าสนใจ DCA เพิ่มเติม"
     assert res.reasons == ["✅ Drawdown > 20%", "🟡 Flow hold"]
@@ -74,7 +74,7 @@ def test_parse_response_markdown_fence():
     grader = SignalGrader(api_key="fake-key")
     fence_json = """```json
 {
-    "grade": 3,
+    "score": 3,
     "confidence": 75,
     "advice": "สภาวะตลาดปานกลาง",
     "reasons": ["✅ PRICE: BUY"]
@@ -84,7 +84,7 @@ def test_parse_response_markdown_fence():
     res = grader._parse_response(fence_json, "AAPL")
     assert isinstance(res, GradeResult)
     assert res.symbol == "AAPL"
-    assert res.grade == 3
+    assert res.score == 3
     assert res.confidence == 75
     assert res.advice == "สภาวะตลาดปานกลาง"
     assert res.reasons == ["✅ PRICE: BUY"]
@@ -97,45 +97,48 @@ def test_parse_response_invalid_json_fallback():
     res = grader._parse_response(invalid_text, "AAPL")
     assert isinstance(res, GradeResult)
     assert res.symbol == "AAPL"
-    assert res.grade == 2
+    assert res.score == 5
     assert res.confidence == 0
     assert "Failed to parse" in res.advice or "Parse error" in res.advice or "error" in res.advice.lower()
 
 
-@patch("google.generativeai.GenerativeModel.generate_content")
-def test_grade_happy_path(mock_generate, sample_enriched_signal):
-    grader = SignalGrader(api_key="fake-key")
-
+@patch("src.grader.genai.Client")
+def test_grade_happy_path(mock_client_cls, sample_enriched_signal):
+    mock_client = MagicMock()
+    mock_client_cls.return_value = mock_client
     mock_response = MagicMock()
     mock_response.text = json.dumps({
-        "grade": 4,
+        "score": 4,
         "confidence": 90,
         "advice": "แนะนำทยอยสะสม DCA",
         "reasons": ["✅ Drawdown 25%", "✅ ATH Drawdown Signal"],
     })
-    mock_generate.return_value = mock_response
+    mock_client.models.generate_content.return_value = mock_response
 
+    grader = SignalGrader(api_key="fake-key")
     res = grader.grade(sample_enriched_signal)
 
     assert isinstance(res, GradeResult)
     assert res.symbol == "AAPL"
-    assert res.grade == 4
+    assert res.score == 4
     assert res.confidence == 90
     assert res.advice == "แนะนำทยอยสะสม DCA"
     assert res.reasons == ["✅ Drawdown 25%", "✅ ATH Drawdown Signal"]
-    mock_generate.assert_called_once()
+    mock_client.models.generate_content.assert_called_once()
 
 
-@patch("google.generativeai.GenerativeModel.generate_content")
-def test_grade_api_failure_fallback(mock_generate, sample_enriched_signal):
+@patch("src.grader.genai.Client")
+def test_grade_api_failure_fallback(mock_client_cls, sample_enriched_signal):
+    mock_client = MagicMock()
+    mock_client_cls.return_value = mock_client
+    mock_client.models.generate_content.side_effect = Exception("API rate limit exceeded")
+
     grader = SignalGrader(api_key="fake-key")
-    mock_generate.side_effect = Exception("API rate limit exceeded")
-
     res = grader.grade(sample_enriched_signal)
 
     assert isinstance(res, GradeResult)
     assert res.symbol == "AAPL"
-    assert res.grade == 2
+    assert res.score == 5
     assert res.confidence == 0
     assert "API error" in res.advice or "error" in res.advice.lower()
 
