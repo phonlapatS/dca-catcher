@@ -16,6 +16,13 @@ class StockSnapshot:
     ma_50: float | None = None
     volume_20d_avg: float | None = None
     is_volume_anomaly: bool | None = None
+    
+    # Fundamental Data
+    trailing_pe: float | None = None
+    peg_ratio: float | None = None
+    revenue_growth: float | None = None
+    profit_margins: float | None = None
+    debt_to_equity: float | None = None
 
 
 class MarketDataFetcher:
@@ -52,12 +59,19 @@ class MarketDataFetcher:
                     if drawdown_pct > 0:
                         drawdown_pct = 0.0
 
+                info = ticker.info or {}
+                
                 snapshots[symbol] = StockSnapshot(
                     symbol=symbol,
                     current_price=round(current_price, 2),
                     volume=volume,
                     ath_price=round(ath_price, 2),
                     drawdown_pct=drawdown_pct,
+                    trailing_pe=info.get("trailingPE"),
+                    peg_ratio=info.get("pegRatio"),
+                    revenue_growth=info.get("revenueGrowth"),
+                    profit_margins=info.get("profitMargins"),
+                    debt_to_equity=info.get("debtToEquity")
                 )
             except Exception as e:
                 logger.warning(f"Failed to fetch market data for symbol '{symbol}': {e}")

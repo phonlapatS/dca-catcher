@@ -113,6 +113,13 @@ Market Snapshot:
 - Drawdown from ATH: {signal.snapshot.drawdown_pct}%
 {profile_text}
 
+Fundamental Data (if available):
+- P/E Ratio (Trailing): {getattr(signal.snapshot, 'trailing_pe', 'N/A')}
+- PEG Ratio: {getattr(signal.snapshot, 'peg_ratio', 'N/A')}
+- Revenue Growth: {getattr(signal.snapshot, 'revenue_growth', 'N/A')}
+- Profit Margins: {getattr(signal.snapshot, 'profit_margins', 'N/A')}
+- Debt to Equity: {getattr(signal.snapshot, 'debt_to_equity', 'N/A')}
+
 Indicators:
 {indicators_text}
 
