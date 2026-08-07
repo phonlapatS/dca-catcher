@@ -30,10 +30,10 @@ class SignalGrader:
             logger.warning("No Gemini API keys provided! Grader will fail.")
         
         # Flash Lite is ultra-fast, perfect for simple indicator grading
-        self.scan_models = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3-flash"]
+        self.scan_models = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3-flash-preview"]
         
         # Advice needs deeper reasoning for portfolio generation
-        self.advice_models = ["gemini-3.6", "gemini-3.5", "gemini-3-flash"]
+        self.advice_models = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview"]
 
     def grade(self, signal: EnrichedSignal, news: list[str] = None, risk_profile: str = None) -> GradeResult:
         """Send enriched signal dimensions to Gemini for grading.
