@@ -41,7 +41,7 @@ def sample_enriched_signal():
 
 
 def test_build_prompt(sample_enriched_signal):
-    grader = SignalGrader(api_key="fake-key")
+    grader = SignalGrader(api_keys=["fake-key"])
     prompt = grader._build_prompt(sample_enriched_signal)
 
     assert "AAPL" in prompt
@@ -53,7 +53,7 @@ def test_build_prompt(sample_enriched_signal):
 
 
 def test_parse_response_valid_json():
-    grader = SignalGrader(api_key="fake-key")
+    grader = SignalGrader(api_keys=["fake-key"])
     raw_json = json.dumps({
         "score": 4,
         "confidence": 85,
@@ -71,7 +71,7 @@ def test_parse_response_valid_json():
 
 
 def test_parse_response_markdown_fence():
-    grader = SignalGrader(api_key="fake-key")
+    grader = SignalGrader(api_keys=["fake-key"])
     fence_json = """```json
 {
     "score": 3,
@@ -91,7 +91,7 @@ def test_parse_response_markdown_fence():
 
 
 def test_parse_response_invalid_json_fallback():
-    grader = SignalGrader(api_key="fake-key")
+    grader = SignalGrader(api_keys=["fake-key"])
     invalid_text = "Sorry, I cannot process this request."
 
     res = grader._parse_response(invalid_text, "AAPL")
@@ -115,7 +115,7 @@ def test_grade_happy_path(mock_client_cls, sample_enriched_signal):
     })
     mock_client.models.generate_content.return_value = mock_response
 
-    grader = SignalGrader(api_key="fake-key")
+    grader = SignalGrader(api_keys=["fake-key"])
     res = grader.grade(sample_enriched_signal)
 
     assert isinstance(res, GradeResult)
@@ -133,7 +133,7 @@ def test_grade_api_failure_fallback(mock_client_cls, sample_enriched_signal):
     mock_client_cls.return_value = mock_client
     mock_client.models.generate_content.side_effect = Exception("API rate limit exceeded")
 
-    grader = SignalGrader(api_key="fake-key")
+    grader = SignalGrader(api_keys=["fake-key"])
     res = grader.grade(sample_enriched_signal)
 
     assert isinstance(res, GradeResult)
@@ -143,7 +143,7 @@ def test_grade_api_failure_fallback(mock_client_cls, sample_enriched_signal):
     assert "API error" in res.advice or "error" in res.advice.lower()
 
 def test_build_prompt_with_news_and_indicators(sample_enriched_signal):
-    grader = SignalGrader(api_key="fake-key")
+    grader = SignalGrader(api_keys=["fake-key"])
     news = ["AAPL launches new iPhone", "Tech stocks rally"]
     sample_enriched_signal.snapshot.rsi = 30.5
     sample_enriched_signal.snapshot.ma_50 = 160.0

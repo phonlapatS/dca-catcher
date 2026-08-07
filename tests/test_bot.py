@@ -23,7 +23,7 @@ async def test_cmd_start_regular(tmp_path):
     db_path = tmp_path / "test.db"
     config = Config(
         telegram_token="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
-        gemini_api_key="test_key",
+        gemini_api_keys=["test_key"],
         database_url=f"sqlite+aiosqlite:///{db_path}",
         broadcast_channel_id="test_channel",
     )
@@ -46,7 +46,7 @@ async def test_cmd_start_deep_link_us(tmp_path):
     db_path = tmp_path / "test.db"
     config = Config(
         telegram_token="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
-        gemini_api_key="test_key",
+        gemini_api_keys=["test_key"],
         database_url=f"sqlite+aiosqlite:///{db_path}",
         broadcast_channel_id="test_channel",
     )
@@ -80,7 +80,7 @@ async def test_cmd_start_deep_link_th(tmp_path):
     db_path = tmp_path / "test.db"
     config = Config(
         telegram_token="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
-        gemini_api_key="test_key",
+        gemini_api_keys=["test_key"],
         database_url=f"sqlite+aiosqlite:///{db_path}",
         broadcast_channel_id="test_channel",
     )

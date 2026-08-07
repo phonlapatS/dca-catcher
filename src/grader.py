@@ -23,9 +23,11 @@ class GradeResult:
 class SignalGrader:
     """Uses Google Gemini to grade enriched stock signals."""
 
-    def __init__(self, api_key: str):
-        """Configure Gemini with the provided API key and hybrid fallback models."""
-        self.client = genai.Client(api_key=api_key)
+    def __init__(self, api_keys: list[str]):
+        """Configure Gemini with the provided API keys and hybrid fallback models."""
+        self.clients = [genai.Client(api_key=key) for key in api_keys]
+        if not self.clients:
+            logger.warning("No Gemini API keys provided! Grader will fail.")
         
         # Flash Lite is ultra-fast, perfect for simple indicator grading
         self.scan_models = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3-flash"]
@@ -43,17 +45,18 @@ class SignalGrader:
         prompt = self._build_prompt(signal, news, risk_profile)
         last_error = None
         
-        for model_name in self.scan_models:
-            try:
-                response = self.client.models.generate_content(
-                    model=model_name,
-                    contents=prompt
-                )
-                return self._parse_response(response.text, signal.symbol)
-            except Exception as e:
-                logger.warning(f"Model {model_name} failed for {signal.symbol}: {e}")
-                last_error = e
-                continue
+        for client in self.clients:
+            for model_name in self.scan_models:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt
+                    )
+                    return self._parse_response(response.text, signal.symbol)
+                except Exception as e:
+                    logger.warning(f"Model {model_name} on key failed for {signal.symbol}: {e}")
+                    last_error = e
+                    continue
                 
         # If all models fail, return fallback
         logger.error(f"All Gemini models failed for {signal.symbol}. Last error: {last_error}")
@@ -216,16 +219,17 @@ Make sure the {count} recommended stocks are real, well-known US or global stock
 """
         
         last_error = None
-        for model_name in self.advice_models:
-            try:
-                response = self.client.models.generate_content(
-                    model=model_name,
-                    contents=prompt
-                )
-                return response.text.strip()
-            except Exception as e:
-                logger.warning(f"Model {model_name} failed for advice generation: {e}")
-                last_error = e
-                continue
+        for client in self.clients:
+            for model_name in self.advice_models:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt
+                    )
+                    return response.text.strip()
+                except Exception as e:
+                    logger.warning(f"Model {model_name} on key failed for advice generation: {e}")
+                    last_error = e
+                    continue
                 
         return f"⚠️ ขออภัยครับ AI ระบบขัดข้อง ไม่สามารถจัดพอร์ตให้ได้ในขณะนี้: {last_error}"

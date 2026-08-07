@@ -135,7 +135,7 @@ class DCABot:
         self.db = Database(config.database_url)
         self.fetcher = MarketDataFetcher()
         self.transformer = DataTransformer()
-        self.grader = SignalGrader(config.gemini_api_key)
+        self.grader = SignalGrader(config.gemini_api_keys)
 
         token = config.telegram_token
         try:
