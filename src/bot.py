@@ -555,7 +555,11 @@ class DCABot:
             budget=budget_str
         )
         
-        await callback.message.answer(advice_text, parse_mode="Markdown")
+        try:
+            await callback.message.answer(advice_text, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Markdown parse error: {e}. Falling back to plain text.")
+            await callback.message.answer(advice_text)
         
         import re
         # Support formats like: "1. **AAPL**", "- **NVDA (Nvidia)**", "* **TSLA**"
@@ -786,7 +790,11 @@ class DCABot:
                     f"🛒 **ราคาเป้าหมาย (Buy Targets):**\n"
                     f"{targets_str}"
                 )
-                await message.reply(report_text, parse_mode="Markdown")
+                try:
+                    await message.reply(report_text, parse_mode="Markdown")
+                except Exception as e:
+                    logger.error(f"Markdown parse error in scan: {e}. Falling back to plain text.")
+                    await message.reply(report_text)
 
             await session.commit()
 
