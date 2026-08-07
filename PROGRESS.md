@@ -36,7 +36,7 @@ Each checkpoint is a **known-good state** where all tests pass.
 | 3 | + Fetcher | `a63f916` | + `MarketDataFetcher` with real yfinance | 8 | `git reset --hard a63f916` |
 | 4 | + Transformer | `537d9c1` | + `DataTransformer` with 3-dimension scoring | 15 | `git reset --hard 537d9c1` |
 | 5 | + Grader | `ed07385` | + `SignalGrader` with Gemini (mocked tests) | 21 | `git reset --hard ed07385` |
-| 6 | + Telegram Bot | ⬜ pending | Full app wired with `/start /add /list /scan` | ~21 | — |
+| 6 | + Telegram Bot | `38c9162` | Full app wired, 21 tests | `git reset --hard 38c9162` |
 
 ### How to use checkpoints
 
@@ -194,39 +194,60 @@ git stash pop          # restore work
   - Parse response with missing fields
   - API exception fallback
 
----
-
-## 🔄 In Progress
-
 ### Task 5: Telegram Bot Interface — OOP
-- **Status:** ✅ Completed
-- **Files created:** `src/bot.py`, `src/config.py`
+- **Checkpoint:** `38c9162`
+- **Files created:** `src/bot.py` (257 lines), `src/config.py` (19 lines)
 - **Files modified:** `requirements.txt` (added `aiogram`)
 - **Description:**
-  The final module that wires everything together into a working Telegram bot:
+  The final module that wires all components into a working Telegram bot:
 
-  **`Config` dataclass** (`src/config.py`) — loads settings from environment:
+  **`Config` dataclass** (`src/config.py`) — centralized configuration:
   ```python
   config = Config.from_env()
   # Reads: TELEGRAM_TOKEN, GEMINI_API_KEY, DATABASE_URL
+  # Defaults DATABASE_URL to sqlite+aiosqlite:///dca_catcher.db for local dev
   ```
 
-  **`DCABot` class** (`src/bot.py`) — main application class:
+  **`DCABot` class** (`src/bot.py`) — main application orchestrator:
   ```python
   bot = DCABot(config)
-  await bot.start()   # init DB + start Telegram polling
-  await bot.stop()    # cleanup
+  await bot.start()   # creates DB tables + starts Telegram polling
+  await bot.stop()    # closes DB + bot session cleanly
   ```
-  - Constructs all components: `Database`, `MarketDataFetcher`, `DataTransformer`, `SignalGrader`
-  - Registers Telegram command handlers via `_register_handlers()`
-  - Commands:
-    - `/start` — welcome message in Thai/English
-    - `/add <symbol> [market]` — add stock to watchlist (e.g., `/add NVDA US`)
-    - `/list` — show user's watchlist
-    - `/scan [symbol]` — run full analysis pipeline: fetch → transform → grade → reply
-  - `/scan` pipeline: fetcher.fetch() → transformer.enrich() → grader.grade() → format Thai message with emoji grades
+  - Constructor creates all dependencies: `Database`, `MarketDataFetcher`, `DataTransformer`, `SignalGrader`
+  - Validates Telegram token on init (falls back to dummy token if invalid)
+  - `_register_handlers()` — registers all 4 command handlers on the Dispatcher
+
+  **Commands:**
+  - `/start` — bilingual welcome message (Thai + English) listing all available commands
+  - `/add <symbol> [market]` — upserts user by `telegram_id`, adds symbol to watchlist, defaults market to "US", checks for duplicates
+  - `/list` — queries user's watchlist via JOIN, shows formatted list or "empty" message
+  - `/scan [symbol]` — the core pipeline:
+    1. If symbol given → scan that one; if not → scan all from user's watchlist
+    2. `fetcher.fetch(symbols)` → get real market data
+    3. `transformer.enrich(snapshots)` → score across 3 dimensions
+    4. `grader.grade(enriched)` → get AI grade from Gemini
+    5. Save `Signal` to database for history
+    6. Format rich report message with:
+       - Grade emoji (🔴🟡🟢🌟) + label in Thai
+       - Confidence percentage
+       - Market snapshot (price, drawdown, ATH)
+       - AI advice in Thai
+       - Reason tags list
+
+  **Grade display mapping:**
+  - 1 = 🔴 "Risky (มีความเสี่ยงสูง)"
+  - 2 = 🟡 "Moderate (ถือ/รอดู)"
+  - 3 = 🟢 "Low Risk (เหมาะแก่การ DCA)"
+  - 4 = 🌟 "Strong Buy (สัญญาณซื้อแข็งแกร่ง)"
+
+  **Entry point:** `if __name__ == "__main__"` runs `Config.from_env()` → `DCABot(config)` → `bot.start()`
+- **Deps added:** `aiogram`
+- **Tests:** 21 passing (no new tests for bot — it's an integration boundary; verified via import check + all existing tests pass)
 
 ---
+
+## ✅ All Tasks Complete!
 
 ## 📁 Architecture Overview
 
