@@ -166,7 +166,7 @@ Dimensions:
                 buy_targets=[],
             )
 
-    def generate_advice(self, risk_profile: str, horizon: str, goal: str, sectors: list[str], count: str = "5") -> str:
+    def generate_advice(self, risk_profile: str, horizon: str, goal: str, sectors: list[str], count: str = "5", budget: str = "ไม่ระบุ") -> str:
         """Generate a personalized portfolio advice based on user survey.
         
         Args:
@@ -175,6 +175,7 @@ Dimensions:
             goal: Primary investment goal (e.g., 'เน้นเติบโต')
             sectors: List of 3 selected sectors (e.g., ['เทคโนโลยี', 'สุขภาพ', 'พลังงาน'])
             count: Number of stocks to recommend (e.g., '3', '5', '7', '10')
+            budget: Monthly DCA budget (e.g., 'ประมาณ 3,000 บาท/เดือน')
             
         Returns:
             A formatted Markdown string containing the AI's stock recommendations and plan.
@@ -186,23 +187,24 @@ The user needs a customized stock portfolio recommendation. Here is their profil
 - Risk Profile: {risk_profile if risk_profile else 'ไม่ได้ระบุ'}
 - Time Horizon: {horizon}
 - Investment Goal: {goal}
-- Preferred Sectors (Top 3): {sectors_str}
+- Preferred Sectors: {sectors_str}
 - Number of Stocks Requested: {count}
+- Monthly DCA Budget: {budget}
 
 Please generate a highly professional and tailored investment plan. Your output must exactly follow this Markdown structure:
 
 📊 **พอร์ตการลงทุนที่ออกแบบมาเพื่อคุณโดยเฉพาะ**
-(โปรไฟล์: [สรุปโปรไฟล์สั้นๆ])
+(โปรไฟล์: [สรุปโปรไฟล์สั้นๆ] | งบลงทุน: {budget})
 
 **🎯 รายชื่อหุ้น {count} ตัว (Custom Portfolio):**
 1. **[Ticker 1]** - [เหตุผลที่ตรงกับความต้องการและธีมที่เลือก 1-2 บรรทัด]
 ... (List exactly {count} stocks)
 
 **📝 แผนการลงทุน & สัดส่วนพอร์ต (Action Plan):**
-[แนะนำว่าควรแบ่งเงินซื้อตัวไหนกี่เปอร์เซ็นต์ (เช่น Core & Satellite) และวิธีการ DCA]
+[แนะนำว่าควรแบ่งเงินซื้อตัวไหนกี่เปอร์เซ็นต์ (เช่น Core & Satellite) และวิธีการแบ่งเงิน {budget} ไปลงทุนในหุ้นแต่ละตัวต่อเดือน]
 
 **📈 คาดการณ์การเติบโต vs เงินเฟ้อ (Growth Projection):**
-[วิเคราะห์เปรียบเทียบผลตอบแทนคาดหวังของพอร์ตนี้เทียบกับเงินเฟ้อเฉลี่ย 3% ต่อปี ให้เห็นภาพว่าเงินจะงอกเงยอย่างไรตาม Time Horizon ที่กำหนด]
+[วิเคราะห์เปรียบเทียบผลตอบแทนคาดหวังของพอร์ตนี้เทียบกับเงินเฟ้อเฉลี่ย 3% ต่อปี ให้เห็นภาพว่าเงินทุนรวมจากการ DCA เดือนละ {budget} จะงอกเงยประมาณเท่าไหร่ตาม Time Horizon ({horizon}) ที่กำหนด]
 
 Make sure the {count} recommended stocks are real, well-known US or global stocks that strictly fit their risk profile, horizon, goal, and the 3 chosen sectors. Provide the output directly, no introductory or concluding chat.
 """

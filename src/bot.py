@@ -49,6 +49,7 @@ class AdviceSurvey(StatesGroup):
     waiting_for_sector = State()
     waiting_for_subsector = State()
     waiting_for_count = State()
+    waiting_for_budget = State()
 
 
 ALL_SECTORS = {
@@ -166,6 +167,7 @@ class DCABot:
         self.dp.callback_query.register(self.advice_sector, AdviceSurvey.waiting_for_sector)
         self.dp.callback_query.register(self.advice_subsector, AdviceSurvey.waiting_for_subsector)
         self.dp.callback_query.register(self.advice_count, AdviceSurvey.waiting_for_count)
+        self.dp.callback_query.register(self.advice_budget, AdviceSurvey.waiting_for_budget)
 
     async def _add_to_watchlist(
         self, telegram_id: int, username: str | None, symbol: str, market: str
@@ -470,6 +472,33 @@ class DCABot:
         await callback.answer()
         
         cnt_str = callback.data.split("_")[1]
+        await state.update_data(count=cnt_str)
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💰 1,000 - 3,000 บาท/เดือน", callback_data="bdg_3000")],
+            [InlineKeyboardButton(text="💰 4,000 - 6,000 บาท/เดือน", callback_data="bdg_6000")],
+            [InlineKeyboardButton(text="💰 7,000 - 10,000 บาท/เดือน", callback_data="bdg_10000")],
+            [InlineKeyboardButton(text="💰 10,000 - 30,000 บาท/เดือน", callback_data="bdg_30000")],
+            [InlineKeyboardButton(text="⏭️ ข้าม / ไม่ระบุ", callback_data="bdg_none")]
+        ])
+        
+        await callback.message.edit_text(
+            "ด่านสุดท้ายครับ! 🎉\nเพื่อให้ AI คำนวณแผนการออมเงินและการเติบโตให้แม่นยำยิ่งขึ้น คุณมีงบในการ DCA หุ้นพอร์ตนี้ต่อเดือนประมาณเท่าไหร่ครับ?",
+            reply_markup=keyboard
+        )
+        await state.set_state(AdviceSurvey.waiting_for_budget)
+
+    async def advice_budget(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        
+        budget_map = {
+            "bdg_3000": "ประมาณ 3,000 บาท/เดือน",
+            "bdg_6000": "ประมาณ 6,000 บาท/เดือน",
+            "bdg_10000": "ประมาณ 10,000 บาท/เดือน",
+            "bdg_30000": "ประมาณ 30,000 บาท/เดือน",
+            "bdg_none": "ไม่ระบุ"
+        }
+        budget_str = budget_map.get(callback.data, "ไม่ระบุ")
         
         await callback.message.edit_text("⏳ AI กำลังประมวลผลข้อมูลและจัดพอร์ตให้คุณ กรุณารอสักครู่...")
         
@@ -477,6 +506,7 @@ class DCABot:
         horizon = data.get("horizon")
         goal = data.get("goal")
         detailed_sectors = data.get("detailed_sectors", [])
+        cnt_str = data.get("count", "5")
         
         # Fetch risk profile from DB
         telegram_id = callback.from_user.id
@@ -496,7 +526,8 @@ class DCABot:
             horizon=horizon,
             goal=goal,
             sectors=detailed_sectors,
-            count=cnt_str
+            count=cnt_str,
+            budget=budget_str
         )
         
         await callback.message.answer(advice_text, parse_mode="Markdown")
