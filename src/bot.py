@@ -5,6 +5,7 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.token import TokenValidationError, validate_token
 from sqlalchemy import select
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from src.config import Config
 from src.database import Database, Signal, User, Watchlist
@@ -252,10 +253,45 @@ class DCABot:
 
             await session.commit()
 
+    async def broadcast_scan(self, market: str = None):
+        """Run broadcast scan and send to configured channel."""
+        if not self.config.broadcast_channel_id:
+            logger.info("BROADCAST_CHANNEL_ID not set. Skipping broadcast.")
+            return
+
+        symbols = await self.db.get_unique_watchlist_symbols(market)
+        if not symbols:
+            logger.info(f"No symbols found for market {market}. Skipping broadcast.")
+            return
+
+        snapshots = self.fetcher.fetch(symbols)
+        if not snapshots:
+            return
+
+        enriched = self.transformer.enrich(snapshots)
+        bot_user = await self.bot.get_me()
+
+        for symbol, signal in enriched.items():
+            result = self.grader.grade(signal)
+            msg = f"#{symbol} Analysis:\nGrade: {result.grade}\n{result.advice}"
+            kb = create_add_watchlist_keyboard(symbol, bot_user.username)
+            try:
+                await self.bot.send_message(self.config.broadcast_channel_id, msg, reply_markup=kb)
+            except Exception as e:
+                logger.error(f"Failed to send broadcast for {symbol}: {e}")
+
     async def start(self):
-        """Initialize database and start polling."""
+        """Initialize database, scheduler, and start polling."""
         logger.info("Initializing database tables...")
         await self.db.create_tables()
+
+        logger.info("Starting scheduler...")
+        self.scheduler = AsyncIOScheduler(timezone="Asia/Bangkok")
+        self.scheduler.add_job(self.broadcast_scan, 'cron', hour=7, minute=0)
+        self.scheduler.add_job(self.broadcast_scan, 'cron', hour=9, minute=30, args=['TH'])
+        self.scheduler.add_job(self.broadcast_scan, 'cron', hour=20, minute=0, args=['US'])
+        self.scheduler.start()
+
         logger.info("Starting Telegram bot polling...")
         await self.dp.start_polling(self.bot)
 
