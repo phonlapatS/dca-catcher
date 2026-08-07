@@ -71,7 +71,7 @@ class DCABot:
         self.dp.message.register(self.cmd_remove, Command("remove"))
         self.dp.message.register(self.cmd_list, Command("list"))
         self.dp.message.register(self.cmd_scan, Command("scan"))
-        self.dp.message.register(self.cmd_risk, Command("risk"))
+        self.dp.message.register(self.cmd_survey, Command("survey"))
         self.dp.message.register(self.cmd_help, Command("help"))
         
         # FSM handlers
@@ -139,14 +139,14 @@ class DCABot:
             "🔹 `/remove <ชื่อหุ้น>` - ลบหุ้นออกจาก Watchlist\n"
             "   *(ตัวอย่าง: /remove NVDA)*\n"
             "🔹 `/list` - ดูรายชื่อหุ้นทั้งหมดใน Watchlist ของคุณ\n"
-            "🔹 `/risk` - ทำแบบสอบถามเพื่อตั้งค่า Profile ความเสี่ยงของคุณ\n"
+            "🔹 `/survey` - ทำแบบสอบถามเพื่อตั้งค่า Profile ความเสี่ยงของคุณ\n"
             "🔹 `/scan` - สั่ง AI ให้วิเคราะห์หุ้น **ทุกตัว** ใน Watchlist\n"
             "🔹 `/scan <ชื่อหุ้น>` - สั่ง AI ให้วิเคราะห์หุ้น **เฉพาะตัวที่ระบุ**\n"
             "   *(ตัวอย่าง: /scan TSLA)*"
         )
         await message.answer(help_text, parse_mode="Markdown")
 
-    async def cmd_risk(self, message: types.Message, state: FSMContext):
+    async def cmd_survey(self, message: types.Message, state: FSMContext):
         """Start the risk profile survey."""
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🏢 ถือยาวเน้นปันผล (Safe/Value)", callback_data="style_safe")],
