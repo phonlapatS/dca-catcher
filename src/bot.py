@@ -693,9 +693,9 @@ class DCABot:
                 empty = 10 - filled
                 bar = "█" * filled + "░" * empty
                 
-                # Create a score visual (fire emojis)
+                # Create a score visual (bar)
                 score_val = max(1, min(10, grade_result.score))
-                score_bar = "🔥" * score_val + "🤍" * (10 - score_val)
+                score_bar = "█" * score_val + "░" * (10 - score_val)
                 
                 # Create mention
                 username = message.from_user.username
@@ -780,7 +780,7 @@ class DCABot:
             bar = "█" * filled + "░" * empty
             
             score_val = max(1, min(10, result.score))
-            score_bar = "🔥" * score_val + "🤍" * (10 - score_val)
+            score_bar = "█" * score_val + "░" * (10 - score_val)
             
             mentions_str = " ".join(users)
             msg = (
