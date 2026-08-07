@@ -51,6 +51,80 @@ class AdviceSurvey(StatesGroup):
     waiting_for_count = State()
 
 
+ALL_SECTORS = {
+    "sec_tech": "💻 เทคโนโลยี & ซอฟต์แวร์",
+    "sec_comm": "📱 สื่อสาร & บันเทิง",
+    "sec_health": "🏥 สุขภาพ & การแพทย์",
+    "sec_fin": "🏦 การเงิน & ฟินเทค",
+    "sec_cons_disc": "🛍️ สินค้าฟุ่มเฟือย & ค้าปลีก",
+    "sec_cons_stap": "🛒 สินค้าอุปโภคบริโภคจำเป็น",
+    "sec_ind": "🏭 อุตสาหกรรม & โลจิสติกส์",
+    "sec_energy_util": "⚡ พลังงาน & สาธารณูปโภค",
+    "sec_re": "🏢 อสังหาริมทรัพย์",
+    "sec_mat": "🧱 วัสดุก่อสร้าง & เหมืองแร่"
+}
+
+SUBSECTORS = {
+    "💻 เทคโนโลยี & ซอฟต์แวร์": {
+        "sub_tech_semi": "🔬 ชิป & เซมิคอนดักเตอร์",
+        "sub_tech_cloud": "☁️ คลาวด์ & โครงสร้างพื้นฐาน",
+        "sub_tech_cyber": "🔒 ไซเบอร์ซีเคียวริตี้",
+        "sub_tech_ai": "🤖 AI & ซอฟต์แวร์องค์กร",
+        "sub_tech_hw": "💻 ฮาร์ดแวร์ & อุปกรณ์"
+    },
+    "📱 สื่อสาร & บันเทิง": {
+        "sub_comm_social": "🌐 โซเชียลมีเดีย",
+        "sub_comm_stream": "🎬 สตรีมมิ่ง & บันเทิง",
+        "sub_comm_tele": "📡 โทรคมนาคม",
+        "sub_comm_game": "🎮 เกมมิ่ง & อีสปอร์ต"
+    },
+    "🏥 สุขภาพ & การแพทย์": {
+        "sub_hlth_pharma": "💊 บริษัทยาขนาดใหญ่",
+        "sub_hlth_bio": "🧬 เทคโนโลยีชีวภาพ",
+        "sub_hlth_dev": "🔬 อุปกรณ์การแพทย์",
+        "sub_hlth_prov": "🏥 ประกันและโรงพยาบาล"
+    },
+    "🏦 การเงิน & ฟินเทค": {
+        "sub_fin_bank": "🏦 ธนาคารพาณิชย์",
+        "sub_fin_tech": "💳 ฟินเทค & เพย์เมนต์",
+        "sub_fin_ins": "🛡️ ประกันภัย"
+    },
+    "🛍️ สินค้าฟุ่มเฟือย & ค้าปลีก": {
+        "sub_disc_ev": "🚗 ยานยนต์ & EV",
+        "sub_disc_ecom": "🛒 อีคอมเมิร์ซ",
+        "sub_disc_travel": "✈️ ท่องเที่ยว & โรงแรม",
+        "sub_disc_lux": "💎 แบรนด์เนมหรู"
+    },
+    "🛒 สินค้าอุปโภคบริโภคจำเป็น": {
+        "sub_stap_food": "🍎 อาหาร & เครื่องดื่ม",
+        "sub_stap_house": "🧴 ของใช้ในบ้าน",
+        "sub_stap_retail": "🏪 ซูเปอร์มาร์เก็ต"
+    },
+    "🏭 อุตสาหกรรม & โลจิสติกส์": {
+        "sub_ind_aero": "✈️ การบิน & ป้องกันประเทศ",
+        "sub_ind_logi": "📦 โลจิสติกส์ & ขนส่ง",
+        "sub_ind_mach": "⚙️ เครื่องจักร & ก่อสร้าง"
+    },
+    "⚡ พลังงาน & สาธารณูปโภค": {
+        "sub_eng_oil": "🛢️ พลังงานดั้งเดิม (Oil/Gas)",
+        "sub_eng_clean": "☀️ พลังงานสะอาด",
+        "sub_eng_util": "💧 สาธารณูปโภคพื้นฐาน"
+    },
+    "🏢 อสังหาริมทรัพย์": {
+        "sub_re_data": "💾 Data Center REITs",
+        "sub_re_logi": "🏭 Logistics REITs",
+        "sub_re_com": "🏢 Commercial REITs",
+        "sub_re_res": "🏠 Residential REITs"
+    },
+    "🧱 วัสดุก่อสร้าง & เหมืองแร่": {
+        "sub_mat_chem": "🧪 เคมีภัณฑ์",
+        "sub_mat_metal": "⛏️ เหมืองแร่ & โลหะ",
+        "sub_mat_pkg": "📦 บรรจุภัณฑ์"
+    }
+}
+
+
+
 class DCABot:
     """Main application class — wires all components and handles Telegram commands."""
 
@@ -298,17 +372,8 @@ class DCABot:
         data = await state.get_data()
         sectors = data.get("sectors", [])
         
-        # Available sectors
-        all_sectors = {
-            "sec_tech": "💻 เทคโนโลยี & AI",
-            "sec_health": "🏥 สุขภาพ & การแพทย์",
-            "sec_def": "🛡️ ของกินของใช้ (Defensive)",
-            "sec_energy": "⚡ พลังงาน & สาธารณูปโภค",
-            "sec_fin": "🏦 การเงิน & ธนาคาร"
-        }
-        
         buttons = []
-        for key, name in all_sectors.items():
+        for key, name in ALL_SECTORS.items():
             # Add checkmark if selected
             text = f"✅ {name}" if name in sectors else name
             buttons.append([InlineKeyboardButton(text=text, callback_data=key)])
@@ -327,15 +392,7 @@ class DCABot:
     async def advice_sector(self, callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         
-        all_sectors = {
-            "sec_tech": "💻 เทคโนโลยี & AI",
-            "sec_health": "🏥 สุขภาพ & การแพทย์",
-            "sec_def": "🛡️ ของกินของใช้ (Defensive)",
-            "sec_energy": "⚡ พลังงาน & สาธารณูปโภค",
-            "sec_fin": "🏦 การเงิน & ธนาคาร"
-        }
-        
-        selected_name = all_sectors.get(callback.data)
+        selected_name = ALL_SECTORS.get(callback.data)
         if not selected_name:
             return
             
@@ -380,35 +437,6 @@ class DCABot:
 
         current_main_sector = sectors[idx]
         
-        SUBSECTORS = {
-            "💻 เทคโนโลยี & AI": {
-                "sub_tech_semi": "ชิปและเซมิคอนดักเตอร์",
-                "sub_tech_cloud": "คลาวด์คอมพิวติ้ง",
-                "sub_tech_cyber": "ไซเบอร์ซีเคียวริตี้",
-                "sub_tech_ai": "AI & ซอฟต์แวร์"
-            },
-            "🏥 สุขภาพ & การแพทย์": {
-                "sub_hlth_pharma": "บริษัทยาขนาดใหญ่",
-                "sub_hlth_bio": "เทคโนโลยีชีวภาพ",
-                "sub_hlth_dev": "อุปกรณ์การแพทย์",
-                "sub_hlth_prov": "ประกันและโรงพยาบาล"
-            },
-            "🛡️ ของกินของใช้ (Defensive)": {
-                "sub_def_staple": "สินค้าจำเป็น (Staples)",
-                "sub_def_disc": "สินค้าฟุ่มเฟือย/ค้าปลีก"
-            },
-            "⚡ พลังงาน & สาธารณูปโภค": {
-                "sub_eng_oil": "พลังงานดั้งเดิม (Oil/Gas)",
-                "sub_eng_clean": "พลังงานสะอาด",
-                "sub_eng_infra": "โครงสร้างพื้นฐาน"
-            },
-            "🏦 การเงิน & ธนาคาร": {
-                "sub_fin_bank": "ธนาคารดั้งเดิม",
-                "sub_fin_tech": "ฟินเทค & เพย์เมนต์",
-                "sub_fin_ins": "ประกันภัย"
-            }
-        }
-        
         subs = SUBSECTORS.get(current_main_sector, {"sub_any": "สนใจทั้งหมดในกลุ่มนี้"})
         buttons = []
         for key, name in subs.items():
@@ -429,35 +457,6 @@ class DCABot:
         detailed = data.get("detailed_sectors", [])
         
         current_main_sector = sectors[idx]
-        
-        SUBSECTORS = {
-            "💻 เทคโนโลยี & AI": {
-                "sub_tech_semi": "ชิปและเซมิคอนดักเตอร์",
-                "sub_tech_cloud": "คลาวด์คอมพิวติ้ง",
-                "sub_tech_cyber": "ไซเบอร์ซีเคียวริตี้",
-                "sub_tech_ai": "AI & ซอฟต์แวร์"
-            },
-            "🏥 สุขภาพ & การแพทย์": {
-                "sub_hlth_pharma": "บริษัทยาขนาดใหญ่",
-                "sub_hlth_bio": "เทคโนโลยีชีวภาพ",
-                "sub_hlth_dev": "อุปกรณ์การแพทย์",
-                "sub_hlth_prov": "ประกันและโรงพยาบาล"
-            },
-            "🛡️ ของกินของใช้ (Defensive)": {
-                "sub_def_staple": "สินค้าจำเป็น (Staples)",
-                "sub_def_disc": "สินค้าฟุ่มเฟือย/ค้าปลีก"
-            },
-            "⚡ พลังงาน & สาธารณูปโภค": {
-                "sub_eng_oil": "พลังงานดั้งเดิม (Oil/Gas)",
-                "sub_eng_clean": "พลังงานสะอาด",
-                "sub_eng_infra": "โครงสร้างพื้นฐาน"
-            },
-            "🏦 การเงิน & ธนาคาร": {
-                "sub_fin_bank": "ธนาคารดั้งเดิม",
-                "sub_fin_tech": "ฟินเทค & เพย์เมนต์",
-                "sub_fin_ins": "ประกันภัย"
-            }
-        }
         
         subs = SUBSECTORS.get(current_main_sector, {"sub_any": "สนใจทั้งหมดในกลุ่มนี้"})
         chosen_sub_name = subs.get(callback.data, "ทั้งหมด")
