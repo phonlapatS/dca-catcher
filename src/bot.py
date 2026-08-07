@@ -47,6 +47,7 @@ class AdviceSurvey(StatesGroup):
     waiting_for_horizon = State()
     waiting_for_goal = State()
     waiting_for_sector = State()
+    waiting_for_subsector = State()
     waiting_for_count = State()
 
 
@@ -89,6 +90,7 @@ class DCABot:
         self.dp.callback_query.register(self.advice_horizon, AdviceSurvey.waiting_for_horizon)
         self.dp.callback_query.register(self.advice_goal, AdviceSurvey.waiting_for_goal)
         self.dp.callback_query.register(self.advice_sector, AdviceSurvey.waiting_for_sector)
+        self.dp.callback_query.register(self.advice_subsector, AdviceSurvey.waiting_for_subsector)
         self.dp.callback_query.register(self.advice_count, AdviceSurvey.waiting_for_count)
 
     async def _add_to_watchlist(
@@ -350,21 +352,120 @@ class DCABot:
         await state.update_data(sectors=sectors)
         
         if len(sectors) == 3:
-            # Transition to asking for stock count
+            # Transition to asking for subsectors
+            await state.update_data(current_sub_idx=0, detailed_sectors=[])
+            await self._ask_next_subsector(callback.message, state)
+        else:
+            # Re-render keyboard
+            await self._show_sector_keyboard(callback.message, state)
+
+    async def _ask_next_subsector(self, message: types.Message, state: FSMContext):
+        data = await state.get_data()
+        sectors = data.get("sectors", [])
+        idx = data.get("current_sub_idx", 0)
+
+        if idx >= len(sectors):
+            # All 3 subsectors chosen, move to count
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🎯 แนะนำ 3 ตัว (เน้นๆ โฟกัสๆ)", callback_data="cnt_3")],
                 [InlineKeyboardButton(text="🖐️ แนะนำ 5 ตัว (มาตรฐาน)", callback_data="cnt_5")],
                 [InlineKeyboardButton(text="🍀 แนะนำ 7 ตัว (กระจายความเสี่ยง)", callback_data="cnt_7")],
                 [InlineKeyboardButton(text="🔟 แนะนำ 10 ตัว (จัดพอร์ตใหญ่)", callback_data="cnt_10")]
             ])
-            await callback.message.edit_text(
-                "เกือบเสร็จแล้วครับ! 📈\nคุณอยากให้ AI แนะนำหุ้นกี่ตัวสำหรับพอร์ตนี้ครับ?",
-                reply_markup=keyboard
-            )
+            text = "เกือบเสร็จแล้วครับ! 📈\nคุณอยากให้ AI แนะนำหุ้นกี่ตัวสำหรับพอร์ตนี้ครับ?"
+            if isinstance(message, types.Message):
+                await message.edit_text(text, reply_markup=keyboard)
             await state.set_state(AdviceSurvey.waiting_for_count)
-        else:
-            # Re-render keyboard
-            await self._show_sector_keyboard(callback.message, state)
+            return
+
+        current_main_sector = sectors[idx]
+        
+        SUBSECTORS = {
+            "💻 เทคโนโลยี & AI": {
+                "sub_tech_semi": "ชิปและเซมิคอนดักเตอร์",
+                "sub_tech_cloud": "คลาวด์คอมพิวติ้ง",
+                "sub_tech_cyber": "ไซเบอร์ซีเคียวริตี้",
+                "sub_tech_ai": "AI & ซอฟต์แวร์"
+            },
+            "🏥 สุขภาพ & การแพทย์": {
+                "sub_hlth_pharma": "บริษัทยาขนาดใหญ่",
+                "sub_hlth_bio": "เทคโนโลยีชีวภาพ",
+                "sub_hlth_dev": "อุปกรณ์การแพทย์",
+                "sub_hlth_prov": "ประกันและโรงพยาบาล"
+            },
+            "🛡️ ของกินของใช้ (Defensive)": {
+                "sub_def_staple": "สินค้าจำเป็น (Staples)",
+                "sub_def_disc": "สินค้าฟุ่มเฟือย/ค้าปลีก"
+            },
+            "⚡ พลังงาน & สาธารณูปโภค": {
+                "sub_eng_oil": "พลังงานดั้งเดิม (Oil/Gas)",
+                "sub_eng_clean": "พลังงานสะอาด",
+                "sub_eng_infra": "โครงสร้างพื้นฐาน"
+            },
+            "🏦 การเงิน & ธนาคาร": {
+                "sub_fin_bank": "ธนาคารดั้งเดิม",
+                "sub_fin_tech": "ฟินเทค & เพย์เมนต์",
+                "sub_fin_ins": "ประกันภัย"
+            }
+        }
+        
+        subs = SUBSECTORS.get(current_main_sector, {"sub_any": "สนใจทั้งหมดในกลุ่มนี้"})
+        buttons = []
+        for key, name in subs.items():
+            buttons.append([InlineKeyboardButton(text=name, callback_data=key)])
+            
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+        text = f"สำหรับกลุ่ม **{current_main_sector}**\nคุณสนใจเจาะจงไปที่กลุ่มย่อยไหนเป็นพิเศษครับ?"
+        
+        if isinstance(message, types.Message):
+            await message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+        await state.set_state(AdviceSurvey.waiting_for_subsector)
+
+    async def advice_subsector(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        data = await state.get_data()
+        sectors = data.get("sectors", [])
+        idx = data.get("current_sub_idx", 0)
+        detailed = data.get("detailed_sectors", [])
+        
+        current_main_sector = sectors[idx]
+        
+        SUBSECTORS = {
+            "💻 เทคโนโลยี & AI": {
+                "sub_tech_semi": "ชิปและเซมิคอนดักเตอร์",
+                "sub_tech_cloud": "คลาวด์คอมพิวติ้ง",
+                "sub_tech_cyber": "ไซเบอร์ซีเคียวริตี้",
+                "sub_tech_ai": "AI & ซอฟต์แวร์"
+            },
+            "🏥 สุขภาพ & การแพทย์": {
+                "sub_hlth_pharma": "บริษัทยาขนาดใหญ่",
+                "sub_hlth_bio": "เทคโนโลยีชีวภาพ",
+                "sub_hlth_dev": "อุปกรณ์การแพทย์",
+                "sub_hlth_prov": "ประกันและโรงพยาบาล"
+            },
+            "🛡️ ของกินของใช้ (Defensive)": {
+                "sub_def_staple": "สินค้าจำเป็น (Staples)",
+                "sub_def_disc": "สินค้าฟุ่มเฟือย/ค้าปลีก"
+            },
+            "⚡ พลังงาน & สาธารณูปโภค": {
+                "sub_eng_oil": "พลังงานดั้งเดิม (Oil/Gas)",
+                "sub_eng_clean": "พลังงานสะอาด",
+                "sub_eng_infra": "โครงสร้างพื้นฐาน"
+            },
+            "🏦 การเงิน & ธนาคาร": {
+                "sub_fin_bank": "ธนาคารดั้งเดิม",
+                "sub_fin_tech": "ฟินเทค & เพย์เมนต์",
+                "sub_fin_ins": "ประกันภัย"
+            }
+        }
+        
+        subs = SUBSECTORS.get(current_main_sector, {"sub_any": "สนใจทั้งหมดในกลุ่มนี้"})
+        chosen_sub_name = subs.get(callback.data, "ทั้งหมด")
+        
+        detailed.append(f"{current_main_sector} (เน้น: {chosen_sub_name})")
+        
+        await state.update_data(detailed_sectors=detailed, current_sub_idx=idx + 1)
+        await self._ask_next_subsector(callback.message, state)
 
     async def advice_count(self, callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
@@ -376,7 +477,7 @@ class DCABot:
         data = await state.get_data()
         horizon = data.get("horizon")
         goal = data.get("goal")
-        sectors = data.get("sectors", [])
+        detailed_sectors = data.get("detailed_sectors", [])
         
         # Fetch risk profile from DB
         telegram_id = callback.from_user.id
@@ -395,7 +496,7 @@ class DCABot:
             risk_profile=risk_profile,
             horizon=horizon,
             goal=goal,
-            sectors=sectors,
+            sectors=detailed_sectors,
             count=cnt_str
         )
         
