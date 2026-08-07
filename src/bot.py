@@ -608,57 +608,70 @@ class DCABot:
         await state.clear()
 
     async def cmd_add(self, message: types.Message):
-        """Handle /add <symbol> <market> — add stock to user's watchlist.
+        """Handle /add <symbol>... — add multiple stocks to user's watchlist.
 
-        Usage: /add NVDA US  or  /add PTT TH
+        Usage: /add NVDA AAPL PTT.BK
         - Creates user if not exists (upsert by telegram_id)
-        - Adds symbol+market to their watchlist
+        - Adds symbols to their watchlist
         - Responds with confirmation
         """
         if not message.text or not message.from_user:
             return
 
-        parts = message.text.strip().split()
-        if len(parts) < 2:
+        # Remove the /add command part
+        text = message.text.replace("/add", "", 1).strip()
+        if not text:
             await message.reply(
-                "❌ Usage: /add <symbol> [market]\n"
-                "Example: /add NVDA US or /add PTT.BK TH"
+                "❌ Usage: /add <symbol1> <symbol2> ...\n"
+                "Example: /add NVDA AAPL PTT.BK"
             )
             return
 
-        symbol = parts[1].upper()
-        market = parts[2].upper() if len(parts) >= 3 else ("TH" if symbol.endswith(".BK") else "US")
+        # Replace commas with spaces and split
+        symbols = [s.strip().upper() for s in text.replace(",", " ").split() if s.strip()]
 
         telegram_id = message.from_user.id
         username = message.from_user.username
 
-        res_text = await self._add_to_watchlist(telegram_id, username, symbol, market)
-        await message.reply(res_text)
+        results = []
+        for symbol in symbols:
+            # Ignore legacy market arguments if users accidentally typed them
+            if symbol in ["US", "TH"]:
+                continue
+            market = "TH" if symbol.endswith(".BK") else "US"
+            res_text = await self._add_to_watchlist(telegram_id, username, symbol, market)
+            results.append(res_text)
+
+        await message.reply("\n".join(results))
 
     async def cmd_remove(self, message: types.Message):
-        """Handle /remove <symbol> — remove stock from user's watchlist."""
+        """Handle /remove <symbol>... — remove multiple stocks from user's watchlist."""
         if not message.text or not message.from_user:
             return
 
-        parts = message.text.strip().split()
-        if len(parts) < 2:
-            await message.reply("❌ Usage: /remove <symbol>\nExample: /remove NVDA")
+        text = message.text.replace("/remove", "", 1).strip()
+        if not text:
+            await message.reply("❌ Usage: /remove <symbol1> <symbol2> ...\nExample: /remove NVDA AAPL")
             return
 
-        symbol = parts[1].upper()
+        symbols = [s.strip().upper() for s in text.replace(",", " ").split() if s.strip()]
         telegram_id = message.from_user.id
-
+        
+        results = []
         async with self.db.session() as session:
-            stmt = select(Watchlist).join(User, Watchlist.user_id == User.id).where(User.telegram_id == telegram_id, Watchlist.symbol == symbol)
-            res = await session.execute(stmt)
-            item = res.scalar_one_or_none()
+            for symbol in symbols:
+                stmt = select(Watchlist).join(User, Watchlist.user_id == User.id).where(User.telegram_id == telegram_id, Watchlist.symbol == symbol)
+                res = await session.execute(stmt)
+                item = res.scalar_one_or_none()
 
-            if item:
-                await session.delete(item)
-                await session.commit()
-                await message.reply(f"🗑️ Removed {symbol} from your watchlist.")
-            else:
-                await message.reply(f"ℹ️ {symbol} is not in your watchlist.")
+                if item:
+                    await session.delete(item)
+                    results.append(f"🗑️ Removed {symbol} from your watchlist.")
+                else:
+                    results.append(f"ℹ️ {symbol} is not in your watchlist.")
+            await session.commit()
+            
+        await message.reply("\n".join(results))
 
     async def cmd_list(self, message: types.Message):
         """Handle /list — show user's watchlist."""
