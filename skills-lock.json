@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "skills": {
+    "finance-news": {
+      "source": "sundial-org/awesome-openclaw-skills",
+      "sourceType": "github",
+      "skillPath": "skills/finance-news/SKILL.md",
+      "computedHash": "e5eddb7c6fa9f55fe9e261cb4a94c1b49e43d799ec8c989eefdebe5e197f931d"
+    },
+    "finance-sentiment": {
+      "source": "himself65/finance-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/data-providers/skills/finance-sentiment/SKILL.md",
+      "computedHash": "e53e73f0c63a3ee617181775b1084463b3a995bccd6b4ee250fb9838e6a5c1db"
+    },
+    "google-news": {
+      "source": "outsharp/shipp-skills",
+      "sourceType": "github",
+      "skillPath": "skills/google-news/SKILL.md",
+      "computedHash": "8ac0c81402e4a98db77f15bfc3a0b1516caf7ea216b1456a438c72ec797d2413"
+    },
+    "kien-thai": {
+      "source": "chakrit/kien-thai",
+      "sourceType": "github",
+      "skillPath": "skills/kien-thai/SKILL.md",
+      "computedHash": "01af9b3c0e248c630ea4a7123a61b109aab5d93cc6a6c4960c6d612491ed69bf"
+    },
+    "risk-assessment": {
+      "source": "anthropics/knowledge-work-plugins",
+      "sourceType": "github",
+      "skillPath": "operations/skills/risk-assessment/SKILL.md",
+      "computedHash": "8b96b86e6700871c9c88f0576add441f6a74df35445d5a67619a896a6f700d51"
+    },
+    "stock-analysis": {
+      "source": "gracefullight/stock-checker",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/stock-analysis/SKILL.md",
+      "computedHash": "bcd3abe47bd81a2c39b77fd3f116f98ff1f30ffe2604fc4189fd5d717581ff00"
+    }
+  }
+}

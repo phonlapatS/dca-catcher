@@ -2,6 +2,7 @@ import logging
 import re
 from typing import Tuple, Optional
 from sqlalchemy import select, func
+import math
 
 from src.database import Database, Watchlist, User
 
@@ -78,8 +79,13 @@ class AlertManager:
                 return False, None
 
             # Hysteresis check using float comparison to prevent format mismatch
+            def is_same_zone(z1, z2):
+                if z1 is None or z2 is None:
+                    return False
+                return abs(z1 - z2) < 1e-5
+
             already_notified = any(
-                _extract_zone_price(item.last_notified_zone) == active_zone["price"]
+                is_same_zone(_extract_zone_price(item.last_notified_zone), active_zone["price"])
                 for item in watchlist_items
             )
             if already_notified:
@@ -90,11 +96,15 @@ class AlertManager:
             await session.commit()
             
             # Format message
-            next_target_info = f" {next_zone['price']} ({next_zone['label']})" if next_zone else " N/A (N/A)"
-            
-            msg = (
-                f"ท่านสามารถเข้าซื้อที่ราคาเป้าหมายตอนนี้ได้แล้ว {active_zone['price']} ({active_zone['label']}) "
-                f"รอดูสถาณการณ์ว่าราคาจะขยับขึ้นหรือลงต่อที่เป้าหมายถัดไป{next_target_info}"
-            )
+            if next_zone:
+                msg = (
+                    f"🎯 **เป้าหมายที่ถึงแล้ว:** ${active_zone['price']} ({active_zone['label']})\n\n"
+                    f"💬 ท่านสามารถพิจารณาเข้าซื้อที่ราคานี้ได้เลย หรือรอดูสถานการณ์ว่าราคาจะขยับลงต่อถึงเป้าหมายถัดไปที่ ${next_zone['price']} ({next_zone['label']}) หรือไม่"
+                )
+            else:
+                msg = (
+                    f"🎯 **เป้าหมายที่ถึงแล้ว:** ${active_zone['price']} ({active_zone['label']})\n\n"
+                    f"💬 ท่านสามารถพิจารณาเข้าซื้อที่ราคานี้ได้เลยครับ (นี่คือเป้าหมายสุดท้ายที่คุณตั้งไว้)"
+                )
             return True, msg
 

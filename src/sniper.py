@@ -4,9 +4,13 @@ import logging
 import os
 import re
 from datetime import datetime, time
-from typing import Awaitable, Callable, Optional
+from typing import Awaitable, Callable, Optional, TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
+if TYPE_CHECKING:
+    from aiogram import Bot
+
+from aiogram.exceptions import TelegramAPIError, TelegramForbiddenError
 import websockets
 from sqlalchemy import select, func
 
@@ -28,6 +32,8 @@ class AlpacaSniper:
         on_tick_callback: Optional[Callable[[str, float], Awaitable[None]]] = None,
         alert_manager: Optional[AlertManager] = None,
         poll_interval: float = 60.0,
+        bot: Optional["Bot"] = None,
+        broadcast_channel_id: Optional[str] = None,
     ):
         self.db = db
         self.api_key = api_key or os.environ.get("ALPACA_API_KEY", "")
@@ -36,6 +42,8 @@ class AlpacaSniper:
         self.on_tick_callback = on_tick_callback
         self.alert_manager = alert_manager or (AlertManager(db) if db else None)
         self.poll_interval = poll_interval
+        self.bot = bot
+        self.broadcast_channel_id = broadcast_channel_id
 
         self.running = False
         self._task: Optional[asyncio.Task] = None
@@ -146,14 +154,14 @@ class AlpacaSniper:
         try:
             async with self.db.session() as session:
                 stmt = (
-                    select(Watchlist, User.telegram_id)
+                    select(Watchlist, User.telegram_id, User.notify_dm, User.username)
                     .join(User, Watchlist.user_id == User.id)
                     .where(Watchlist.market == "US", func.upper(Watchlist.symbol) == symbol.upper())
                 )
                 res = await session.execute(stmt)
                 rows = res.all()
 
-            for item, telegram_id in rows:
+            for item, telegram_id, notify_dm, username in rows:
                 if not item.target_zones_str:
                     continue
 
@@ -167,6 +175,15 @@ class AlpacaSniper:
                     if alerted:
                         logger.info(
                             f"SNIPER TRIGGER: {symbol} at ${price} <= target zone for user {telegram_id}: {msg}"
+                        )
+                        # Send actual Telegram notification
+                        await self._send_notification(
+                            telegram_id=telegram_id,
+                            username=username,
+                            notify_dm=notify_dm,
+                            symbol=symbol,
+                            price=price,
+                            msg=msg,
                         )
                 else:
                     zones = self.parse_target_zones(item.target_zones_str)
@@ -186,9 +203,75 @@ class AlpacaSniper:
                                     if w_item:
                                         w_item.last_notified_zone = active_zone_str
                                         await session.commit()
+                                # Send actual Telegram notification
+                                fallback_msg = f"🎯 {symbol} ถึงราคาเป้าหมาย ${target:,.2f} แล้ว! ราคาปัจจุบัน ${price:,.2f}"
+                                await self._send_notification(
+                                    telegram_id=telegram_id,
+                                    username=username,
+                                    notify_dm=notify_dm,
+                                    symbol=symbol,
+                                    price=price,
+                                    msg=fallback_msg,
+                                )
                             break
         except Exception as e:
             logger.error(f"Error checking target triggers for {symbol}: {e}", exc_info=True)
+
+    async def _send_notification(
+        self,
+        telegram_id: int,
+        username: str | None,
+        notify_dm: bool,
+        symbol: str,
+        price: float,
+        msg: str,
+    ):
+        """Send notification to user via DM or broadcast channel."""
+        if not self.bot:
+            logger.warning(f"No bot instance available to send notification to user {telegram_id}")
+            return
+
+        notification_text = (
+            f"🔔 **แจ้งเตือนราคาเป้าหมาย!**\n\n"
+            f"📊 **{symbol}** — ราคาปัจจุบัน: **${price:,.2f}**\n\n"
+            f"{msg}"
+        )
+
+        try:
+            if notify_dm:
+                # Send private DM to user
+                await self.bot.send_message(
+                    chat_id=telegram_id,
+                    text=notification_text,
+                    parse_mode="Markdown",
+                )
+                logger.info(f"Sent DM notification to user {telegram_id} for {symbol}")
+            else:
+                # Send to broadcast channel with user tag
+                if self.broadcast_channel_id:
+                    mention = f"@{username}" if username else f"[User](tg://user?id={telegram_id})"
+                    channel_text = f"🏷️ {mention}\n{notification_text}"
+                    await self.bot.send_message(
+                        chat_id=self.broadcast_channel_id,
+                        text=channel_text,
+                        parse_mode="Markdown",
+                    )
+                    logger.info(f"Sent channel notification tagging user {telegram_id} for {symbol}")
+                else:
+                    # Fallback to DM if no channel configured
+                    await self.bot.send_message(
+                        chat_id=telegram_id,
+                        text=notification_text,
+                        parse_mode="Markdown",
+                    )
+                    logger.info(f"Fallback DM (no channel) to user {telegram_id} for {symbol}")
+        except TelegramForbiddenError:
+            logger.warning(f"User {telegram_id} has blocked the bot. Unable to send DM for {symbol}.")
+            # Fallback to group channel without tag if needed, or simply pass
+        except TelegramAPIError as e:
+            logger.error(f"Telegram API Error sending notification to {telegram_id}: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error sending notification to {telegram_id}: {e}", exc_info=True)
 
 
     async def on_trade_tick(self, symbol: str, price: float):

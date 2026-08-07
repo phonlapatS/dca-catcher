@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
@@ -151,6 +152,9 @@ class DCABot:
             token = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
 
         self.bot = Bot(token=token)
+        self.sniper.bot = self.bot
+        self.sniper.broadcast_channel_id = config.broadcast_channel_id
+        
         self.dp = Dispatcher()
         self._register_handlers()
 
@@ -180,10 +184,25 @@ class DCABot:
         self.dp.callback_query.register(self.advice_add_watchlist, F.data == "advice_add_wl", AdviceSurvey.waiting_for_watchlist_decision)
         self.dp.callback_query.register(self.advice_skip_watchlist, F.data == "advice_skip_wl", AdviceSurvey.waiting_for_watchlist_decision)
 
+        # Target approval handlers for /scan
+        self.dp.callback_query.register(self.tgt_toggle, F.data.startswith("tgt_toggle_"))
+        self.dp.callback_query.register(self.tgt_confirm, F.data.startswith("tgt_confirm_"))
+        self.dp.callback_query.register(self.set_notify_pref, F.data.startswith("notify_pref_"))
+
     async def _add_to_watchlist(
-        self, telegram_id: int, username: str | None, symbol: str, market: str, target_price: float = None
+        self, telegram_id: int, username: str | None, symbol: str, market: str, target_price: float | list[float] | None = None
     ) -> str:
         """Helper method to upsert user and add symbol to watchlist."""
+        if isinstance(target_price, list):
+            target_str = ", ".join(f"{p} (User Target)" for p in target_price) if target_price else None
+            price_display = ", ".join(f"${p}" for p in target_price)
+        elif target_price is not None:
+            target_str = f"{target_price} (User Target)"
+            price_display = f"${target_price}"
+        else:
+            target_str = None
+            price_display = ""
+
         async with self.db.session() as session:
             stmt = select(User).where(User.telegram_id == telegram_id)
             res = await session.execute(stmt)
@@ -202,28 +221,56 @@ class DCABot:
             existing = res_w.scalar_one_or_none()
 
             if existing:
-                if target_price:
-                    existing.target_zones_str = f"{target_price} (User Target)"
+                if target_str:
+                    existing.target_zones_str = target_str
+                    existing.last_notified_zone = None  # Reset notification state
                     await session.commit()
-                    return f"✅ Updated {symbol} target to ${target_price}"
+                    return f"✅ Updated {symbol} target to {price_display}"
                 return f"ℹ️ Symbol {symbol} ({market}) is already in your watchlist."
             else:
-                target_str = f"{target_price} (User Target)" if target_price else None
                 item = Watchlist(user_id=user.id, symbol=symbol, market=market, target_zones_str=target_str)
                 session.add(item)
                 await session.commit()
                 return f"✅ Added {symbol} ({market}) to your watchlist."
 
     async def cmd_start(self, message: types.Message, command: CommandObject | None = None):
-        """Handle /start — welcome message and deep links (e.g. /start add_NVDA)."""
+        """Handle /start — welcome message, user registration, and deep links."""
+        if not message.from_user:
+            return
+            
+        telegram_id = message.from_user.id
+        username = message.from_user.username
+        
+        # Ensure user is registered
+        async with self.db.session() as session:
+            stmt = select(User).where(User.telegram_id == telegram_id)
+            res = await session.execute(stmt)
+            user = res.scalar_one_or_none()
+            if not user:
+                user = User(telegram_id=telegram_id, username=username)
+                session.add(user)
+                await session.commit()
+                
+        # If run in a group, ask them to start a private chat for DM capability
+        if message.chat.type in ["group", "supergroup"]:
+            bot_info = await self.bot.get_me()
+            dm_link = f"https://t.me/{bot_info.username}?start=dm_setup"
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="👉 เปิดแชทส่วนตัว (DM) กับบอท", url=dm_link)]
+            ])
+            await message.reply(
+                f"👋 สวัสดีครับ @{username or 'สมาชิก'}!\n"
+                "เพื่อให้บอทสามารถแจ้งเตือนราคาหุ้นให้คุณทาง **DM ส่วนตัว** ได้โดยตรง รบกวนกดปุ่มด้านล่างเพื่อเปิดแชทและกด **Start** หนึ่งครั้งนะครับ 🚀",
+                reply_markup=keyboard
+            )
+            return
+
         if command and command.args and command.args.startswith("add_"):
-            if not message.from_user:
-                return
             symbol = command.args.split("_", 1)[1].upper()
             market = "TH" if symbol.endswith(".BK") else "US"
             await message.answer(f"⏳ Adding {symbol} to your watchlist...")
             res_text = await self._add_to_watchlist(
-                message.from_user.id, message.from_user.username, symbol, market
+                telegram_id, username, symbol, market
             )
             await message.answer(res_text)
             return
@@ -231,7 +278,7 @@ class DCABot:
         welcome_text = (
             "👋 Welcome to DCA Catcher Bot!\n"
             "ยินดีต้อนรับสู่ระบบวิเคราะห์หุ้นสำหรับ DCA ด้วย AI\n\n"
-            "พิมพ์ /help เพื่อดูคำสั่งทั้งหมดที่ใช้งานได้ครับ"
+            "ตอนนี้บอทพร้อมที่จะแจ้งเตือนคุณผ่านทาง DM แล้วครับ! พิมพ์ /help เพื่อดูคำสั่งทั้งหมดที่ใช้งานได้"
         )
         await message.answer(welcome_text)
 
@@ -638,24 +685,28 @@ class DCABot:
             )
             return
 
-        # Parse: /add AAPL 150 or /add AAPL
-        parts = text.replace(",", " ").split()
+        # Parse: /add AAPL 150 NVDA 200 TSLA MSFT 300
+        parts = text.replace(",", " ").split()[1:] # skip command
         if not parts: return
         
-        symbol = parts[0].strip().upper()
-        target_price = None
-        if len(parts) > 1:
-            try:
-                target_price = float(parts[1])
-            except ValueError:
-                pass
-                
-        market = "TH" if symbol.endswith(".BK") else "US"
         telegram_id = message.from_user.id
         username = message.from_user.username
         
-        res_text = await self._add_to_watchlist(telegram_id, username, symbol, market, target_price)
-        results = [res_text]
+        results = []
+        i = 0
+        while i < len(parts):
+            symbol = parts[i].strip().upper()
+            target_price = None
+            i += 1
+            if i < len(parts):
+                try:
+                    target_price = float(parts[i])
+                    i += 1
+                except ValueError:
+                    pass
+            market = "TH" if symbol.endswith(".BK") else "US"
+            res_text = await self._add_to_watchlist(telegram_id, username, symbol, market, target_price)
+            results.append(res_text)
         
         # Update active sniper subscription dynamically
         if self.sniper.running:
@@ -711,11 +762,19 @@ class DCABot:
                 )
                 return
 
-            lines = ["📋 Your Watchlist (รายการหุ้นของคุณ):"]
+            lines = ["📋 **Your Watchlist & Target Prices (รายการหุ้นและราคาเป้าหมาย):**\n"]
             for item in items:
-                lines.append(f"• {item.symbol} ({item.market})")
+                if item.target_zones_str:
+                    prices = re.findall(r"(\d+(?:\.\d+)?)", item.target_zones_str)
+                    if prices:
+                        target_disp = ", ".join(f"${float(p):,.2f}" for p in prices)
+                        lines.append(f"• **{item.symbol}** ({item.market}) 🎯 เป้าหมาย: `{target_disp}`")
+                    else:
+                        lines.append(f"• **{item.symbol}** ({item.market}) — `{item.target_zones_str}`")
+                else:
+                    lines.append(f"• **{item.symbol}** ({item.market}) — *(ไม่มีเป้าหมาย)*")
 
-            await message.reply("\n".join(lines))
+            await message.reply("\n".join(lines), parse_mode="Markdown")
 
     async def cmd_scan(self, message: types.Message):
         """Handle /scan [symbol] — run analysis pipeline.
@@ -732,7 +791,7 @@ class DCABot:
         symbols: list[str] = []
 
         if len(parts) >= 2:
-            symbols = [parts[1].upper()]
+            symbols = [p.upper().replace(",", "") for p in parts[1:] if p.strip()]
         else:
             # Query user's watchlist
             telegram_id = message.from_user.id
@@ -822,13 +881,106 @@ class DCABot:
                     f"🛒 **ราคาเป้าหมาย (Buy Targets):**\n"
                     f"{targets_str}"
                 )
+                # Create interactive target approval keyboard
+                buttons = []
+                if getattr(grade_result, "buy_targets", None):
+                    for idx, t in enumerate(grade_result.buy_targets):
+                        buttons.append([InlineKeyboardButton(text=f"[ ] ${t:,.2f}", callback_data=f"tgt_toggle_{grade_result.symbol}_{idx}")])
+                    buttons.append([InlineKeyboardButton(text="🎯 ยืนยันเป้าหมายที่เลือก", callback_data=f"tgt_confirm_{grade_result.symbol}")])
+
+                keyboard = InlineKeyboardMarkup(inline_keyboard=buttons) if buttons else None
+
                 try:
-                    await message.reply(report_text, parse_mode="Markdown")
+                    await message.reply(report_text, parse_mode="Markdown", reply_markup=keyboard)
                 except Exception as e:
                     logger.error(f"Markdown parse error in scan: {e}. Falling back to plain text.")
-                    await message.reply(report_text)
+                    await message.reply(report_text, reply_markup=keyboard)
 
             await session.commit()
+
+    async def tgt_toggle(self, callback: types.CallbackQuery):
+        """Toggle [ ] and [✅] selection on target buttons."""
+        await callback.answer()
+        markup = callback.message.reply_markup
+        if not markup:
+            return
+
+        for row in markup.inline_keyboard:
+            for btn in row:
+                if btn.callback_data == callback.data:
+                    if btn.text.startswith("[ ]"):
+                        btn.text = btn.text.replace("[ ]", "[✅]", 1)
+                    elif btn.text.startswith("[✅]"):
+                        btn.text = btn.text.replace("[✅]", "[ ]", 1)
+
+        await callback.message.edit_reply_markup(reply_markup=markup)
+
+    async def tgt_confirm(self, callback: types.CallbackQuery):
+        """Confirm selected target prices and add to watchlist for AlpacaSniper."""
+        await callback.answer()
+        symbol = callback.data.split("tgt_confirm_")[1]
+        markup = callback.message.reply_markup
+        if not markup:
+            return
+
+        selected_prices = []
+        for row in markup.inline_keyboard:
+            for btn in row:
+                if btn.text.startswith("[✅]"):
+                    try:
+                        price_str = btn.text.split("$")[1].replace(",", "").strip()
+                        selected_prices.append(float(price_str))
+                    except (IndexError, ValueError):
+                        pass
+
+        if not selected_prices:
+            await callback.message.answer(f"⚠️ คุณยังไม่ได้เลือกเป้าหมายสำหรับ {symbol} เลยครับ (แตะปุ่มเพื่อเลือกก่อนกด ยืนยัน)")
+            return
+
+        telegram_id = callback.from_user.id
+        username = callback.from_user.username
+        market = "TH" if symbol.endswith(".BK") else "US"
+
+        res_text = await self._add_to_watchlist(telegram_id, username, symbol, market, selected_prices)
+
+        if self.sniper and self.sniper.running:
+            await self.sniper.update_subscriptions()
+
+        prices_formatted = ", ".join(f"${p:,.2f}" for p in selected_prices)
+        
+        pref_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📩 แจ้งเตือนทาง DM ส่วนตัว (แนะนำ)", callback_data="notify_pref_dm")],
+            [InlineKeyboardButton(text="📢 แจ้งเตือนในกลุ่ม (@tag)", callback_data="notify_pref_group")]
+        ])
+        
+        await callback.message.reply(
+            f"🎯 **อนุมัติเป้าหมายเรียบร้อย!**\n\n"
+            f"บันทึกราคาเป้าหมายของ **{symbol}** ({prices_formatted}) เข้าระบบ Sniper เรียบร้อยแล้วครับ 🚀\n\n"
+            f"⚙️ **ตั้งค่าการแจ้งเตือน**:\nเมื่อราคาถึงเป้าหมาย คุณต้องการให้บอทแจ้งเตือนแบบไหน?",
+            reply_markup=pref_keyboard
+        )
+
+    async def set_notify_pref(self, callback: types.CallbackQuery):
+        """Handle notification preference selection."""
+        await callback.answer()
+        pref = callback.data.split("notify_pref_")[1]
+        notify_dm = (pref == "dm")
+        telegram_id = callback.from_user.id
+        
+        async with self.db.session() as session:
+            stmt = select(User).where(User.telegram_id == telegram_id)
+            res = await session.execute(stmt)
+            user = res.scalar_one_or_none()
+            if user:
+                user.notify_dm = notify_dm
+                await session.commit()
+                
+        mode_text = "DM ส่วนตัว" if notify_dm else "แท็กในกลุ่ม"
+        await callback.message.edit_text(
+            f"✅ ตั้งค่าการแจ้งเตือนสำเร็จ!\n\n"
+            f"ต่อไปเมื่อหุ้นถึงเป้าหมาย บอทจะแจ้งเตือนคุณผ่านทาง **{mode_text}** ครับ",
+            reply_markup=None
+        )
 
     async def broadcast_scan(self, market: str = None):
         """Run broadcast scan and send to configured channel, personalized by risk profile."""

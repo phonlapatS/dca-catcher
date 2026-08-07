@@ -58,6 +58,30 @@ DCA Catcher เป็น Telegram Bot พลัง AI (Google Gemini) เสม�
 docker-compose up -d --build
 ```
 
+### ☁️ คำแนะนำการ Deploy บน Cloud (ฟรี 24/7)
+เพื่อให้บอท Alpaca Sniper สามารถเปิดเฝ้าตลาดหุ้น US ให้คุณได้ตลอดทั้งคืน (20:30 - 04:00 น.) โดยที่คุณไม่ต้องเปิดคอมพิวเตอร์ทิ้งไว้ ขอแนะนำให้นำโปรเจกต์ไปรันบน Cloud Server
+
+**ทางเลือกที่แนะนำ (ฟรีตลอดชีพ): Google Cloud Platform (GCP)**
+1. สมัครใช้งาน [Google Cloud Console](https://console.cloud.google.com/)
+2. สร้าง VM Instance ใหม่ เลือกสเปค **`e2-micro`** (อยู่ในโควต้า Always Free)
+3. เลือก Region เป็น `us-west1`, `us-central1` หรือ `us-east1` เพื่อรับสิทธิ์ใช้ฟรี
+4. เลือก OS เป็น Ubuntu
+5. SSH เข้าไปใน Server และทำตามขั้นตอนนี้:
+   ```bash
+   # ติดตั้ง Docker
+   sudo apt update && sudo apt install -y docker.io docker-compose
+   
+   # โคลนโปรเจกต์ (หรือโยนไฟล์ขึ้นไป)
+   git clone <your-repo-url>
+   cd dca-catcher
+   
+   # สร้างไฟล์ .env และใส่ค่าให้ครบ
+   nano .env 
+   
+   # สั่งรันบอทให้อยู่ยงคงกระพัน 24/7
+   sudo docker-compose up -d
+   ```
+
 ---
 
 ## 📌 โครงสร้างคำสั่ง (Telegram Commands)

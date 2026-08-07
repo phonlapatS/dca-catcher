@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, select, func
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
 
@@ -11,7 +11,9 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    remark: Mapped[str | None] = mapped_column(String(255), nullable=True) # Admin note or alias
     risk_profile: Mapped[str | None] = mapped_column(String(255), nullable=True) # Stores user investment style
+    notify_dm: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")  # True = DM, False = group tag
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     watchlists: Mapped[list["Watchlist"]] = relationship("Watchlist", back_populates="user", cascade="all, delete-orphan")
 
@@ -55,6 +57,30 @@ class Database:
     async def create_tables(self):
         async with self._engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+        # Auto-migrate: add missing columns for existing SQLite DBs
+        async with self._engine.begin() as conn:
+            for col, typ, default in [
+                ("target_zones_str", "TEXT", None),
+                ("last_notified_zone", "TEXT", None),
+            ]:
+                try:
+                    await conn.execute(text(f"ALTER TABLE watchlists ADD COLUMN {col} {typ}"))
+                except Exception:
+                    pass
+            for col, typ, default in [
+                ("notify_dm", "INTEGER", "1"),
+            ]:
+                try:
+                    await conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {typ} DEFAULT {default}"))
+                except Exception:
+                    pass
+            for col, typ, default in [
+                ("remark", "TEXT", "NULL"),
+            ]:
+                try:
+                    await conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {typ} DEFAULT {default}"))
+                except Exception:
+                    pass
 
     def session(self) -> AsyncSession:
         return self._session_factory()
