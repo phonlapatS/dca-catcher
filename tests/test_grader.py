@@ -138,3 +138,17 @@ def test_grade_api_failure_fallback(mock_generate, sample_enriched_signal):
     assert res.grade == 2
     assert res.confidence == 0
     assert "API error" in res.advice or "error" in res.advice.lower()
+
+def test_build_prompt_with_news_and_indicators(sample_enriched_signal):
+    grader = SignalGrader(api_key="fake-key")
+    news = ["AAPL launches new iPhone", "Tech stocks rally"]
+    sample_enriched_signal.snapshot.rsi = 30.5
+    sample_enriched_signal.snapshot.ma_50 = 160.0
+    
+    prompt = grader._build_prompt(sample_enriched_signal, news)
+    
+    assert "AAPL launches new iPhone" in prompt
+    assert "Tech stocks rally" in prompt
+    assert "RSI: 30.5" in prompt
+    assert "MA_50: 160.0" in prompt
+    assert "NER" in prompt or "Named Entity Recognition" in prompt

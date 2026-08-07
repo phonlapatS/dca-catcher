@@ -29,14 +29,14 @@ class SignalGrader:
         # Default fallback models based on user quota preferences
         self.models = models or ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]
 
-    def grade(self, signal: EnrichedSignal) -> GradeResult:
+    def grade(self, signal: EnrichedSignal, news: list[str] = None) -> GradeResult:
         """Send enriched signal dimensions to Gemini for grading.
 
         Constructs a prompt with the 3 dimension scores and asks Gemini
         to return a JSON response with grade, confidence, advice, and reasons.
         Tries multiple models sequentially if quota limits are hit.
         """
-        prompt = self._build_prompt(signal)
+        prompt = self._build_prompt(signal, news)
         last_error = None
         
         for model_name in self.models:
@@ -57,16 +57,17 @@ class SignalGrader:
             confidence=0,
             advice=f"Gemini API error (All models failed): {last_error}",
             reasons=["⚠️ ไม่สามารถติดต่อ AI ได้ (API Error)"],
+            buy_targets=[],
         )
 
-    def _build_prompt(self, signal: EnrichedSignal) -> str:
-        """Build the Gemini prompt from enriched signal data.
+    def _build_prompt(self, signal: EnrichedSignal, news: list[str] = None) -> str:
+        """Build the Gemini prompt from enriched signal data and news.
 
         The prompt instructs Gemini to:
-        1. Analyze the 3 dimensions (PRICE, FLOW, CONTEXT)
-        2. Return JSON with: grade (1-4), confidence (0-100),
-           advice (Thai string), reasons (list of strings)
-        3. Cross-analyze conflicts between dimensions
+        1. Analyze the 3 dimensions (PRICE, FLOW, CONTEXT), indicators, and news
+        2. Filter news using NER (Named Entity Recognition)
+        3. Return JSON with: grade (1-4), confidence (0-100),
+           advice (Thai string), reasons (list of strings), and exactly 3 buy_targets.
         """
         dimensions_summary = []
         for name, score in signal.dimensions.items():
@@ -75,7 +76,22 @@ class SignalGrader:
             )
         dims_str = "\n".join(dimensions_summary)
 
-        prompt = f"""You are a professional financial analyst AI assisting with Dollar-Cost Averaging (DCA) investment decisions.
+        indicators_str = []
+        if getattr(signal.snapshot, 'rsi', None) is not None:
+            indicators_str.append(f"- RSI: {signal.snapshot.rsi}")
+        if getattr(signal.snapshot, 'ma_50', None) is not None:
+            indicators_str.append(f"- MA_50: {signal.snapshot.ma_50}")
+        if getattr(signal.snapshot, 'bb_lower', None) is not None:
+            indicators_str.append(f"- BB_lower: {signal.snapshot.bb_lower}")
+        indicators_text = "\n".join(indicators_str) if indicators_str else "- No calculated indicators available"
+
+        news_text = ""
+        if news:
+            top_news = news[:5]
+            news_items = "\n".join([f"- {n}" for n in top_news])
+            news_text = f"\nNews Headlines (Top 5):\n{news_items}"
+
+        prompt = f"""You are a professional financial analyst AI assisting with Dollar-Cost Averaging (DCA) investment decisions. All explanations, reasons, and advice must be in Thai.
 
 Analyze the stock signal for symbol: {signal.symbol}
 
@@ -85,18 +101,24 @@ Market Snapshot:
 - ATH Price: ${signal.snapshot.ath_price}
 - Drawdown from ATH: {signal.snapshot.drawdown_pct}%
 
+Indicators:
+{indicators_text}
+
 Analysis Dimensions:
 {dims_str}
+{news_text}
 
 Instruction:
-Evaluate the combined dimensions (PRICE, FLOW, CONTEXT) and cross-analyze any conflicts.
-Calculate 3 suggested buy target prices based on the ATH and current price. Provide the price and a short Thai description of the risk at that level (e.g., "170 (มีความเสี่ยงเล็กน้อย)", "160 (ปลอดภัย)", "150 (Play safe)").
-Return ONLY a valid raw JSON object (without markdown code formatting or extraneous text) matching this schema:
+1. Evaluate the combined dimensions (PRICE, FLOW, CONTEXT), indicators, and news.
+2. Filter the news using NER (Named Entity Recognition) to ensure the news is truly about {signal.symbol} and not just noise. Only consider "true news" in your analysis.
+3. Calculate exactly 3 suggested buy target prices based on the ATH and current price. Provide the price and a short Thai description of the risk at that level (e.g., "170 (มีความเสี่ยงเล็กน้อย)", "160 (ปลอดภัย)", "150 (Play safe)").
+4. Output concise Thai reasoning.
+5. Return ONLY a valid raw JSON object (without markdown code formatting or extraneous text) matching this lean schema:
 {{
     "grade": <integer 1 to 4: 1=Risky/High risk, 2=Moderate risk/Hold, 3=Low risk/Good DCA, 4=Strong buy/Now>,
     "confidence": <integer 0 to 100>,
-    "advice": "<Thai string containing practical DCA investment advice in Thai language>",
-    "reasons": ["<Thai tag string 1 with ✅ or ⚠️ (e.g., ✅ ใกล้ถึงจุดสูงสุดที่เคยทำไว้ก่อนหน้า)>", "<Thai tag string 2>"],
+    "advice": "<Thai string containing practical DCA investment advice>",
+    "reasons": ["<Thai tag string 1 with ✅ or ⚠️>", "<Thai tag string 2>"],
     "buy_targets": ["<Target 1>", "<Target 2>", "<Target 3>"]
 }}
 """
