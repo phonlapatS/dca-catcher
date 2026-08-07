@@ -175,7 +175,7 @@ class DCABot:
         self.dp.callback_query.register(self.advice_skip_watchlist, F.data == "advice_skip_wl", AdviceSurvey.waiting_for_watchlist_decision)
 
     async def _add_to_watchlist(
-        self, telegram_id: int, username: str | None, symbol: str, market: str
+        self, telegram_id: int, username: str | None, symbol: str, market: str, target_price: float = None
     ) -> str:
         """Helper method to upsert user and add symbol to watchlist."""
         async with self.db.session() as session:
@@ -196,9 +196,14 @@ class DCABot:
             existing = res_w.scalar_one_or_none()
 
             if existing:
+                if target_price:
+                    existing.target_zones_str = f"{target_price} (User Target)"
+                    await session.commit()
+                    return f"✅ Updated {symbol} target to ${target_price}"
                 return f"ℹ️ Symbol {symbol} ({market}) is already in your watchlist."
             else:
-                item = Watchlist(user_id=user.id, symbol=symbol, market=market)
+                target_str = f"{target_price} (User Target)" if target_price else None
+                item = Watchlist(user_id=user.id, symbol=symbol, market=market, target_zones_str=target_str)
                 session.add(item)
                 await session.commit()
                 return f"✅ Added {symbol} ({market}) to your watchlist."
@@ -627,20 +632,27 @@ class DCABot:
             )
             return
 
-        # Replace commas with spaces and split
-        symbols = [s.strip().upper() for s in text.replace(",", " ").split() if s.strip()]
-
+        # Parse: /add AAPL 150 or /add AAPL
+        parts = text.replace(",", " ").split()
+        if not parts: return
+        
+        symbol = parts[0].strip().upper()
+        target_price = None
+        if len(parts) > 1:
+            try:
+                target_price = float(parts[1])
+            except ValueError:
+                pass
+                
+        market = "TH" if symbol.endswith(".BK") else "US"
         telegram_id = message.from_user.id
         username = message.from_user.username
-
-        results = []
-        for symbol in symbols:
-            # Ignore legacy market arguments if users accidentally typed them
-            if symbol in ["US", "TH"]:
-                continue
-            market = "TH" if symbol.endswith(".BK") else "US"
-            res_text = await self._add_to_watchlist(telegram_id, username, symbol, market)
-            results.append(res_text)
+        
+        res_text = await self._add_to_watchlist(telegram_id, username, symbol, market, target_price)
+        results = [res_text]
+        
+        # If Alpaca sniper is active, we should theoretically update its subscription here,
+        # but for now we rely on its periodic refresh.
 
         await message.reply("\n".join(results))
 
