@@ -149,9 +149,9 @@ class DCABot:
     async def cmd_survey(self, message: types.Message, state: FSMContext):
         """Start the risk profile survey."""
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🏢 ถือยาวเน้นปันผล (Safe/Value)", callback_data="style_safe")],
-            [InlineKeyboardButton(text="🎯 เก็งกำไรระยะสั้น (Aggressive/Swing)", callback_data="style_agg")],
-            [InlineKeyboardButton(text="💰 DCA เก็บสะสมเรื่อยๆ (Moderate)", callback_data="style_mod")]
+            [InlineKeyboardButton(text="🛡️ ถือยาวเน้นปันผล (Safe & Value)", callback_data="style_safe")],
+            [InlineKeyboardButton(text="⚖️ DCA สะสมเรื่อยๆ (Moderate)", callback_data="style_mod")],
+            [InlineKeyboardButton(text="🚀 เก็งกำไรระยะสั้น (Aggressive)", callback_data="style_agg")]
         ])
         await message.answer(
             "มาทำความรู้จักสไตล์การลงทุนของคุณกันครับ 📊\nคุณเน้นลงทุนแบบไหน?",
@@ -171,9 +171,9 @@ class DCABot:
         await state.update_data(style=style_map.get(style, "DCA"))
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📉 รอลงนิดเดียว (ประมาณ -5%)", callback_data="dd_5")],
-            [InlineKeyboardButton(text="📉📉 รอลงพอสมควร (ประมาณ -15%)", callback_data="dd_15")],
-            [InlineKeyboardButton(text="📉📉📉 ร่วงหนักๆ ของเซลล์ (-30% ขึ้นไป)", callback_data="dd_30")]
+            [InlineKeyboardButton(text="🤏 ย่อตัวเล็กน้อย (-5%)", callback_data="dd_5")],
+            [InlineKeyboardButton(text="📉 ปรับฐานระดับกลาง (-15%)", callback_data="dd_15")],
+            [InlineKeyboardButton(text="🩸 ของเซลล์ ร่วงหนัก (-30% ขึ้นไป)", callback_data="dd_30")]
         ])
         
         await callback.message.edit_text(
