@@ -177,18 +177,21 @@ class DCABot:
                 await message.reply(f"ℹ️ {symbol} is not in your watchlist.")
 
     async def cmd_token(self, message: types.Message):
-        """Handle /token — display the current Gemini LLM API key."""
-        # For security, you might want to restrict this to only the bot owner's ID
-        # but since requested, we will just display it.
+        """Handle /token — display the current Gemini LLM API key and models."""
         api_key = self.config.gemini_api_key
+        models = self.grader.models
         
         # Mask the middle part of the key for basic visual security
         masked_key = f"{api_key[:6]}...{api_key[-4:]}" if len(api_key) > 10 else api_key
+        
+        models_str = "\n".join(f"  • {m}" for m in models)
         
         await message.reply(
             f"🔑 **LLM (Gemini) API Key Status:**\n\n"
             f"`{api_key}`\n\n"
             f"*(Masked preview: {masked_key})*\n\n"
+            f"🤖 **Active AI Models (Failover List):**\n"
+            f"{models_str}\n\n"
             f"⚠️ *Warning: Keep this token secret. Do not share it in public groups.*",
             parse_mode="Markdown"
         )
