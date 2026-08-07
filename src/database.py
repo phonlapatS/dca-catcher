@@ -19,6 +19,7 @@ class Watchlist(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
     symbol: Mapped[str] = mapped_column(String)
     market: Mapped[str] = mapped_column(String)
+    last_notified_zone: Mapped[str] = mapped_column(String, nullable=True)
 
 
 class Signal(Base):
