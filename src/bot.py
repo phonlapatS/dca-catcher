@@ -721,25 +721,52 @@ class DCABot:
             await session.commit()
 
     async def broadcast_scan(self, market: str = None):
-        """Run broadcast scan and send to configured channel."""
+        """Run broadcast scan and send to configured channel, personalized by risk profile."""
         if not self.config.broadcast_channel_id:
             logger.info("BROADCAST_CHANNEL_ID not set. Skipping broadcast.")
             return
 
-        symbols = await self.db.get_unique_watchlist_symbols(market)
-        if not symbols:
-            logger.info(f"No symbols found for market {market}. Skipping broadcast.")
+        # Query all users and their watchlists
+        async with self.db.session() as session:
+            stmt = select(User, Watchlist).join(Watchlist, User.id == Watchlist.user_id)
+            if market:
+                stmt = stmt.where(Watchlist.market == market)
+            res = await session.execute(stmt)
+            rows = res.all()
+
+        if not rows:
+            logger.info(f"No users watching symbols for market {market}. Skipping broadcast.")
             return
 
-        snapshots = self.fetcher.fetch(symbols)
+        # Group users by (symbol, risk_profile)
+        symbol_risk_users = {}
+        unique_symbols = set()
+        
+        for user, wl in rows:
+            symbol = wl.symbol
+            unique_symbols.add(symbol)
+            rp = user.risk_profile or "ทั่วไป (ไม่ได้ตั้งค่า)"
+            key = (symbol, rp)
+            
+            if key not in symbol_risk_users:
+                symbol_risk_users[key] = []
+                
+            mention = f"@{user.username}" if user.username else f"User_{user.id}"
+            symbol_risk_users[key].append(mention)
+
+        snapshots = self.fetcher.fetch(list(unique_symbols))
         if not snapshots:
             return
 
         enriched = self.transformer.enrich(snapshots)
         bot_user = await self.bot.get_me()
 
-        for symbol, signal in enriched.items():
-            result = self.grader.grade(signal)
+        for (symbol, rp), users in symbol_risk_users.items():
+            if symbol not in enriched:
+                continue
+                
+            signal = enriched[symbol]
+            result = self.grader.grade(signal, risk_profile=rp)
             
             targets_str = (
                 "\n".join(f"  • ${t}" for t in result.buy_targets)
@@ -755,12 +782,20 @@ class DCABot:
             score_val = max(1, min(10, result.score))
             score_bar = "🔥" * score_val + "🤍" * (10 - score_val)
             
-            msg = f"#{symbol} Analysis:\n🤖 AI Score: {score_val}/10\n[{score_bar}]\n\n🎯 Confidence: {conf}% [{bar}]\n\n💡 Advice:\n{result.advice}\n\n🛒 Buy Targets:\n{targets_str}"
+            mentions_str = " ".join(users)
+            msg = (
+                f"🗣️ **แจ้งเตือนสำหรับ:** {mentions_str}\n"
+                f"📊 **#{symbol} Analysis** (มุมมอง: {rp})\n\n"
+                f"🤖 AI Score: {score_val}/10\n[{score_bar}]\n"
+                f"🎯 Confidence: {conf}% [{bar}]\n\n"
+                f"💡 Advice:\n{result.advice}\n\n"
+                f"🛒 Buy Targets:\n{targets_str}"
+            )
             kb = create_add_watchlist_keyboard(symbol, bot_user.username)
             try:
                 await self.bot.send_message(self.config.broadcast_channel_id, msg, reply_markup=kb)
             except Exception as e:
-                logger.error(f"Failed to send broadcast for {symbol}: {e}")
+                logger.error(f"Failed to send broadcast for {symbol} ({rp}): {e}")
 
     async def start(self):
         """Initialize database, scheduler, and start polling."""
