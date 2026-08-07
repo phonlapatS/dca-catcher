@@ -7,4 +7,5 @@ yfinance
 pandas
 ta
 google-generativeai
+aiogram
 
