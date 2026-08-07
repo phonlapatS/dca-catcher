@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import pandas as pd
+import ta
 from src.fetcher import StockSnapshot
 
 
@@ -18,6 +20,36 @@ class EnrichedSignal:
 
 class DataTransformer:
     """Transforms raw market snapshots into 3-dimension analysis signals."""
+
+    def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Calculate technical indicators (rsi, ma_50, volume_20d_avg, is_volume_anomaly).
+
+        Consumes a pandas DataFrame with 'close' (or 'Close') and 'volume' (or 'Volume') columns.
+        Produces a DataFrame with additional columns:
+        - rsi: Relative Strength Index (14 periods)
+        - ma_50: 50-period Simple Moving Average of close price
+        - volume_20d_avg: 20-period Simple Moving Average of volume
+        - is_volume_anomaly: boolean indicating if volume > 1.5 * volume_20d_avg
+        """
+        df = df.copy()
+
+        close_col = "close" if "close" in df.columns else ("Close" if "Close" in df.columns else None)
+        volume_col = "volume" if "volume" in df.columns else ("Volume" if "Volume" in df.columns else None)
+
+        if close_col is None:
+            raise KeyError("DataFrame must contain 'close' or 'Close' column.")
+        if volume_col is None:
+            raise KeyError("DataFrame must contain 'volume' or 'Volume' column.")
+
+        close_series = df[close_col].astype(float)
+        volume_series = df[volume_col].astype(float)
+
+        df["rsi"] = ta.momentum.rsi(close=close_series, window=14)
+        df["ma_50"] = ta.trend.sma_indicator(close=close_series, window=50)
+        df["volume_20d_avg"] = ta.trend.sma_indicator(close=volume_series, window=20)
+        df["is_volume_anomaly"] = volume_series > (1.5 * df["volume_20d_avg"])
+
+        return df
 
     def enrich(self, snapshots: dict[str, StockSnapshot]) -> dict[str, EnrichedSignal]:
         """Enrich each snapshot with PRICE, FLOW, and CONTEXT dimension scores."""

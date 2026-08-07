@@ -131,3 +131,45 @@ def test_enrich():
     assert signal_nvda.snapshot == snap2
     assert signal_nvda.dimensions["PRICE"].label == "HOLD"
     assert signal_nvda.dimensions["PRICE"].score == 30.0
+
+
+def test_calculate_indicators():
+    import pandas as pd
+    import numpy as np
+
+    closes = [100.0 + i * 0.5 for i in range(60)]
+    volumes = [1000000] * 59 + [3000000]
+
+    df = pd.DataFrame({
+        "close": closes,
+        "volume": volumes,
+    })
+
+    transformer = DataTransformer()
+    result_df = transformer.calculate_indicators(df)
+
+    for col in ["rsi", "ma_50", "volume_20d_avg", "is_volume_anomaly"]:
+        assert col in result_df.columns
+
+    expected_ma50 = sum(closes[10:60]) / 50.0
+    assert pytest.approx(result_df["ma_50"].iloc[-1], abs=1e-2) == expected_ma50
+    assert result_df["volume_20d_avg"].iloc[58] == 1000000.0
+    assert bool(result_df["is_volume_anomaly"].iloc[-1]) is True
+    assert bool(result_df["is_volume_anomaly"].iloc[58]) is False
+    assert not result_df["rsi"].dropna().empty
+    assert 0 <= result_df["rsi"].iloc[-1] <= 100
+
+
+def test_calculate_indicators_uppercase_columns():
+    import pandas as pd
+
+    closes = [100.0 + i for i in range(60)]
+    volumes = [100000] * 60
+    df = pd.DataFrame({"Close": closes, "Volume": volumes})
+
+    transformer = DataTransformer()
+    result_df = transformer.calculate_indicators(df)
+
+    for col in ["rsi", "ma_50", "volume_20d_avg", "is_volume_anomaly"]:
+        assert col in result_df.columns
+
