@@ -237,9 +237,9 @@ class DCABot:
                 )
 
                 targets_str = (
-                    "\n".join(f"  🎯 {t}" for t in grade_result.buy_targets)
+                    "\n".join(f"  • {t}" for t in grade_result.buy_targets)
                     if getattr(grade_result, "buy_targets", None)
-                    else "  🎯 N/A"
+                    else "  • N/A"
                 )
 
                 report_text = (
@@ -283,9 +283,9 @@ class DCABot:
             result = self.grader.grade(signal)
             
             targets_str = (
-                "\n".join(f"  🎯 {t}" for t in result.buy_targets)
+                "\n".join(f"  • {t}" for t in result.buy_targets)
                 if getattr(result, "buy_targets", None)
-                else "  🎯 N/A"
+                else "  • N/A"
             )
             
             msg = f"#{symbol} Analysis:\nGrade: {result.grade}\n\n💡 Advice:\n{result.advice}\n\n🎯 Buy Targets:\n{targets_str}"
