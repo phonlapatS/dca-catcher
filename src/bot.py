@@ -250,10 +250,10 @@ class DCABot:
                     f"• Current Price: ${snapshot.current_price:,.2f}\n"
                     f"• Drawdown from ATH: {snapshot.drawdown_pct}%\n"
                     f"• ATH Price: ${snapshot.ath_price:,.2f}\n\n"
-                    f"🎯 Buy Targets (ราคาเป้าหมาย):\n"
-                    f"{targets_str}\n\n"
                     f"💡 AI Advice (คำแนะนำ):\n"
                     f"{grade_result.advice}\n\n"
+                    f"🎯 Buy Targets (ราคาเป้าหมาย):\n"
+                    f"{targets_str}\n\n"
                     f"📝 Reasons:\n"
                     f"{reasons_str}"
                 )
@@ -288,7 +288,7 @@ class DCABot:
                 else "  🎯 N/A"
             )
             
-            msg = f"#{symbol} Analysis:\nGrade: {result.grade}\n\n🎯 Buy Targets:\n{targets_str}\n\n💡 Advice:\n{result.advice}"
+            msg = f"#{symbol} Analysis:\nGrade: {result.grade}\n\n💡 Advice:\n{result.advice}\n\n🎯 Buy Targets:\n{targets_str}"
             kb = create_add_watchlist_keyboard(symbol, bot_user.username)
             try:
                 await self.bot.send_message(self.config.broadcast_channel_id, msg, reply_markup=kb)
