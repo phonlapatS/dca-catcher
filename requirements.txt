@@ -3,3 +3,6 @@ asyncpg
 aiosqlite
 pytest
 pytest-asyncio
+yfinance
+pandas
+
