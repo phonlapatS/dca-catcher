@@ -57,3 +57,27 @@ async def test_hysteresis_logic(db):
     assert "ท่านสามารถเข้าซื้อที่ราคาเป้าหมายตอนนี้ได้แล้ว 140.0 (Moderate)" in msg
     assert "130.0 (Risky)" in msg
 
+
+@pytest.mark.asyncio
+async def test_multiple_watchlist_entries_no_crash(db):
+    # Setup user with duplicate watchlist items for same symbol
+    async with db.session() as session:
+        user = User(telegram_id=456, username="multi_test")
+        session.add(user)
+        await session.commit()
+        item1 = Watchlist(user_id=user.id, symbol="NVDA", market="US")
+        item2 = Watchlist(user_id=user.id, symbol="NVDA", market="US")
+        session.add_all([item1, item2])
+        await session.commit()
+
+    manager = AlertManager(db)
+    target_zones_str = "120.0 (Low Risk)"
+
+    # Should not raise MultipleResultsFound
+    alerted, msg = await manager.check_and_notify(
+        user_id=456, symbol="NVDA", current_price=115.0, target_zones_str=target_zones_str
+    )
+    assert alerted
+    assert "120.0" in msg
+
+

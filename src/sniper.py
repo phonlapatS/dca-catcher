@@ -8,7 +8,7 @@ from typing import Awaitable, Callable, Optional
 from zoneinfo import ZoneInfo
 
 import websockets
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from src.alert_manager import AlertManager
 from src.database import Database, User, Watchlist
@@ -57,11 +57,11 @@ class AlpacaSniper:
         return t >= time(20, 30) or t < time(4, 0)
 
     def parse_target_zones(self, target_zones_str: Optional[str]) -> list[float]:
-        """Parse float target prices from target_zones_str field.
+        """Parse float target prices from target_zones_str field in descending order.
         
         Example inputs:
           "150.0 (Low Risk), 140.0 (Moderate)" -> [150.0, 140.0]
-          "150.5 (User Target)" -> [150.5]
+          "110.0, 120.0" -> [120.0, 110.0]
         """
         if not target_zones_str:
             return []
@@ -76,6 +76,7 @@ class AlpacaSniper:
                     zones.append(float(match.group(1)))
                 except ValueError:
                     pass
+        zones.sort(reverse=True)
         return zones
 
     async def load_us_targets(self) -> dict[str, list[float]]:
@@ -127,12 +128,18 @@ class AlpacaSniper:
         if not self.db:
             return
 
+        # Performance optimization: if in-memory targets are loaded, check bounds before querying DB
+        if self.targets:
+            symbol_targets = self.targets.get(symbol.upper())
+            if symbol_targets is None or not any(price <= t for t in symbol_targets):
+                return
+
         try:
             async with self.db.session() as session:
                 stmt = (
                     select(Watchlist, User.telegram_id)
                     .join(User, Watchlist.user_id == User.id)
-                    .where(Watchlist.market == "US", Watchlist.symbol == symbol)
+                    .where(Watchlist.market == "US", func.upper(Watchlist.symbol) == symbol.upper())
                 )
                 res = await session.execute(stmt)
                 rows = res.all()
@@ -157,7 +164,13 @@ class AlpacaSniper:
                     for target in zones:
                         if price <= target:
                             active_zone_str = f"{target}"
-                            if item.last_notified_zone != active_zone_str:
+                            last_notified_price = None
+                            if item.last_notified_zone:
+                                m = re.search(r"(\d+(?:\.\d+)?)", item.last_notified_zone)
+                                if m:
+                                    last_notified_price = float(m.group(1))
+
+                            if last_notified_price != target:
                                 logger.info(f"SNIPER TRIGGER: {symbol} at ${price} <= target ${target}")
                                 async with self.db.session() as session:
                                     w_item = await session.get(Watchlist, item.id)
@@ -167,6 +180,7 @@ class AlpacaSniper:
                             break
         except Exception as e:
             logger.error(f"Error checking target triggers for {symbol}: {e}", exc_info=True)
+
 
     async def on_trade_tick(self, symbol: str, price: float):
         """Handle incoming trade tick."""

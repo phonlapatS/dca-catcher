@@ -222,17 +222,59 @@ async def test_check_target_triggers_and_anti_spam_db_update(db):
     await sniper.on_trade_tick("NVDA", 118.0)
     async with db.session() as session:
         item = await session.get(Watchlist, item_id)
-        assert item.last_notified_zone == "120.0 (Low Risk)"
+        assert item.last_notified_zone == "120.0"
 
     # 3. Tick price stays in same zone (115.0) -> anti-spam keeps last_notified_zone unchanged
     await sniper.on_trade_tick("NVDA", 115.0)
     async with db.session() as session:
         item = await session.get(Watchlist, item_id)
-        assert item.last_notified_zone == "120.0 (Low Risk)"
+        assert item.last_notified_zone == "120.0"
 
     # 4. Tick price drops to next zone (108.0) -> updates last_notified_zone to next zone
     await sniper.on_trade_tick("NVDA", 108.0)
     async with db.session() as session:
         item = await session.get(Watchlist, item_id)
-        assert item.last_notified_zone == "110.0 (Moderate)"
+        assert item.last_notified_zone == "110.0"
+
+
+@pytest.mark.asyncio
+async def test_case_insensitive_db_query_and_in_memory_filtering(db):
+    async with db.session() as session:
+        user = User(telegram_id=6666, username="case_user")
+        session.add(user)
+        await session.commit()
+
+        # Save symbol in lowercase
+        w = Watchlist(
+            user_id=user.id,
+            symbol="nvda",
+            market="US",
+            target_zones_str="120.0 (Low Risk)",
+        )
+        session.add(w)
+        await session.commit()
+        item_id = w.id
+
+    sniper = AlpacaSniper(db=db)
+
+    # 1. In-memory targets filtering
+    sniper.targets = {"NVDA": [120.0]}
+
+    # Tick for NVDA at 150.0 (above target 120.0) -> filtered out before DB query
+    await sniper.on_trade_tick("NVDA", 150.0)
+    async with db.session() as session:
+        item = await session.get(Watchlist, item_id)
+        assert item.last_notified_zone is None
+
+    # Tick for NVDA at 115.0 (below target 120.0) -> matches lowercase "nvda" in DB
+    await sniper.on_trade_tick("NVDA", 115.0)
+    async with db.session() as session:
+        item = await session.get(Watchlist, item_id)
+        assert item.last_notified_zone == "120.0"
+
+
+def test_parse_target_zones_descending_sort():
+    sniper = AlpacaSniper(db=None)
+    assert sniper.parse_target_zones("110.0, 120.0, 105.0") == [120.0, 110.0, 105.0]
+
 
