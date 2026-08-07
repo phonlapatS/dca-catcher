@@ -269,10 +269,16 @@ class DCABot:
                     else "  • N/A"
                 )
 
+                # Create a visual progress bar for confidence
+                conf = grade_result.confidence
+                filled = int(conf / 10)
+                empty = 10 - filled
+                bar = "█" * filled + "░" * empty
+
                 report_text = (
                     f"{emoji} DCA Analysis: {grade_result.symbol}\n"
                     f"Grade: {grade_result.grade}/4 — {label}\n"
-                    f"Confidence: {grade_result.confidence}%\n\n"
+                    f"Confidence: {conf}% [{bar}]\n\n"
                     f"📊 Market Snapshot:\n"
                     f"• Current Price: ${snapshot.current_price:,.2f}\n"
                     f"• Drawdown from ATH: {snapshot.drawdown_pct}%\n"
@@ -315,7 +321,12 @@ class DCABot:
                 else "  • N/A"
             )
             
-            msg = f"#{symbol} Analysis:\nGrade: {result.grade}\n\n💡 Advice:\n{result.advice}\n\n🎯 Buy Targets:\n{targets_str}"
+            conf = result.confidence
+            filled = int(conf / 10)
+            empty = 10 - filled
+            bar = "█" * filled + "░" * empty
+            
+            msg = f"#{symbol} Analysis:\nGrade: {result.grade}/4\nConfidence: {conf}% [{bar}]\n\n💡 Advice:\n{result.advice}\n\n🎯 Buy Targets:\n{targets_str}"
             kb = create_add_watchlist_keyboard(symbol, bot_user.username)
             try:
                 await self.bot.send_message(self.config.broadcast_channel_id, msg, reply_markup=kb)
