@@ -19,7 +19,8 @@ class AlertManager:
     def __init__(self, db: Database):
         self.db = db
 
-    def parse_zones(self, target_zones_str: str):
+    @staticmethod
+    def parse_zones(target_zones_str: str):
         if not target_zones_str:
             return []
         zones = []

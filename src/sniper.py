@@ -57,27 +57,11 @@ class AlpacaSniper:
         return t >= time(20, 30) or t < time(4, 0)
 
     def parse_target_zones(self, target_zones_str: Optional[str]) -> list[float]:
-        """Parse float target prices from target_zones_str field in descending order.
-        
-        Example inputs:
-          "150.0 (Low Risk), 140.0 (Moderate)" -> [150.0, 140.0]
-          "110.0, 120.0" -> [120.0, 110.0]
-        """
+        """Parse float target prices from target_zones_str field in descending order."""
         if not target_zones_str:
             return []
-        zones = []
-        for part in target_zones_str.split(","):
-            part = part.strip()
-            if not part:
-                continue
-            match = re.search(r"(\d+(?:\.\d+)?)", part)
-            if match:
-                try:
-                    zones.append(float(match.group(1)))
-                except ValueError:
-                    pass
-        zones.sort(reverse=True)
-        return zones
+        zones = AlertManager.parse_zones(target_zones_str)
+        return [z["price"] for z in zones]
 
     async def load_us_targets(self) -> dict[str, list[float]]:
         """Query database for active US watchlist items and parse target prices."""
@@ -104,6 +88,31 @@ class AlpacaSniper:
         self.running = True
         self._task = asyncio.create_task(self.run())
         logger.info("AlpacaSniper started.")
+
+    async def update_subscriptions(self):
+        """Update targets and send a new subscribe message if the stream is active."""
+        if not self.running or not self.ws or not self.is_operating_hours():
+            return
+            
+        targets = await self.load_us_targets()
+        symbols = sorted(list(targets.keys()))
+        
+        if not symbols:
+            return
+            
+        try:
+            sub_payload = {
+                "action": "subscribe",
+                "trades": symbols,
+                "quotes": [],
+                "bars": [],
+            }
+            await self.ws.send(json.dumps(sub_payload))
+            self.subscribed_symbols = set(symbols)
+            self.targets = targets
+            logger.info(f"Dynamically updated subscriptions to: {symbols}")
+        except Exception as e:
+            logger.error(f"Error updating subscriptions: {e}")
 
     async def stop(self):
         """Stop the AlpacaSniper loop and close WebSocket connection."""

@@ -657,8 +657,9 @@ class DCABot:
         res_text = await self._add_to_watchlist(telegram_id, username, symbol, market, target_price)
         results = [res_text]
         
-        # If Alpaca sniper is active, we should theoretically update its subscription here,
-        # but for now we rely on its periodic refresh.
+        # Update active sniper subscription dynamically
+        if self.sniper.running:
+            await self.sniper.update_subscriptions()
 
         await message.reply("\n".join(results))
 
