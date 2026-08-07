@@ -23,7 +23,8 @@ class Watchlist(Base):
     user: Mapped["User"] = relationship("User", back_populates="watchlists")
     symbol: Mapped[str] = mapped_column(String)
     market: Mapped[str] = mapped_column(String)
-    last_notified_zone: Mapped[str] = mapped_column(String, nullable=True)
+    target_zones_str: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_notified_zone: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class Signal(Base):
