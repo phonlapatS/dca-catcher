@@ -29,14 +29,14 @@ class SignalGrader:
         # Default fallback models based on user quota preferences
         self.models = models or ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]
 
-    def grade(self, signal: EnrichedSignal, news: list[str] = None) -> GradeResult:
+    def grade(self, signal: EnrichedSignal, news: list[str] = None, risk_profile: str = None) -> GradeResult:
         """Send enriched signal dimensions to Gemini for grading.
 
         Constructs a prompt with the 3 dimension scores and asks Gemini
         to return a JSON response with grade, confidence, advice, and reasons.
         Tries multiple models sequentially if quota limits are hit.
         """
-        prompt = self._build_prompt(signal, news)
+        prompt = self._build_prompt(signal, news, risk_profile)
         last_error = None
         
         for model_name in self.models:
@@ -60,7 +60,7 @@ class SignalGrader:
             buy_targets=[],
         )
 
-    def _build_prompt(self, signal: EnrichedSignal, news: list[str] = None) -> str:
+    def _build_prompt(self, signal: EnrichedSignal, news: list[str] = None, risk_profile: str = None) -> str:
         """Build the Gemini prompt from enriched signal data and news.
 
         The prompt instructs Gemini to:
@@ -90,6 +90,8 @@ class SignalGrader:
             top_news = news[:5]
             news_items = "\n".join([f"- {n}" for n in top_news])
             news_text = f"\nNews Headlines (Top 5):\n{news_items}"
+            
+        profile_text = f"\nUser Risk Profile:\n- The user's preferred DCA strategy is: '{risk_profile}'. Please adjust your Buy Targets and Advice to align with this strategy." if risk_profile else ""
 
         prompt = f"""You are a professional financial analyst AI assisting with Dollar-Cost Averaging (DCA) investment decisions. All explanations, reasons, and advice must be in Thai.
 
@@ -100,6 +102,7 @@ Market Snapshot:
 - Volume: {signal.snapshot.volume}
 - ATH Price: ${signal.snapshot.ath_price}
 - Drawdown from ATH: {signal.snapshot.drawdown_pct}%
+{profile_text}
 
 Indicators:
 {indicators_text}

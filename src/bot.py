@@ -1,7 +1,9 @@
 import asyncio
 import logging
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, CommandObject
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.token import TokenValidationError, validate_token
 from sqlalchemy import select
@@ -31,13 +33,15 @@ GRADE_LABELS = {
 
 
 def create_add_watchlist_keyboard(symbol: str, bot_username: str) -> InlineKeyboardMarkup:
-    """Create an inline keyboard button with deep link to add a symbol to user's watchlist.
-
-    Deep link format: t.me/bot_username?start=add_SYMBOL
-    """
+    """Create an inline keyboard with a deep link to add a symbol to watchlist."""
     url = f"https://t.me/{bot_username}?start=add_{symbol}"
-    button = InlineKeyboardButton(text=f"➕ Add {symbol} to Watchlist", url=url)
-    return InlineKeyboardMarkup(inline_keyboard=[[button]])
+    keyboard = [[InlineKeyboardButton(text=f"➕ Add {symbol} to Watchlist", url=url)]]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+class RiskSurvey(StatesGroup):
+    waiting_for_style = State()
+    waiting_for_drawdown = State()
 
 
 class DCABot:
@@ -67,7 +71,12 @@ class DCABot:
         self.dp.message.register(self.cmd_remove, Command("remove"))
         self.dp.message.register(self.cmd_list, Command("list"))
         self.dp.message.register(self.cmd_scan, Command("scan"))
+        self.dp.message.register(self.cmd_risk, Command("risk"))
         self.dp.message.register(self.cmd_help, Command("help"))
+        
+        # FSM handlers
+        self.dp.callback_query.register(self.survey_style, RiskSurvey.waiting_for_style)
+        self.dp.callback_query.register(self.survey_drawdown, RiskSurvey.waiting_for_drawdown)
 
     async def _add_to_watchlist(
         self, telegram_id: int, username: str | None, symbol: str, market: str
@@ -130,11 +139,76 @@ class DCABot:
             "🔹 `/remove <ชื่อหุ้น>` - ลบหุ้นออกจาก Watchlist\n"
             "   *(ตัวอย่าง: /remove NVDA)*\n"
             "🔹 `/list` - ดูรายชื่อหุ้นทั้งหมดใน Watchlist ของคุณ\n"
+            "🔹 `/risk` - ทำแบบสอบถามเพื่อตั้งค่า Profile ความเสี่ยงของคุณ\n"
             "🔹 `/scan` - สั่ง AI ให้วิเคราะห์หุ้น **ทุกตัว** ใน Watchlist\n"
             "🔹 `/scan <ชื่อหุ้น>` - สั่ง AI ให้วิเคราะห์หุ้น **เฉพาะตัวที่ระบุ**\n"
             "   *(ตัวอย่าง: /scan TSLA)*"
         )
         await message.answer(help_text, parse_mode="Markdown")
+
+    async def cmd_risk(self, message: types.Message, state: FSMContext):
+        """Start the risk profile survey."""
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🏢 ถือยาวเน้นปันผล (Safe/Value)", callback_data="style_safe")],
+            [InlineKeyboardButton(text="🎯 เก็งกำไรระยะสั้น (Aggressive/Swing)", callback_data="style_agg")],
+            [InlineKeyboardButton(text="💰 DCA เก็บสะสมเรื่อยๆ (Moderate)", callback_data="style_mod")]
+        ])
+        await message.answer(
+            "มาทำความรู้จักสไตล์การลงทุนของคุณกันครับ 📊\nคุณเน้นลงทุนแบบไหน?",
+            reply_markup=keyboard
+        )
+        await state.set_state(RiskSurvey.waiting_for_style)
+
+    async def survey_style(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        style = callback.data.split("_")[1]
+        
+        style_map = {
+            "safe": "เน้นปลอดภัย ซื้อเมื่อถูกมาก",
+            "agg": "เก็งกำไร ซื้อเมื่อย่อตัวเล็กน้อย",
+            "mod": "DCA ทยอยสะสมเรื่อยๆ"
+        }
+        await state.update_data(style=style_map.get(style, "DCA"))
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📉 รอลงนิดเดียว (ประมาณ -5%)", callback_data="dd_5")],
+            [InlineKeyboardButton(text="📉📉 รอลงพอสมควร (ประมาณ -15%)", callback_data="dd_15")],
+            [InlineKeyboardButton(text="📉📉📉 ร่วงหนักๆ ของเซลล์ (-30% ขึ้นไป)", callback_data="dd_30")]
+        ])
+        
+        await callback.message.edit_text(
+            "เยี่ยมครับ! แล้วถ้าราคาหุ้นในพอร์ตร่วงลงกี่เปอร์เซ็นต์\n"
+            "ถึงจะเริ่มรู้สึกว่านี่คือ 'ของเซลล์' น่าเก็บเพิ่มครับ?",
+            reply_markup=keyboard
+        )
+        await state.set_state(RiskSurvey.waiting_for_drawdown)
+
+    async def survey_drawdown(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        dd = callback.data.split("_")[1]
+        
+        data = await state.get_data()
+        style = data.get("style")
+        
+        profile = f"สไตล์: {style}, มองว่าน่าซื้อเมื่อราคาตก {dd}% จากราคาสูงสุด"
+        
+        # Save to DB
+        telegram_id = callback.from_user.id
+        async with self.db.session() as session:
+            stmt = select(User).where(User.telegram_id == telegram_id)
+            res = await session.execute(stmt)
+            user = res.scalar_one_or_none()
+            if user:
+                user.risk_profile = profile
+                await session.commit()
+        
+        await callback.message.edit_text(
+            f"บันทึกเรียบร้อย! 📝 ระบบจำได้แล้วว่าคุณเป็นสาย:\n"
+            f"**{profile}**\n\n"
+            f"ต่อไปนี้เวลาคุณพิมพ์ /scan AI จะปรับราคาเป้าหมายให้เข้ากับสไตล์ของคุณโดยเฉพาะครับ!",
+            parse_mode="Markdown"
+        )
+        await state.clear()
 
     async def cmd_add(self, message: types.Message):
         """Handle /add <symbol> <market> — add stock to user's watchlist.
@@ -253,10 +327,19 @@ class DCABot:
             return
 
         enriched_signals = self.transformer.enrich(snapshots)
+        
+        # Fetch user's risk profile
+        risk_profile = None
+        async with self.db.session() as session:
+            stmt = select(User).where(User.telegram_id == message.from_user.id)
+            res = await session.execute(stmt)
+            user = res.scalar_one_or_none()
+            if user:
+                risk_profile = user.risk_profile
 
         async with self.db.session() as session:
             for symbol, enriched in enriched_signals.items():
-                grade_result = self.grader.grade(enriched)
+                grade_result = self.grader.grade(enriched, risk_profile=risk_profile)
 
                 # Save signal to database
                 signal_entry = Signal(
