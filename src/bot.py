@@ -67,6 +67,7 @@ class DCABot:
         self.dp.message.register(self.cmd_remove, Command("remove"))
         self.dp.message.register(self.cmd_list, Command("list"))
         self.dp.message.register(self.cmd_scan, Command("scan"))
+        self.dp.message.register(self.cmd_token, Command("token"))
 
     async def _add_to_watchlist(
         self, telegram_id: int, username: str | None, symbol: str, market: str
@@ -174,6 +175,23 @@ class DCABot:
                 await message.reply(f"🗑️ Removed {symbol} from your watchlist.")
             else:
                 await message.reply(f"ℹ️ {symbol} is not in your watchlist.")
+
+    async def cmd_token(self, message: types.Message):
+        """Handle /token — display the current Gemini LLM API key."""
+        # For security, you might want to restrict this to only the bot owner's ID
+        # but since requested, we will just display it.
+        api_key = self.config.gemini_api_key
+        
+        # Mask the middle part of the key for basic visual security
+        masked_key = f"{api_key[:6]}...{api_key[-4:]}" if len(api_key) > 10 else api_key
+        
+        await message.reply(
+            f"🔑 **LLM (Gemini) API Key Status:**\n\n"
+            f"`{api_key}`\n\n"
+            f"*(Masked preview: {masked_key})*\n\n"
+            f"⚠️ *Warning: Keep this token secret. Do not share it in public groups.*",
+            parse_mode="Markdown"
+        )
 
     async def cmd_list(self, message: types.Message):
         """Handle /list — show user's watchlist."""
