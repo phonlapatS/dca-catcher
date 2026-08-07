@@ -12,6 +12,10 @@ class StockSnapshot:
     volume: int
     ath_price: float
     drawdown_pct: float  # negative value, e.g. -20.0
+    rsi: float | None = None
+    ma_50: float | None = None
+    volume_20d_avg: float | None = None
+    is_volume_anomaly: bool | None = None
 
 
 class MarketDataFetcher:

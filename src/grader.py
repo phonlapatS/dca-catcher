@@ -17,39 +17,47 @@ class GradeResult:
     confidence: int     # 0-100
     advice: str         # Thai-language advice from Gemini
     reasons: list[str]  # Reason tags, e.g. ["✅ RSI < 30", "⚠️ Low volume"]
+    buy_targets: list[str] # e.g. ["170 (มีความเสี่ยงเล็กน้อย)", "160 (ไม่เสี่ยงเลย)"]
 
 
 class SignalGrader:
     """Uses Google Gemini to grade enriched stock signals."""
 
-    def __init__(self, api_key: str, model_name: str = "gemini-2.0-flash"):
-        """Configure Gemini with the provided API key."""
+    def __init__(self, api_key: str, models: list[str] = None):
+        """Configure Gemini with the provided API key and fallback models."""
         genai.configure(api_key=api_key)
-        self.model_name = model_name
-        self.model = genai.GenerativeModel(model_name)
+        # Default fallback models based on user quota preferences
+        self.models = models or ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]
 
     def grade(self, signal: EnrichedSignal) -> GradeResult:
         """Send enriched signal dimensions to Gemini for grading.
 
         Constructs a prompt with the 3 dimension scores and asks Gemini
         to return a JSON response with grade, confidence, advice, and reasons.
-
-        On parse or API failure, returns a fallback GradeResult with grade=2,
-        confidence=0, and advice explaining the error.
+        Tries multiple models sequentially if quota limits are hit.
         """
-        try:
-            prompt = self._build_prompt(signal)
-            response = self.model.generate_content(prompt)
-            return self._parse_response(response.text, signal.symbol)
-        except Exception as e:
-            logger.warning(f"Gemini API grading failed for {signal.symbol}: {e}")
-            return GradeResult(
-                symbol=signal.symbol,
-                grade=2,
-                confidence=0,
-                advice=f"Gemini API error: {e}",
-                reasons=["⚠️ API error"],
-            )
+        prompt = self._build_prompt(signal)
+        last_error = None
+        
+        for model_name in self.models:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                return self._parse_response(response.text, signal.symbol)
+            except Exception as e:
+                logger.warning(f"Model {model_name} failed for {signal.symbol}: {e}")
+                last_error = e
+                continue # Try the next model
+                
+        # If all models fail, return fallback
+        logger.error(f"All Gemini models failed for {signal.symbol}. Last error: {last_error}")
+        return GradeResult(
+            symbol=signal.symbol,
+            grade=2,
+            confidence=0,
+            advice=f"Gemini API error (All models failed): {last_error}",
+            reasons=["⚠️ ไม่สามารถติดต่อ AI ได้ (API Error)"],
+        )
 
     def _build_prompt(self, signal: EnrichedSignal) -> str:
         """Build the Gemini prompt from enriched signal data.
@@ -82,12 +90,14 @@ Analysis Dimensions:
 
 Instruction:
 Evaluate the combined dimensions (PRICE, FLOW, CONTEXT) and cross-analyze any conflicts.
+Calculate 3 suggested buy target prices based on the ATH and current price. Provide the price and a short Thai description of the risk at that level (e.g., "170 (มีความเสี่ยงเล็กน้อย)", "160 (ปลอดภัย)", "150 (Play safe)").
 Return ONLY a valid raw JSON object (without markdown code formatting or extraneous text) matching this schema:
 {{
     "grade": <integer 1 to 4: 1=Risky/High risk, 2=Moderate risk/Hold, 3=Low risk/Good DCA, 4=Strong buy/Now>,
     "confidence": <integer 0 to 100>,
     "advice": "<Thai string containing practical DCA investment advice in Thai language>",
-    "reasons": ["<tag string 1>", "<tag string 2>"]
+    "reasons": ["<Thai tag string 1 with ✅ or ⚠️ (e.g., ✅ ใกล้ถึงจุดสูงสุดที่เคยทำไว้ก่อนหน้า)>", "<Thai tag string 2>"],
+    "buy_targets": ["<Target 1>", "<Target 2>", "<Target 3>"]
 }}
 """
         return prompt
@@ -110,6 +120,7 @@ Return ONLY a valid raw JSON object (without markdown code formatting or extrane
             confidence = int(data.get("confidence", 0))
             advice = str(data.get("advice", "No advice provided"))
             reasons = list(data.get("reasons", []))
+            buy_targets = list(data.get("buy_targets", []))
 
             return GradeResult(
                 symbol=symbol,
@@ -117,6 +128,7 @@ Return ONLY a valid raw JSON object (without markdown code formatting or extrane
                 confidence=confidence,
                 advice=advice,
                 reasons=reasons,
+                buy_targets=buy_targets,
             )
         except Exception as e:
             logger.warning(f"Failed to parse Gemini response for {symbol}: {e}. Response text: {text!r}")
@@ -126,4 +138,5 @@ Return ONLY a valid raw JSON object (without markdown code formatting or extrane
                 confidence=0,
                 advice=f"Failed to parse response: {e}",
                 reasons=["⚠️ Parse error"],
+                buy_targets=[],
             )

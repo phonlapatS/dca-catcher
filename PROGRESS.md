@@ -350,11 +350,16 @@ export DATABASE_URL="sqlite+aiosqlite:///dca_catcher.db"
 - **Detailed Task Briefs (OOP):** `.superpowers/sdd/2026-08-06-dca-catcher-plan/task-*-brief.md`
 - **Task Reports:** `.superpowers/sdd/2026-08-06-dca-catcher-plan/task-*-report.md`
 
-## 🚀 Future Enhancements (after MVP)
-- [ ] FLOW dimension: compare volume vs 20-day moving average
-- [ ] CONTEXT dimension: CNN Fear & Greed Index scraping + Google News RSS sentiment
-- [ ] RSI technical indicator via `ta` library
+## 🚀 Phase 2: Smart Notifications & Deep Analytics (IN PROGRESS)
+- [x] **Design & Planning:** Finalized architecture for Anti-Spam state machine, Buy Targets, and NER news filtering.
+- [x] **Design Doc:** `docs/superpowers/specs/2026-08-07-phase-2-design.md`
+- [x] **Plan Doc:** `docs/superpowers/plans/2026-08-07-phase-2-plan.md`
+- [ ] **Task 1: Technical Indicators** (RSI, MA_50, Volume Anomalies in `DataTransformer`) - *Currently executing via Subagent*
+- [ ] **Task 2: Market Sentiment Scrapers** (CNN Fear & Greed, Google News RSS)
+- [ ] **Task 3: Grader Prompt Upgrade** (Extract NER keywords & generate 3 explicit Buy Targets)
+- [ ] **Task 4: Anti-Spam Alert State Machine** (Database tracking for `last_notified_zone`)
+
+## 🚀 Phase 3: Deployment & Schedulers (Upcoming)
 - [ ] Scheduled analysis: daily summary (07:00), pre-market alerts (09:30 TH, 20:00 US)
-- [ ] Intraday monitoring: poll every 15 min, alert on ≥5% drop
 - [ ] Docker container deployment
 - [ ] Interactive inline keyboards in Telegram messages
