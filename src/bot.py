@@ -47,6 +47,7 @@ class AdviceSurvey(StatesGroup):
     waiting_for_horizon = State()
     waiting_for_goal = State()
     waiting_for_sector = State()
+    waiting_for_count = State()
 
 
 class DCABot:
@@ -88,6 +89,7 @@ class DCABot:
         self.dp.callback_query.register(self.advice_horizon, AdviceSurvey.waiting_for_horizon)
         self.dp.callback_query.register(self.advice_goal, AdviceSurvey.waiting_for_goal)
         self.dp.callback_query.register(self.advice_sector, AdviceSurvey.waiting_for_sector)
+        self.dp.callback_query.register(self.advice_count, AdviceSurvey.waiting_for_count)
 
     async def _add_to_watchlist(
         self, telegram_id: int, username: str | None, symbol: str, market: str
@@ -348,38 +350,57 @@ class DCABot:
         await state.update_data(sectors=sectors)
         
         if len(sectors) == 3:
-            # Reached 3 choices, finish and call AI
-            await callback.message.edit_text("⏳ AI กำลังประมวลผลข้อมูลและจัดพอร์ตให้คุณ กรุณารอสักครู่...")
-            
-            # Fetch risk profile from DB
-            telegram_id = callback.from_user.id
-            risk_profile = None
-            async with self.db.session() as session:
-                stmt = select(User).where(User.telegram_id == telegram_id)
-                res = await session.execute(stmt)
-                user = res.scalar_one_or_none()
-                if user:
-                    risk_profile = user.risk_profile
-                    
-            horizon = data.get("horizon")
-            goal = data.get("goal")
-            
-            # Call Grader in a background thread or directly (it uses genai which blocks, but it's ok for now)
-            # A better way would be asyncio.to_thread, but we'll just call it here.
-            import asyncio
-            advice_text = await asyncio.to_thread(
-                self.grader.generate_advice,
-                risk_profile=risk_profile,
-                horizon=horizon,
-                goal=goal,
-                sectors=sectors
+            # Transition to asking for stock count
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🎯 แนะนำ 3 ตัว (เน้นๆ โฟกัสๆ)", callback_data="cnt_3")],
+                [InlineKeyboardButton(text="🖐️ แนะนำ 5 ตัว (มาตรฐาน)", callback_data="cnt_5")],
+                [InlineKeyboardButton(text="🍀 แนะนำ 7 ตัว (กระจายความเสี่ยง)", callback_data="cnt_7")],
+                [InlineKeyboardButton(text="🔟 แนะนำ 10 ตัว (จัดพอร์ตใหญ่)", callback_data="cnt_10")]
+            ])
+            await callback.message.edit_text(
+                "เกือบเสร็จแล้วครับ! 📈\nคุณอยากให้ AI แนะนำหุ้นกี่ตัวสำหรับพอร์ตนี้ครับ?",
+                reply_markup=keyboard
             )
-            
-            await callback.message.answer(advice_text, parse_mode="Markdown")
-            await state.clear()
+            await state.set_state(AdviceSurvey.waiting_for_count)
         else:
             # Re-render keyboard
             await self._show_sector_keyboard(callback.message, state)
+
+    async def advice_count(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        
+        cnt_str = callback.data.split("_")[1]
+        
+        await callback.message.edit_text("⏳ AI กำลังประมวลผลข้อมูลและจัดพอร์ตให้คุณ กรุณารอสักครู่...")
+        
+        data = await state.get_data()
+        horizon = data.get("horizon")
+        goal = data.get("goal")
+        sectors = data.get("sectors", [])
+        
+        # Fetch risk profile from DB
+        telegram_id = callback.from_user.id
+        risk_profile = None
+        async with self.db.session() as session:
+            stmt = select(User).where(User.telegram_id == telegram_id)
+            res = await session.execute(stmt)
+            user = res.scalar_one_or_none()
+            if user:
+                risk_profile = user.risk_profile
+                
+        # Call Grader in a background thread
+        import asyncio
+        advice_text = await asyncio.to_thread(
+            self.grader.generate_advice,
+            risk_profile=risk_profile,
+            horizon=horizon,
+            goal=goal,
+            sectors=sectors,
+            count=cnt_str
+        )
+        
+        await callback.message.answer(advice_text, parse_mode="Markdown")
+        await state.clear()
 
     async def cmd_add(self, message: types.Message):
         """Handle /add <symbol> <market> — add stock to user's watchlist.
