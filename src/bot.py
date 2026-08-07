@@ -1,7 +1,8 @@
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.token import TokenValidationError, validate_token
 from sqlalchemy import select
 
@@ -26,6 +27,16 @@ GRADE_LABELS = {
     3: "Low Risk (เหมาะแก่การ DCA)",
     4: "Strong Buy (สัญญาณซื้อแข็งแกร่ง)",
 }
+
+
+def create_add_watchlist_keyboard(symbol: str, bot_username: str) -> InlineKeyboardMarkup:
+    """Create an inline keyboard button with deep link to add a symbol to user's watchlist.
+
+    Deep link format: t.me/bot_username?start=add_SYMBOL
+    """
+    url = f"https://t.me/{bot_username}?start=add_{symbol}"
+    button = InlineKeyboardButton(text=f"➕ Add {symbol} to Watchlist", url=url)
+    return InlineKeyboardMarkup(inline_keyboard=[[button]])
 
 
 class DCABot:
@@ -55,8 +66,49 @@ class DCABot:
         self.dp.message.register(self.cmd_list, Command("list"))
         self.dp.message.register(self.cmd_scan, Command("scan"))
 
-    async def cmd_start(self, message: types.Message):
-        """Handle /start — welcome message and system introduction."""
+    async def _add_to_watchlist(
+        self, telegram_id: int, username: str | None, symbol: str, market: str
+    ) -> str:
+        """Helper method to upsert user and add symbol to watchlist."""
+        async with self.db.session() as session:
+            stmt = select(User).where(User.telegram_id == telegram_id)
+            res = await session.execute(stmt)
+            user = res.scalar_one_or_none()
+
+            if not user:
+                user = User(telegram_id=telegram_id, username=username)
+                session.add(user)
+                await session.commit()
+                await session.refresh(user)
+
+            stmt_w = select(Watchlist).where(
+                Watchlist.user_id == user.id, Watchlist.symbol == symbol
+            )
+            res_w = await session.execute(stmt_w)
+            existing = res_w.scalar_one_or_none()
+
+            if existing:
+                return f"ℹ️ Symbol {symbol} ({market}) is already in your watchlist."
+            else:
+                item = Watchlist(user_id=user.id, symbol=symbol, market=market)
+                session.add(item)
+                await session.commit()
+                return f"✅ Added {symbol} ({market}) to your watchlist."
+
+    async def cmd_start(self, message: types.Message, command: CommandObject | None = None):
+        """Handle /start — welcome message and deep links (e.g. /start add_NVDA)."""
+        if command and command.args and command.args.startswith("add_"):
+            if not message.from_user:
+                return
+            symbol = command.args.split("_", 1)[1].upper()
+            market = "TH" if symbol.endswith(".BK") else "US"
+            await message.answer(f"⏳ Adding {symbol} to your watchlist...")
+            res_text = await self._add_to_watchlist(
+                message.from_user.id, message.from_user.username, symbol, market
+            )
+            await message.answer(res_text)
+            return
+
         welcome_text = (
             "👋 Welcome to DCA Catcher Bot!\n"
             "ยินดีต้อนรับสู่ระบบวิเคราะห์หุ้นสำหรับ DCA ด้วย AI\n\n"
@@ -65,7 +117,7 @@ class DCABot:
             "/list - View your watchlist (ดูรายการหุ้นใน watchlist)\n"
             "/scan [symbol] - Run AI DCA analysis (วิเคราะห์หุ้นด้วย AI)"
         )
-        await message.reply(welcome_text)
+        await message.answer(welcome_text)
 
     async def cmd_add(self, message: types.Message):
         """Handle /add <symbol> <market> — add stock to user's watchlist.
@@ -87,41 +139,13 @@ class DCABot:
             return
 
         symbol = parts[1].upper()
-        market = parts[2].upper() if len(parts) >= 3 else "US"
+        market = parts[2].upper() if len(parts) >= 3 else ("TH" if symbol.endswith(".BK") else "US")
 
         telegram_id = message.from_user.id
         username = message.from_user.username
 
-        async with self.db.session() as session:
-            # Get or create user
-            stmt = select(User).where(User.telegram_id == telegram_id)
-            res = await session.execute(stmt)
-            user = res.scalar_one_or_none()
-
-            if not user:
-                user = User(telegram_id=telegram_id, username=username)
-                session.add(user)
-                await session.commit()
-                await session.refresh(user)
-
-            # Check if symbol already in watchlist
-            stmt_w = select(Watchlist).where(
-                Watchlist.user_id == user.id, Watchlist.symbol == symbol
-            )
-            res_w = await session.execute(stmt_w)
-            existing = res_w.scalar_one_or_none()
-
-            if existing:
-                await message.reply(
-                    f"ℹ️ Symbol {symbol} ({market}) is already in your watchlist."
-                )
-            else:
-                item = Watchlist(user_id=user.id, symbol=symbol, market=market)
-                session.add(item)
-                await session.commit()
-                await message.reply(
-                    f"✅ Added {symbol} ({market}) to your watchlist."
-                )
+        res_text = await self._add_to_watchlist(telegram_id, username, symbol, market)
+        await message.reply(res_text)
 
     async def cmd_list(self, message: types.Message):
         """Handle /list — show user's watchlist."""
