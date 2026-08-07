@@ -50,6 +50,7 @@ class AdviceSurvey(StatesGroup):
     waiting_for_subsector = State()
     waiting_for_count = State()
     waiting_for_budget = State()
+    waiting_for_watchlist_decision = State()
 
 
 ALL_SECTORS = {
@@ -169,6 +170,9 @@ class DCABot:
         self.dp.callback_query.register(self.advice_subsector, AdviceSurvey.waiting_for_subsector)
         self.dp.callback_query.register(self.advice_count, AdviceSurvey.waiting_for_count)
         self.dp.callback_query.register(self.advice_budget, AdviceSurvey.waiting_for_budget)
+        
+        self.dp.callback_query.register(self.advice_add_watchlist, F.data == "advice_add_wl", AdviceSurvey.waiting_for_watchlist_decision)
+        self.dp.callback_query.register(self.advice_skip_watchlist, F.data == "advice_skip_wl", AdviceSurvey.waiting_for_watchlist_decision)
 
     async def _add_to_watchlist(
         self, telegram_id: int, username: str | None, symbol: str, market: str
@@ -553,6 +557,45 @@ class DCABot:
         )
         
         await callback.message.answer(advice_text, parse_mode="Markdown")
+        
+        import re
+        tickers = re.findall(r"\d+\.\s+\*\*([A-Z0-9\.]+)\*\*", advice_text)
+        
+        if tickers:
+            await state.update_data(recommended_tickers=tickers)
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="➕ เพิ่มหุ้นที่แนะนำเข้า Watchlist ทั้งหมด", callback_data="advice_add_wl")],
+                [InlineKeyboardButton(text="⏭️ ข้ามไปก่อน", callback_data="advice_skip_wl")]
+            ])
+            await callback.message.answer("คุณต้องการเพิ่มหุ้นที่แนะนำข้างต้นเข้าไปใน Watchlist เพื่อติดตามการแจ้งเตือนด้วย AI เป็นประจำทุกวันหรือไม่?", reply_markup=kb)
+            await state.set_state(AdviceSurvey.waiting_for_watchlist_decision)
+        else:
+            await state.clear()
+
+    async def advice_add_watchlist(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        data = await state.get_data()
+        tickers = data.get("recommended_tickers", [])
+        telegram_id = callback.from_user.id
+        username = callback.from_user.username
+        
+        added = []
+        for symbol in tickers:
+            market = "TH" if symbol.endswith(".BK") else "US"
+            res = await self._add_to_watchlist(telegram_id, username, symbol, market)
+            if "✅" in res:
+                added.append(symbol)
+                
+        if added:
+            await callback.message.edit_text(f"✅ เพิ่มหุ้น {', '.join(added)} ลงใน Watchlist เรียบร้อยแล้วครับ! บอทจะทำการสแกนรายวันให้ครับ")
+        else:
+            await callback.message.edit_text("ℹ️ หุ้นทั้งหมดอยู่ใน Watchlist ของคุณอยู่แล้วครับ")
+            
+        await state.clear()
+
+    async def advice_skip_watchlist(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        await callback.message.edit_text("โอเคครับ! ถ้าต้องการเพิ่มทีหลังสามารถใช้คำสั่ง /add <ชื่อหุ้น> ได้ตลอดเลยครับ")
         await state.clear()
 
     async def cmd_add(self, message: types.Message):
