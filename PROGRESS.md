@@ -365,8 +365,15 @@ export DATABASE_URL="sqlite+aiosqlite:///dca_catcher.db"
 - [x] **Task 3: APScheduler Integration** (Daily broadcast at 07:00, 09:30, 20:00)
 - [x] **Task 4: Docker Deployment** (`Dockerfile` and `docker-compose.yml`)
 
-## 🚀 Phase 4: Production (Current State)
-- The codebase is complete and pushed to GitHub (`main`).
-- Bot supports full manual commands (`/scan`, `/add`, `/remove`, `/list`).
-- Schedulers are active.
-- Ready to be deployed to a VPS or Render.
+### Phase 4: Production Ready & Advanced UX (Current)
+- [x] **Help Menu & Security (bot.py):** Added `/help` to list commands and removed the `/token` command for a cleaner, safer UX.
+- [x] **Interactive Risk Survey (`/survey`):** 
+  - **What:** Replaced manual settings with an AI-driven FSM (Finite State Machine) survey to collect the user's investment style and bank-standard drawdown tolerance (1-10%, 11-30%, etc.).
+  - **Reason:** Old "wait for -30%" rule was rigid and took too long for some users. The interactive survey provides a modern Telegram UX, mimicking a wealth manager, and allows the bot to tailor recommendations.
+- [x] **Personalized Stock Matchmaker (`/advice`):**
+  - **What:** A new command where users answer an FSM survey (Time Horizon, Goal, Top 3 Sectors). The bot then passes this to Gemini to recommend exactly 5 standard stocks matching their exact profile, including a Growth vs. Inflation projection.
+  - **Reason:** Solves the "I want to DCA but don't know what to buy" problem. Old version only analyzed stocks already in the watchlist. This new version actively helps build a portfolio from scratch.
+- [ ] **Personalized Daily Broadcast:** Update the Morning/Evening broadcasts to tag users based on their watchlist and provide individualized buy targets according to their risk profiles.
+- [ ] **Deployment:** Host on Railway/Render for 24/7 uptime.
+
+## Final Reviewr.

@@ -165,3 +165,58 @@ Instruction:
                 reasons=["⚠️ Parse error"],
                 buy_targets=[],
             )
+
+    def generate_advice(self, risk_profile: str, horizon: str, goal: str, sectors: list[str]) -> str:
+        """Generate a personalized portfolio advice based on user survey.
+        
+        Args:
+            risk_profile: User's risk tolerance string (e.g., 'รับความเสี่ยงได้ปานกลาง')
+            horizon: Investment timeframe (e.g., '3-5 ปี')
+            goal: Primary investment goal (e.g., 'เน้นเติบโต')
+            sectors: List of 3 selected sectors (e.g., ['เทคโนโลยี', 'สุขภาพ', 'พลังงาน'])
+            
+        Returns:
+            A formatted Markdown string containing the AI's 5 stock recommendations and plan.
+        """
+        sectors_str = ", ".join(sectors)
+        prompt = f"""You are a professional wealth manager and financial AI assistant. All explanations must be in Thai.
+
+The user needs a customized stock portfolio recommendation. Here is their profile:
+- Risk Profile: {risk_profile if risk_profile else 'ไม่ได้ระบุ'}
+- Time Horizon: {horizon}
+- Investment Goal: {goal}
+- Preferred Sectors (Top 3): {sectors_str}
+
+Please generate a highly professional and tailored investment plan. Your output must exactly follow this Markdown structure:
+
+📊 **พอร์ตการลงทุนที่ออกแบบมาเพื่อคุณโดยเฉพาะ**
+(โปรไฟล์: [สรุปโปรไฟล์สั้นๆ])
+
+**🎯 รายชื่อหุ้น 5 ตัว (Standard Portfolio):**
+1. **[Ticker 1]** - [เหตุผลที่ตรงกับความต้องการและธีมที่เลือก 1-2 บรรทัด]
+2. **[Ticker 2]** - ...
+3. **[Ticker 3]** - ...
+4. **[Ticker 4]** - ...
+5. **[Ticker 5]** - ...
+
+**📝 แผนการลงทุน & สัดส่วนพอร์ต (Action Plan):**
+[แนะนำว่าควรแบ่งเงินซื้อตัวไหนกี่เปอร์เซ็นต์ (เช่น Core & Satellite) และวิธีการ DCA]
+
+**📈 คาดการณ์การเติบโต vs เงินเฟ้อ (Growth Projection):**
+[วิเคราะห์เปรียบเทียบผลตอบแทนคาดหวังของพอร์ตนี้เทียบกับเงินเฟ้อเฉลี่ย 3% ต่อปี ให้เห็นภาพว่าเงินจะงอกเงยอย่างไรตาม Time Horizon ที่กำหนด]
+
+Make sure the 5 recommended stocks are real, well-known US or global stocks that strictly fit their risk profile, horizon, goal, and the 3 chosen sectors. Provide the output directly, no introductory or concluding chat.
+"""
+        
+        last_error = None
+        for model_name in self.models:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                return response.text.strip()
+            except Exception as e:
+                logger.warning(f"Model {model_name} failed for advice generation: {e}")
+                last_error = e
+                continue
+                
+        return f"⚠️ ขออภัยครับ AI ระบบขัดข้อง ไม่สามารถจัดพอร์ตให้ได้ในขณะนี้: {last_error}"

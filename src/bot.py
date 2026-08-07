@@ -43,6 +43,11 @@ class RiskSurvey(StatesGroup):
     waiting_for_style = State()
     waiting_for_drawdown = State()
 
+class AdviceSurvey(StatesGroup):
+    waiting_for_horizon = State()
+    waiting_for_goal = State()
+    waiting_for_sector = State()
+
 
 class DCABot:
     """Main application class — wires all components and handles Telegram commands."""
@@ -72,11 +77,17 @@ class DCABot:
         self.dp.message.register(self.cmd_list, Command("list"))
         self.dp.message.register(self.cmd_scan, Command("scan"))
         self.dp.message.register(self.cmd_survey, Command("survey"))
+        self.dp.message.register(self.cmd_advice, Command("advice"))
         self.dp.message.register(self.cmd_help, Command("help"))
         
-        # FSM handlers
+        # FSM handlers for /survey
         self.dp.callback_query.register(self.survey_style, RiskSurvey.waiting_for_style)
         self.dp.callback_query.register(self.survey_drawdown, RiskSurvey.waiting_for_drawdown)
+        
+        # FSM handlers for /advice
+        self.dp.callback_query.register(self.advice_horizon, AdviceSurvey.waiting_for_horizon)
+        self.dp.callback_query.register(self.advice_goal, AdviceSurvey.waiting_for_goal)
+        self.dp.callback_query.register(self.advice_sector, AdviceSurvey.waiting_for_sector)
 
     async def _add_to_watchlist(
         self, telegram_id: int, username: str | None, symbol: str, market: str
@@ -140,6 +151,7 @@ class DCABot:
             "   *(ตัวอย่าง: /remove NVDA)*\n"
             "🔹 `/list` - ดูรายชื่อหุ้นทั้งหมดใน Watchlist ของคุณ\n"
             "🔹 `/survey` - ทำแบบสอบถามเพื่อตั้งค่า Profile ความเสี่ยงของคุณ\n"
+            "🔹 `/advice` - 🌟 ให้ AI ช่วยหาและจัดพอร์ตหุ้น 5 ตัวตามเป้าหมายของคุณ\n"
             "🔹 `/scan` - สั่ง AI ให้วิเคราะห์หุ้น **ทุกตัว** ใน Watchlist\n"
             "🔹 `/scan <ชื่อหุ้น>` - สั่ง AI ให้วิเคราะห์หุ้น **เฉพาะตัวที่ระบุ**\n"
             "   *(ตัวอย่าง: /scan TSLA)*"
@@ -225,6 +237,149 @@ class DCABot:
         
         await callback.message.edit_text(msg_reply, parse_mode="Markdown")
         await state.clear()
+
+    async def cmd_advice(self, message: types.Message, state: FSMContext):
+        """Start the personalized stock recommendation survey."""
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⏳ 1-3 เดือน (เก็งกำไรระยะสั้นมากๆ)", callback_data="hz_1_3m")],
+            [InlineKeyboardButton(text="⌛ 3-6 เดือน (รอบเทรดระยะสั้น-กลาง)", callback_data="hz_3_6m")],
+            [InlineKeyboardButton(text="📅 1-3 ปี (ระยะกลาง)", callback_data="hz_1_3y")],
+            [InlineKeyboardButton(text="📆 3-5 ปี (ระยะยาว)", callback_data="hz_3_5y")],
+            [InlineKeyboardButton(text="🗓️ 5-10 ปีขึ้นไป (เพื่อเกษียณ)", callback_data="hz_5_10y")]
+        ])
+        await message.answer(
+            "🌟 **AI Personalized Stock Matchmaker** 🌟\n\n"
+            "เป้าหมายของเงินก้อนนี้ คุณตั้งใจจะนำไปลงทุนและถือไว้นานแค่ไหนครับ?",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+        await state.set_state(AdviceSurvey.waiting_for_horizon)
+        
+    async def advice_horizon(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        hz_map = {
+            "hz_1_3m": "1-3 เดือน",
+            "hz_3_6m": "3-6 เดือน",
+            "hz_1_3y": "1-3 ปี",
+            "hz_3_5y": "3-5 ปี",
+            "hz_5_10y": "5-10 ปีขึ้นไป"
+        }
+        await state.update_data(horizon=hz_map.get(callback.data, "1-3 ปี"))
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💸 เน้นปันผล (Dividend Income)", callback_data="gl_div")],
+            [InlineKeyboardButton(text="📈 เน้นราคาเติบโต (Capital Gain)", callback_data="gl_grow")],
+            [InlineKeyboardButton(text="⚖️ เน้นผสมผสาน (Balanced)", callback_data="gl_bal")]
+        ])
+        await callback.message.edit_text(
+            "สิ่งที่คุณคาดหวังที่สุดจากการถือหุ้นชุดนี้คืออะไรครับ?",
+            reply_markup=keyboard
+        )
+        await state.set_state(AdviceSurvey.waiting_for_goal)
+        
+    async def advice_goal(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        gl_map = {
+            "gl_div": "เน้นปันผล",
+            "gl_grow": "เน้นเติบโต",
+            "gl_bal": "เน้นผสมผสาน"
+        }
+        await state.update_data(goal=gl_map.get(callback.data, "เน้นผสมผสาน"))
+        await state.update_data(sectors=[]) # Initialize empty list for multiple selections
+        
+        await self._show_sector_keyboard(callback.message, state)
+        await state.set_state(AdviceSurvey.waiting_for_sector)
+        
+    async def _show_sector_keyboard(self, message: types.Message, state: FSMContext):
+        data = await state.get_data()
+        sectors = data.get("sectors", [])
+        
+        # Available sectors
+        all_sectors = {
+            "sec_tech": "💻 เทคโนโลยี & AI",
+            "sec_health": "🏥 สุขภาพ & การแพทย์",
+            "sec_def": "🛡️ ของกินของใช้ (Defensive)",
+            "sec_energy": "⚡ พลังงาน & สาธารณูปโภค",
+            "sec_fin": "🏦 การเงิน & ธนาคาร"
+        }
+        
+        buttons = []
+        for key, name in all_sectors.items():
+            # Add checkmark if selected
+            text = f"✅ {name}" if name in sectors else name
+            buttons.append([InlineKeyboardButton(text=text, callback_data=key)])
+            
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+        
+        count = len(sectors)
+        text = (
+            f"คุณมีความเชื่อมั่น หรือสนใจในอุตสาหกรรมไหนเป็นพิเศษไหมครับ?\n"
+            f"(เลือกมา 3 อันดับแรก - ตอนนี้เลือกแล้ว {count}/3 อันดับ)"
+        )
+        
+        if isinstance(message, types.Message):
+            await message.edit_text(text, reply_markup=keyboard)
+            
+    async def advice_sector(self, callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        
+        all_sectors = {
+            "sec_tech": "💻 เทคโนโลยี & AI",
+            "sec_health": "🏥 สุขภาพ & การแพทย์",
+            "sec_def": "🛡️ ของกินของใช้ (Defensive)",
+            "sec_energy": "⚡ พลังงาน & สาธารณูปโภค",
+            "sec_fin": "🏦 การเงิน & ธนาคาร"
+        }
+        
+        selected_name = all_sectors.get(callback.data)
+        if not selected_name:
+            return
+            
+        data = await state.get_data()
+        sectors = data.get("sectors", [])
+        
+        # Toggle selection
+        if selected_name in sectors:
+            sectors.remove(selected_name)
+        else:
+            if len(sectors) < 3:
+                sectors.append(selected_name)
+                
+        await state.update_data(sectors=sectors)
+        
+        if len(sectors) == 3:
+            # Reached 3 choices, finish and call AI
+            await callback.message.edit_text("⏳ AI กำลังประมวลผลข้อมูลและจัดพอร์ตให้คุณ กรุณารอสักครู่...")
+            
+            # Fetch risk profile from DB
+            telegram_id = callback.from_user.id
+            risk_profile = None
+            async with self.db.session() as session:
+                stmt = select(User).where(User.telegram_id == telegram_id)
+                res = await session.execute(stmt)
+                user = res.scalar_one_or_none()
+                if user:
+                    risk_profile = user.risk_profile
+                    
+            horizon = data.get("horizon")
+            goal = data.get("goal")
+            
+            # Call Grader in a background thread or directly (it uses genai which blocks, but it's ok for now)
+            # A better way would be asyncio.to_thread, but we'll just call it here.
+            import asyncio
+            advice_text = await asyncio.to_thread(
+                self.grader.generate_advice,
+                risk_profile=risk_profile,
+                horizon=horizon,
+                goal=goal,
+                sectors=sectors
+            )
+            
+            await callback.message.answer(advice_text, parse_mode="Markdown")
+            await state.clear()
+        else:
+            # Re-render keyboard
+            await self._show_sector_keyboard(callback.message, state)
 
     async def cmd_add(self, message: types.Message):
         """Handle /add <symbol> <market> — add stock to user's watchlist.
