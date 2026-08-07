@@ -350,14 +350,14 @@ export DATABASE_URL="sqlite+aiosqlite:///dca_catcher.db"
 - **Detailed Task Briefs (OOP):** `.superpowers/sdd/2026-08-06-dca-catcher-plan/task-*-brief.md`
 - **Task Reports:** `.superpowers/sdd/2026-08-06-dca-catcher-plan/task-*-report.md`
 
-## 🚀 Phase 2: Smart Notifications & Deep Analytics (IN PROGRESS)
+## 🚀 Phase 2: Smart Notifications & Deep Analytics (COMPLETE)
 - [x] **Design & Planning:** Finalized architecture for Anti-Spam state machine, Buy Targets, and NER news filtering.
 - [x] **Design Doc:** `docs/superpowers/specs/2026-08-07-phase-2-design.md`
 - [x] **Plan Doc:** `docs/superpowers/plans/2026-08-07-phase-2-plan.md`
-- [ ] **Task 1: Technical Indicators** (RSI, MA_50, Volume Anomalies in `DataTransformer`) - *Currently executing via Subagent*
-- [ ] **Task 2: Market Sentiment Scrapers** (CNN Fear & Greed, Google News RSS)
-- [ ] **Task 3: Grader Prompt Upgrade** (Extract NER keywords & generate 3 explicit Buy Targets)
-- [ ] **Task 4: Anti-Spam Alert State Machine** (Database tracking for `last_notified_zone`)
+- [x] **Task 1: Technical Indicators** (RSI, MA_50, Bollinger Bands, Volume Anomalies)
+- [x] **Task 2: Market Sentiment Scrapers** (CNN Fear & Greed, Google News RSS)
+- [x] **Task 3: Grader Prompt Upgrade** (Extract NER keywords & generate 3 explicit Buy Targets)
+- [x] **Task 4: Anti-Spam Alert State Machine** (Database tracking for `last_notified_zone`)
 
 ## 🚀 Phase 3: Deployment & Schedulers (Upcoming)
 - [ ] Scheduled analysis: daily summary (07:00), pre-market alerts (09:30 TH, 20:00 US)

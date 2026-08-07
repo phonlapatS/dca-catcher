@@ -9,9 +9,10 @@
 ## ✨ Features
 
 - 📊 **Real-time stock data** — Fetch from Yahoo Finance (US + Thai `.BK` markets)
-- 🧠 **3-Dimension Analysis** — Score stocks on Price, Flow, and Context
-- 🤖 **AI Grading** — Google Gemini rates each stock 1-4 with Thai advice
-- 💬 **Telegram Bot** — `/add`, `/list`, `/scan` commands for your watchlist
+- 🧠 **Deep Technical Analysis** — Automatically calculates RSI, 50-MA, Bollinger Bands, and Volume Anomalies
+- 📰 **Sentiment Scrapers** — Integrates CNN Fear & Greed Index and Google News RSS feeds
+- 🤖 **AI Grading & News Filtering** — Google Gemini extracts NER entities to filter fake news, and generates 3 explicit Buy Targets
+- 💬 **Telegram Bot & Anti-Spam** — `/scan` commands and a background state-machine that only notifies you once per target zone
 - 👥 **Multi-user** — Each user has their own watchlist
 - 🆓 **100% Free Tier** — All tools are free to use
 
