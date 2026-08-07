@@ -148,7 +148,7 @@ def test_calculate_indicators():
     transformer = DataTransformer()
     result_df = transformer.calculate_indicators(df)
 
-    for col in ["rsi", "ma_50", "volume_20d_avg", "is_volume_anomaly"]:
+    for col in ["rsi", "ma_50", "volume_20d_avg", "is_volume_anomaly", "bb_lower", "bb_upper"]:
         assert col in result_df.columns
 
     expected_ma50 = sum(closes[10:60]) / 50.0
@@ -170,6 +170,6 @@ def test_calculate_indicators_uppercase_columns():
     transformer = DataTransformer()
     result_df = transformer.calculate_indicators(df)
 
-    for col in ["rsi", "ma_50", "volume_20d_avg", "is_volume_anomaly"]:
+    for col in ["rsi", "ma_50", "volume_20d_avg", "is_volume_anomaly", "bb_lower", "bb_upper"]:
         assert col in result_df.columns
 

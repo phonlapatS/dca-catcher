@@ -30,6 +30,8 @@ class DataTransformer:
         - ma_50: 50-period Simple Moving Average of close price
         - volume_20d_avg: 20-period Simple Moving Average of volume
         - is_volume_anomaly: boolean indicating if volume > 1.5 * volume_20d_avg
+        - bb_lower: Lower Bollinger Band (20 periods, 2 std dev)
+        - bb_upper: Upper Bollinger Band (20 periods, 2 std dev)
         """
         df = df.copy()
 
@@ -48,6 +50,10 @@ class DataTransformer:
         df["ma_50"] = ta.trend.sma_indicator(close=close_series, window=50)
         df["volume_20d_avg"] = ta.trend.sma_indicator(close=volume_series, window=20)
         df["is_volume_anomaly"] = volume_series > (1.5 * df["volume_20d_avg"])
+
+        indicator_bb = ta.volatility.BollingerBands(close=close_series, window=20, window_dev=2)
+        df["bb_lower"] = indicator_bb.bollinger_lband()
+        df["bb_upper"] = indicator_bb.bollinger_hband()
 
         return df
 
