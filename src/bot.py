@@ -64,6 +64,7 @@ class DCABot:
         """Register all Telegram command handlers."""
         self.dp.message.register(self.cmd_start, Command("start"))
         self.dp.message.register(self.cmd_add, Command("add"))
+        self.dp.message.register(self.cmd_remove, Command("remove"))
         self.dp.message.register(self.cmd_list, Command("list"))
         self.dp.message.register(self.cmd_scan, Command("scan"))
 
@@ -114,7 +115,8 @@ class DCABot:
             "👋 Welcome to DCA Catcher Bot!\n"
             "ยินดีต้อนรับสู่ระบบวิเคราะห์หุ้นสำหรับ DCA ด้วย AI\n\n"
             "📌 Available Commands (คำสั่งที่ใช้งานได้):\n"
-            "/add <symbol> [market] - Add stock to watchlist (e.g. /add NVDA US, /add PTT.BK TH)\n"
+            "/add <symbol> [market] - Add stock to watchlist (e.g. /add NVDA US)\n"
+            "/remove <symbol> - Remove stock from watchlist\n"
             "/list - View your watchlist (ดูรายการหุ้นใน watchlist)\n"
             "/scan [symbol] - Run AI DCA analysis (วิเคราะห์หุ้นด้วย AI)"
         )
@@ -147,6 +149,31 @@ class DCABot:
 
         res_text = await self._add_to_watchlist(telegram_id, username, symbol, market)
         await message.reply(res_text)
+
+    async def cmd_remove(self, message: types.Message):
+        """Handle /remove <symbol> — remove stock from user's watchlist."""
+        if not message.text or not message.from_user:
+            return
+
+        parts = message.text.strip().split()
+        if len(parts) < 2:
+            await message.reply("❌ Usage: /remove <symbol>\nExample: /remove NVDA")
+            return
+
+        symbol = parts[1].upper()
+        telegram_id = message.from_user.id
+
+        async with self.db.session() as session:
+            stmt = select(Watchlist).join(User, Watchlist.user_id == User.id).where(User.telegram_id == telegram_id, Watchlist.symbol == symbol)
+            res = await session.execute(stmt)
+            item = res.scalar_one_or_none()
+
+            if item:
+                await session.delete(item)
+                await session.commit()
+                await message.reply(f"🗑️ Removed {symbol} from your watchlist.")
+            else:
+                await message.reply(f"ℹ️ {symbol} is not in your watchlist.")
 
     async def cmd_list(self, message: types.Message):
         """Handle /list — show user's watchlist."""
