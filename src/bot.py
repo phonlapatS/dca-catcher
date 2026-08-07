@@ -67,7 +67,6 @@ class DCABot:
         self.dp.message.register(self.cmd_remove, Command("remove"))
         self.dp.message.register(self.cmd_list, Command("list"))
         self.dp.message.register(self.cmd_scan, Command("scan"))
-        self.dp.message.register(self.cmd_token, Command("token"))
         self.dp.message.register(self.cmd_help, Command("help"))
 
     async def _add_to_watchlist(
@@ -133,8 +132,7 @@ class DCABot:
             "🔹 `/list` - ดูรายชื่อหุ้นทั้งหมดใน Watchlist ของคุณ\n"
             "🔹 `/scan` - สั่ง AI ให้วิเคราะห์หุ้น **ทุกตัว** ใน Watchlist\n"
             "🔹 `/scan <ชื่อหุ้น>` - สั่ง AI ให้วิเคราะห์หุ้น **เฉพาะตัวที่ระบุ**\n"
-            "   *(ตัวอย่าง: /scan TSLA)*\n"
-            "🔹 `/token` - ตรวจสอบสถานะการเชื่อมต่อ AI (API Health) และรายชื่อ Model ที่กำลังทำงานอยู่"
+            "   *(ตัวอย่าง: /scan TSLA)*"
         )
         await message.answer(help_text, parse_mode="Markdown")
 
@@ -190,28 +188,6 @@ class DCABot:
                 await message.reply(f"🗑️ Removed {symbol} from your watchlist.")
             else:
                 await message.reply(f"ℹ️ {symbol} is not in your watchlist.")
-
-    async def cmd_token(self, message: types.Message):
-        """Handle /token — display API health and models."""
-        api_key = self.config.gemini_api_key
-        models = self.grader.models
-        
-        # Calculate a basic health status
-        is_healthy = bool(api_key and len(api_key) > 20)
-        health_pct = 100 if is_healthy else 0
-        status_text = "Online (Active)" if is_healthy else "Offline (Invalid Key)"
-        
-        bar = "█" * 10 if is_healthy else "░" * 10
-        
-        models_str = "\n".join(f"  • {m}" for m in models)
-        
-        await message.reply(
-            f"💚 **AI System Status:**\n\n"
-            f"API Health: {health_pct}% [{bar}] — {status_text}\n\n"
-            f"🤖 **Active AI Models (Failover List):**\n"
-            f"{models_str}",
-            parse_mode="Markdown"
-        )
 
     async def cmd_list(self, message: types.Message):
         """Handle /list — show user's watchlist."""
