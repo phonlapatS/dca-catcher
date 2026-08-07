@@ -8,4 +8,6 @@ pandas
 ta
 google-generativeai
 aiogram
+requests
+feedparser
 
