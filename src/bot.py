@@ -236,6 +236,12 @@ class DCABot:
                     else "  • N/A"
                 )
 
+                targets_str = (
+                    "\n".join(f"  🎯 {t}" for t in grade_result.buy_targets)
+                    if getattr(grade_result, "buy_targets", None)
+                    else "  🎯 N/A"
+                )
+
                 report_text = (
                     f"{emoji} DCA Analysis: {grade_result.symbol}\n"
                     f"Grade: {grade_result.grade}/4 — {label}\n"
@@ -244,6 +250,8 @@ class DCABot:
                     f"• Current Price: ${snapshot.current_price:,.2f}\n"
                     f"• Drawdown from ATH: {snapshot.drawdown_pct}%\n"
                     f"• ATH Price: ${snapshot.ath_price:,.2f}\n\n"
+                    f"🎯 Buy Targets (ราคาเป้าหมาย):\n"
+                    f"{targets_str}\n\n"
                     f"💡 AI Advice (คำแนะนำ):\n"
                     f"{grade_result.advice}\n\n"
                     f"📝 Reasons:\n"
@@ -273,7 +281,14 @@ class DCABot:
 
         for symbol, signal in enriched.items():
             result = self.grader.grade(signal)
-            msg = f"#{symbol} Analysis:\nGrade: {result.grade}\n{result.advice}"
+            
+            targets_str = (
+                "\n".join(f"  🎯 {t}" for t in result.buy_targets)
+                if getattr(result, "buy_targets", None)
+                else "  🎯 N/A"
+            )
+            
+            msg = f"#{symbol} Analysis:\nGrade: {result.grade}\n\n🎯 Buy Targets:\n{targets_str}\n\n💡 Advice:\n{result.advice}"
             kb = create_add_watchlist_keyboard(symbol, bot_user.username)
             try:
                 await self.bot.send_message(self.config.broadcast_channel_id, msg, reply_markup=kb)
