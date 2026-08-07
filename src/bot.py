@@ -68,6 +68,7 @@ class DCABot:
         self.dp.message.register(self.cmd_list, Command("list"))
         self.dp.message.register(self.cmd_scan, Command("scan"))
         self.dp.message.register(self.cmd_token, Command("token"))
+        self.dp.message.register(self.cmd_help, Command("help"))
 
     async def _add_to_watchlist(
         self, telegram_id: int, username: str | None, symbol: str, market: str
@@ -115,13 +116,27 @@ class DCABot:
         welcome_text = (
             "👋 Welcome to DCA Catcher Bot!\n"
             "ยินดีต้อนรับสู่ระบบวิเคราะห์หุ้นสำหรับ DCA ด้วย AI\n\n"
-            "📌 Available Commands (คำสั่งที่ใช้งานได้):\n"
-            "/add <symbol> [market] - Add stock to watchlist (e.g. /add NVDA US)\n"
-            "/remove <symbol> - Remove stock from watchlist\n"
-            "/list - View your watchlist (ดูรายการหุ้นใน watchlist)\n"
-            "/scan [symbol] - Run AI DCA analysis (วิเคราะห์หุ้นด้วย AI)"
+            "พิมพ์ /help เพื่อดูคำสั่งทั้งหมดที่ใช้งานได้ครับ"
         )
         await message.answer(welcome_text)
+
+    async def cmd_help(self, message: types.Message):
+        """Handle /help — display all available commands and their usage."""
+        help_text = (
+            "📌 **Available Commands (คำสั่งทั้งหมดที่ใช้งานได้):**\n\n"
+            "🔹 `/start` - เริ่มต้นใช้งานบอท และดูคำทักทาย\n"
+            "🔹 `/help` - แสดงหน้านี้ (รายการคำสั่งทั้งหมด)\n"
+            "🔹 `/add <ชื่อหุ้น> [ตลาด]` - เพิ่มหุ้นเข้า Watchlist ส่วนตัวของคุณ\n"
+            "   *(ตัวอย่าง: /add NVDA US หรือ /add PTT.BK TH)*\n"
+            "🔹 `/remove <ชื่อหุ้น>` - ลบหุ้นออกจาก Watchlist\n"
+            "   *(ตัวอย่าง: /remove NVDA)*\n"
+            "🔹 `/list` - ดูรายชื่อหุ้นทั้งหมดใน Watchlist ของคุณ\n"
+            "🔹 `/scan` - สั่ง AI ให้วิเคราะห์หุ้น **ทุกตัว** ใน Watchlist\n"
+            "🔹 `/scan <ชื่อหุ้น>` - สั่ง AI ให้วิเคราะห์หุ้น **เฉพาะตัวที่ระบุ**\n"
+            "   *(ตัวอย่าง: /scan TSLA)*\n"
+            "🔹 `/token` - ตรวจสอบสถานะการเชื่อมต่อ AI (API Health) และรายชื่อ Model ที่กำลังทำงานอยู่"
+        )
+        await message.answer(help_text, parse_mode="Markdown")
 
     async def cmd_add(self, message: types.Message):
         """Handle /add <symbol> <market> — add stock to user's watchlist.
