@@ -13,6 +13,8 @@
 - 📰 **Sentiment Scrapers** — Integrates CNN Fear & Greed Index and Google News RSS feeds
 - 🤖 **AI Grading & News Filtering** — Google Gemini extracts NER entities to filter fake news, and generates 3 explicit Buy Targets
 - 💬 **Telegram Bot & Anti-Spam** — `/scan` commands and a background state-machine that only notifies you once per target zone
+- ⏰ **Automated Broadcasts** — APScheduler runs daily scans at 07:00, 09:30 (TH pre-market), and 20:00 (US pre-market)
+- 🐳 **Docker Ready** — Fully containerized for easy 24/7 server deployment
 - 👥 **Multi-user** — Each user has their own watchlist
 - 🆓 **100% Free Tier** — All tools are free to use
 
@@ -39,22 +41,28 @@ pip install -r requirements.txt
 ```
 
 ### 2. Set environment variables
-```bash
-export TELEGRAM_TOKEN="your-telegram-bot-token"
-export GEMINI_API_KEY="your-gemini-api-key"
-export DATABASE_URL="sqlite+aiosqlite:///dca_catcher.db"
+Create a `.env` file in the root directory:
+```env
+TELEGRAM_TOKEN=your-telegram-bot-token
+GEMINI_API_KEY=your-gemini-api-key
+DATABASE_URL=sqlite+aiosqlite:///dca_catcher.db
+BROADCAST_CHANNEL_ID=-100123456789  # For daily auto-broadcasts
 ```
 
-### 3. Run
+### 3. Run Locally
 ```bash
 python -m src.bot
 ```
 
-### 4. Test
+### 4. Run with Docker (24/7 Server)
+```bash
+docker-compose up -d --build
+```
+
+### 5. Test
 ```bash
 pytest tests/ -v
 ```
-
 ---
 
 ## 🏗️ Architecture
@@ -107,6 +115,7 @@ src/
 |---------|---------|-------------|
 | `/start` | `/start` | Welcome + help |
 | `/add` | `/add NVDA US` | Add stock to watchlist |
+| `/remove` | `/remove NVDA` | Remove stock from watchlist |
 | `/list` | `/list` | View your watchlist |
 | `/scan` | `/scan NVDA` | AI analysis for a stock |
 | `/scan` | `/scan` | Scan entire watchlist |

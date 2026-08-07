@@ -359,7 +359,14 @@ export DATABASE_URL="sqlite+aiosqlite:///dca_catcher.db"
 - [x] **Task 3: Grader Prompt Upgrade** (Extract NER keywords & generate 3 explicit Buy Targets)
 - [x] **Task 4: Anti-Spam Alert State Machine** (Database tracking for `last_notified_zone`)
 
-## 🚀 Phase 3: Deployment & Schedulers (Upcoming)
-- [ ] Scheduled analysis: daily summary (07:00), pre-market alerts (09:30 TH, 20:00 US)
-- [ ] Docker container deployment
-- [ ] Interactive inline keyboards in Telegram messages
+## 🚀 Phase 3: Deployment & Schedulers (COMPLETE)
+- [x] **Task 1: Dynamic Master Watchlist Query** (Optimize API quotas across all users)
+- [x] **Task 2: Interactive Keyboards** (Add deep linking to broadcasts)
+- [x] **Task 3: APScheduler Integration** (Daily broadcast at 07:00, 09:30, 20:00)
+- [x] **Task 4: Docker Deployment** (`Dockerfile` and `docker-compose.yml`)
+
+## 🚀 Phase 4: Production (Current State)
+- The codebase is complete and pushed to GitHub (`main`).
+- Bot supports full manual commands (`/scan`, `/add`, `/remove`, `/list`).
+- Schedulers are active.
+- Ready to be deployed to a VPS or Render.
