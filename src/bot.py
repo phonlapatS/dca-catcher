@@ -558,7 +558,13 @@ class DCABot:
         await callback.message.answer(advice_text, parse_mode="Markdown")
         
         import re
-        tickers = re.findall(r"\d+\.\s+\*\*([A-Z0-9\.]+)\*\*", advice_text)
+        # Support formats like: "1. **AAPL**", "- **NVDA (Nvidia)**", "* **TSLA**"
+        tickers = re.findall(r"(?:^|\n)(?:\d+\.|\-|\*)\s*\*\*([A-Z0-9\.]+)(?:[^\*]*)\*\*", advice_text)
+        
+        # Fallback if no tickers found but they might have omitted the bold tags, or used markdown lists differently.
+        if not tickers:
+            # Look for "1. AAPL -" or "1. AAPL (Apple)"
+            tickers = re.findall(r"(?:^|\n)(?:\d+\.|\-|\*)\s*([A-Z0-9\.]+)\b", advice_text)
         
         if tickers:
             await state.update_data(recommended_tickers=tickers)
