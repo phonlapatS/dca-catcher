@@ -6,4 +6,5 @@ pytest-asyncio
 yfinance
 pandas
 ta
+google-generativeai
 
