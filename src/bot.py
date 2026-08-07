@@ -171,14 +171,15 @@ class DCABot:
         await state.update_data(style=style_map.get(style, "DCA"))
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🤏 ย่อตัวเล็กน้อย (-5%)", callback_data="dd_5")],
-            [InlineKeyboardButton(text="📉 ปรับฐานระดับกลาง (-15%)", callback_data="dd_15")],
-            [InlineKeyboardButton(text="🩸 ของเซลล์ ร่วงหนัก (-30% ขึ้นไป)", callback_data="dd_30")]
+            [InlineKeyboardButton(text="🟢 รับความเสี่ยงได้ต่ำ (ทนติดลบ 1-10%)", callback_data="dd_10")],
+            [InlineKeyboardButton(text="🟡 รับความเสี่ยงปานกลาง (ทนติดลบ 11-30%)", callback_data="dd_30")],
+            [InlineKeyboardButton(text="🔴 รับความเสี่ยงสูง (ทนติดลบ 30-50%)", callback_data="dd_50")],
+            [InlineKeyboardButton(text="⚠️ ไม่มีเงินเย็น (ไม่แนะนำให้ลงทุน DCA)", callback_data="dd_none")]
         ])
         
         await callback.message.edit_text(
-            "เยี่ยมครับ! แล้วถ้าราคาหุ้นในพอร์ตร่วงลงกี่เปอร์เซ็นต์\n"
-            "ถึงจะเริ่มรู้สึกว่านี่คือ 'ของเซลล์' น่าเก็บเพิ่มครับ?",
+            "เยี่ยมครับ! ต่อไปคือแบบประเมินความเสี่ยง (เหมือนที่ธนาคารถามเลยครับ)\n\n"
+            "ถ้าราคาหุ้นในพอร์ตร่วงลง คุณสามารถทนเห็นพอร์ตติดลบได้สูงสุดเท่าไหร่ ก่อนจะรู้สึกกังวล?",
             reply_markup=keyboard
         )
         await state.set_state(RiskSurvey.waiting_for_drawdown)
@@ -190,7 +191,27 @@ class DCABot:
         data = await state.get_data()
         style = data.get("style")
         
-        profile = f"สไตล์: {style}, มองว่าน่าซื้อเมื่อราคาตก {dd}% จากราคาสูงสุด"
+        dd_map = {
+            "10": "ต่ำ (ทนติดลบ 1-10%)",
+            "30": "ปานกลาง (ทนติดลบ 11-30%)",
+            "50": "สูง (ทนติดลบ 30-50%)",
+            "none": "ไม่มีเงินเย็น (ผิดหลัก DCA)"
+        }
+        
+        if dd == "none":
+            profile = f"สไตล์: {style}, ความเสี่ยง: {dd_map[dd]}"
+            msg_reply = (
+                f"📝 ระบบบันทึกโปรไฟล์ของคุณแล้วครับ:\n**{profile}**\n\n"
+                f"⚠️ **คำแนะนำ:** การลงทุนแบบ DCA ต้องใช้ 'เงินเย็น' ที่สามารถทิ้งไว้ได้นานโดยไม่ต้องรีบใช้ "
+                f"หากตอนนี้ยังไม่มีเงินเย็น แนะนำให้เก็บออมเงินสดไว้ก่อนนะครับ หรือถ้าวิเคราะห์หุ้น AI จะให้คำแนะนำแบบระมัดระวังสูงสุดครับ!"
+            )
+        else:
+            profile = f"สไตล์: {style}, รับความเสี่ยงได้: {dd_map[dd]}"
+            msg_reply = (
+                f"บันทึกเรียบร้อย! 📝 ระบบจำได้แล้วว่าคุณเป็นสาย:\n"
+                f"**{profile}**\n\n"
+                f"ต่อไปนี้เวลาคุณพิมพ์ /scan AI จะปรับราคาเป้าหมายให้เข้ากับสไตล์ของคุณโดยเฉพาะครับ!"
+            )
         
         # Save to DB
         telegram_id = callback.from_user.id
@@ -202,12 +223,7 @@ class DCABot:
                 user.risk_profile = profile
                 await session.commit()
         
-        await callback.message.edit_text(
-            f"บันทึกเรียบร้อย! 📝 ระบบจำได้แล้วว่าคุณเป็นสาย:\n"
-            f"**{profile}**\n\n"
-            f"ต่อไปนี้เวลาคุณพิมพ์ /scan AI จะปรับราคาเป้าหมายให้เข้ากับสไตล์ของคุณโดยเฉพาะครับ!",
-            parse_mode="Markdown"
-        )
+        await callback.message.edit_text(msg_reply, parse_mode="Markdown")
         await state.clear()
 
     async def cmd_add(self, message: types.Message):
