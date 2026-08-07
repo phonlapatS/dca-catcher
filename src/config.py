@@ -9,6 +9,8 @@ class Config:
     gemini_api_keys: list[str]
     database_url: str
     broadcast_channel_id: str
+    alpaca_api_key: str = ""
+    alpaca_secret_key: str = ""
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -19,4 +21,6 @@ class Config:
             gemini_api_keys=keys,
             database_url=os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///dca_catcher.db"),
             broadcast_channel_id=os.environ.get("BROADCAST_CHANNEL_ID", ""),
+            alpaca_api_key=os.environ.get("ALPACA_API_KEY", ""),
+            alpaca_secret_key=os.environ.get("ALPACA_SECRET_KEY", ""),
         )

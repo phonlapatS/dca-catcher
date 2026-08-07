@@ -13,6 +13,7 @@ from src.config import Config
 from src.database import Database, Signal, User, Watchlist
 from src.fetcher import MarketDataFetcher
 from src.grader import SignalGrader
+from src.sniper import AlpacaSniper
 from src.transform import DataTransformer
 
 logger = logging.getLogger(__name__)
@@ -137,6 +138,11 @@ class DCABot:
         self.fetcher = MarketDataFetcher()
         self.transformer = DataTransformer()
         self.grader = SignalGrader(config.gemini_api_keys)
+        self.sniper = AlpacaSniper(
+            db=self.db,
+            api_key=getattr(config, "alpaca_api_key", ""),
+            secret_key=getattr(config, "alpaca_secret_key", ""),
+        )
 
         token = config.telegram_token
         try:
@@ -900,8 +906,14 @@ class DCABot:
             except Exception as e:
                 logger.error(f"Failed to send broadcast for {symbol} ({rp}): {e}")
 
+    async def on_startup(self):
+        """Startup lifecycle handler: start background tasks like AlpacaSniper."""
+        if self.sniper:
+            logger.info("Starting AlpacaSniper background task...")
+            await self.sniper.start()
+
     async def start(self):
-        """Initialize database, scheduler, and start polling."""
+        """Initialize database, scheduler, sniper, and start polling."""
         logger.info("Initializing database tables...")
         await self.db.create_tables()
 
@@ -912,11 +924,16 @@ class DCABot:
         self.scheduler.add_job(self.broadcast_scan, 'cron', hour=20, minute=0, args=['US'])
         self.scheduler.start()
 
+        await self.on_startup()
+
         logger.info("Starting Telegram bot polling...")
         await self.dp.start_polling(self.bot)
 
     async def stop(self):
-        """Cleanup: close database connections."""
+        """Cleanup: stop sniper and close database connections."""
+        if self.sniper:
+            logger.info("Stopping AlpacaSniper...")
+            await self.sniper.stop()
         logger.info("Closing database connections...")
         await self.db.close()
         await self.bot.session.close()
