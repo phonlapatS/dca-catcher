@@ -10,7 +10,8 @@ from zoneinfo import ZoneInfo
 import websockets
 from sqlalchemy import select
 
-from src.database import Database, Watchlist
+from src.alert_manager import AlertManager
+from src.database import Database, User, Watchlist
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class AlpacaSniper:
         secret_key: Optional[str] = None,
         stream_url: str = "wss://stream.data.alpaca.markets/v2/iex",
         on_tick_callback: Optional[Callable[[str, float], Awaitable[None]]] = None,
+        alert_manager: Optional[AlertManager] = None,
         poll_interval: float = 60.0,
     ):
         self.db = db
@@ -32,6 +34,7 @@ class AlpacaSniper:
         self.secret_key = secret_key or os.environ.get("ALPACA_SECRET_KEY", "")
         self.stream_url = stream_url
         self.on_tick_callback = on_tick_callback
+        self.alert_manager = alert_manager or (AlertManager(db) if db else None)
         self.poll_interval = poll_interval
 
         self.running = False
@@ -119,9 +122,56 @@ class AlpacaSniper:
                 pass
         logger.info("AlpacaSniper stopped.")
 
+    async def check_target_triggers(self, symbol: str, price: float):
+        """Check database US watchlists for symbol, trigger alert if price <= target price and update DB to prevent spam."""
+        if not self.db:
+            return
+
+        try:
+            async with self.db.session() as session:
+                stmt = (
+                    select(Watchlist, User.telegram_id)
+                    .join(User, Watchlist.user_id == User.id)
+                    .where(Watchlist.market == "US", Watchlist.symbol == symbol)
+                )
+                res = await session.execute(stmt)
+                rows = res.all()
+
+            for item, telegram_id in rows:
+                if not item.target_zones_str:
+                    continue
+
+                if self.alert_manager:
+                    alerted, msg = await self.alert_manager.check_and_notify(
+                        user_id=telegram_id,
+                        symbol=symbol,
+                        current_price=price,
+                        target_zones_str=item.target_zones_str,
+                    )
+                    if alerted:
+                        logger.info(
+                            f"SNIPER TRIGGER: {symbol} at ${price} <= target zone for user {telegram_id}: {msg}"
+                        )
+                else:
+                    zones = self.parse_target_zones(item.target_zones_str)
+                    for target in zones:
+                        if price <= target:
+                            active_zone_str = f"{target}"
+                            if item.last_notified_zone != active_zone_str:
+                                logger.info(f"SNIPER TRIGGER: {symbol} at ${price} <= target ${target}")
+                                async with self.db.session() as session:
+                                    w_item = await session.get(Watchlist, item.id)
+                                    if w_item:
+                                        w_item.last_notified_zone = active_zone_str
+                                        await session.commit()
+                            break
+        except Exception as e:
+            logger.error(f"Error checking target triggers for {symbol}: {e}", exc_info=True)
+
     async def on_trade_tick(self, symbol: str, price: float):
         """Handle incoming trade tick."""
         logger.debug(f"Tick received for {symbol}: ${price}")
+        await self.check_target_triggers(symbol, price)
         if self.on_tick_callback:
             await self.on_tick_callback(symbol, price)
 

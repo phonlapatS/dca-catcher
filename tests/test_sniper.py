@@ -189,3 +189,50 @@ async def test_sniper_connect_auth_subscribe_loop(db):
     sub_sent = json.loads(mock_ws.send.call_args_list[1][0][0])
     assert sub_sent["action"] == "subscribe"
     assert sub_sent["trades"] == ["AAPL"]
+
+
+@pytest.mark.asyncio
+async def test_check_target_triggers_and_anti_spam_db_update(db):
+    async with db.session() as session:
+        user = User(telegram_id=7777, username="trigger_user")
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+        w1 = Watchlist(
+            user_id=user.id,
+            symbol="NVDA",
+            market="US",
+            target_zones_str="120.0 (Low Risk), 110.0 (Moderate)",
+            last_notified_zone=None,
+        )
+        session.add(w1)
+        await session.commit()
+        item_id = w1.id
+
+    sniper = AlpacaSniper(db=db)
+
+    # 1. Tick price above targets (125.0) -> no DB update
+    await sniper.on_trade_tick("NVDA", 125.0)
+    async with db.session() as session:
+        item = await session.get(Watchlist, item_id)
+        assert item.last_notified_zone is None
+
+    # 2. Tick price drops <= target 120.0 (118.0) -> updates last_notified_zone
+    await sniper.on_trade_tick("NVDA", 118.0)
+    async with db.session() as session:
+        item = await session.get(Watchlist, item_id)
+        assert item.last_notified_zone == "120.0 (Low Risk)"
+
+    # 3. Tick price stays in same zone (115.0) -> anti-spam keeps last_notified_zone unchanged
+    await sniper.on_trade_tick("NVDA", 115.0)
+    async with db.session() as session:
+        item = await session.get(Watchlist, item_id)
+        assert item.last_notified_zone == "120.0 (Low Risk)"
+
+    # 4. Tick price drops to next zone (108.0) -> updates last_notified_zone to next zone
+    await sniper.on_trade_tick("NVDA", 108.0)
+    async with db.session() as session:
+        item = await session.get(Watchlist, item_id)
+        assert item.last_notified_zone == "110.0 (Moderate)"
+
