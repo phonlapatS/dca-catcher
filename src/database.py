@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, select
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, select, func
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
 
 Base = declarative_base()
