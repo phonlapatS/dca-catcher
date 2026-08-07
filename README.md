@@ -94,3 +94,36 @@ docker-compose up -d --build
 - `/remove <symbol>` - ลบหุ้น
 - `/help` - ดูคำสั่งทั้งหมด
 - `/start` - เริ่มต้นใช้งาน
+
+---
+
+## 🗺️ Project Roadmap (ประวัติการพัฒนาแต่ละ Phase)
+
+เพื่อให้เห็นภาพรวมของการพัฒนาระบบ DCA Catcher ตั้งแต่ต้นจนจบ:
+
+### ✅ Phase 1: Foundation & Data Pipeline
+- สร้างโครงสร้างโปรเจกต์และ Database (`User`, `Watchlist`)
+- ดึงข้อมูลราคาหุ้น OHLCV, ATH, Drawdown ผ่าน `yfinance`
+- คำนวณ Technical Indicators (RSI, MA, Volume Anomaly)
+- ดึงข่าวสารและดัชนีตลาด (CNN Fear & Greed, Google News RSS)
+
+### ✅ Phase 2: AI Brain & Telegram Bot
+- ผสานพลัง Google Gemini ประเมินความน่าลงทุน (เกรด 1-4) และหา "ราคาเป้าหมาย 3 ระดับ"
+- สร้าง Telegram Bot พื้นฐาน รองรับคำสั่ง `/add`, `/remove`, `/list`, `/scan`
+- เริ่มต้นการเชื่อมต่อ Alpaca WebSocket และระบบแจ้งเตือนเมื่อราคาถึงเป้าแบบกลุ่ม
+
+### ✅ Phase 3: Interactive UI & Cloud Readiness
+- อัปเกรดปุ่มกดแบบ Interactive (Inline Keyboard) ให้ผู้ใช้กดยืนยันเป้าหมายผ่านแชทได้ทันที
+- ตั้งเวลาแจ้งเตือนรายวัน (Daily Broadcast) ตอนเช้าและเย็น
+- จัดทำ `Dockerfile` และ `docker-compose.yml` ให้พร้อมสำหรับการนำไป Deploy บน Cloud (Production)
+
+### ✅ Phase 4: Production Ready & Advanced UX (ปัจจุบัน)
+- **Personalized DM & Hysteresis:** ระบบแจ้งเตือนรายบุคคลผ่าน Direct Message พร้อมระบบกันสแปมที่รัดกุม 100%
+- **Deep Link Onboarding:** การจัดการ User Experience ในกลุ่ม ให้คลิกครั้งเดียวเพื่อผูก DM กับบอท
+- **DB Migration & Admin Tracking:** อัปเดตโครงสร้าง DB ระหว่างการทำงานโดยไม่ให้ระบบล่ม พร้อมเพิ่มระบบเก็บ `remark` สำหรับ Admin
+- เพิ่มคู่มือคำแนะนำการ Deploy บน Google Cloud Platform (GCP) แบบฟรี
+
+### 🚀 Phase 5: Future Enhancements (วางแผนไว้)
+- **Advanced Portfolio Balancing:** ระบบจัดพอร์ตและ Rebalance พอร์ตอัตโนมัติตามสัดส่วน
+- **Multi-Exchange Websocket:** เพิ่มการเชื่อมต่อ WebSocket สำหรับตลาดคริปโต (Binance/Bybit)
+- **Admin Dashboard:** หน้าเว็บ Dashboard สำหรับดูสถิติผู้ใช้งานและประสิทธิภาพของ AI
