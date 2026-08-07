@@ -2,25 +2,23 @@ from datetime import datetime
 import pytest
 from sqlalchemy import inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.database import Base, Signal, User, Watchlist, get_engine, get_session_maker
+from src.database import Base, Database, Signal, User, Watchlist
 
 
 @pytest.mark.asyncio
 async def test_engine_creation():
-    engine = get_engine("sqlite+aiosqlite:///:memory:")
-    assert engine is not None
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    db = Database("sqlite+aiosqlite:///:memory:")
+    assert db.engine is not None
+    await db.create_tables()
+    await db.close()
 
 
 @pytest.mark.asyncio
 async def test_models_and_session():
-    engine = get_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    db = Database("sqlite+aiosqlite:///:memory:")
+    await db.create_tables()
 
-    session_factory = get_session_maker(engine)
-    async with session_factory() as session:
+    async with db.session() as session:
         # Test large 64-bit Telegram ID
         big_telegram_id = 9876543210123
         user = User(telegram_id=big_telegram_id, username="testuser")
@@ -53,6 +51,8 @@ async def test_models_and_session():
         assert fetched_signal.grade == 4
         assert fetched_signal.confidence == 90
         assert fetched_signal.created_at is not None
+
+    await db.close()
 
 
 def test_watchlist_foreign_key():

@@ -33,9 +33,34 @@ class Signal(Base):
     )
 
 
+class Database:
+    """Manages async SQLAlchemy engine and session lifecycle."""
+
+    def __init__(self, url: str):
+        self._engine = create_async_engine(url, echo=False)
+        self._session_factory = async_sessionmaker(
+            self._engine, class_=AsyncSession, expire_on_commit=False
+        )
+
+    @property
+    def engine(self):
+        return self._engine
+
+    async def create_tables(self):
+        async with self._engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    def session(self) -> AsyncSession:
+        return self._session_factory()
+
+    async def close(self):
+        await self._engine.dispose()
+
+
 def get_engine(url: str):
     return create_async_engine(url, echo=False)
 
 
 def get_session_maker(engine):
     return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
