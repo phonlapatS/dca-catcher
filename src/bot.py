@@ -103,6 +103,7 @@ SUBSECTORS = {
     },
     "🏭 อุตสาหกรรม & โลจิสติกส์": {
         "sub_ind_aero": "✈️ การบิน & ป้องกันประเทศ",
+        "sub_ind_space": "🚀 อวกาศ & ดาวเทียม (SpaceTech)",
         "sub_ind_logi": "📦 โลจิสติกส์ & ขนส่ง",
         "sub_ind_mach": "⚙️ เครื่องจักร & ก่อสร้าง"
     },
@@ -438,14 +439,20 @@ class DCABot:
             return
 
         current_main_sector = sectors[idx]
+        current_chosen_subs = data.get("current_chosen_subs", [])
         
         subs = SUBSECTORS.get(current_main_sector, {"sub_any": "สนใจทั้งหมดในกลุ่มนี้"})
         buttons = []
         for key, name in subs.items():
-            buttons.append([InlineKeyboardButton(text=name, callback_data=key)])
+            text = f"✅ {name}" if key in current_chosen_subs else name
+            buttons.append([InlineKeyboardButton(text=text, callback_data=key)])
+            
+        # Add confirm button if at least 1 is selected
+        if current_chosen_subs:
+            buttons.append([InlineKeyboardButton(text="➡️ ยืนยันกลุ่มย่อย (Next)", callback_data="sub_confirm")])
             
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-        text = f"สำหรับกลุ่ม **{current_main_sector}**\nคุณสนใจเจาะจงไปที่กลุ่มย่อยไหนเป็นพิเศษครับ?"
+        text = f"สำหรับกลุ่ม **{current_main_sector}**\nคุณสนใจเจาะจงไปที่กลุ่มย่อยไหนเป็นพิเศษครับ? (เลือกได้ 1-3 กลุ่มย่อย)"
         
         if isinstance(message, types.Message):
             await message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
@@ -457,15 +464,30 @@ class DCABot:
         sectors = data.get("sectors", [])
         idx = data.get("current_sub_idx", 0)
         detailed = data.get("detailed_sectors", [])
+        current_chosen_subs = data.get("current_chosen_subs", [])
         
         current_main_sector = sectors[idx]
-        
         subs = SUBSECTORS.get(current_main_sector, {"sub_any": "สนใจทั้งหมดในกลุ่มนี้"})
-        chosen_sub_name = subs.get(callback.data, "ทั้งหมด")
         
-        detailed.append(f"{current_main_sector} (เน้น: {chosen_sub_name})")
-        
-        await state.update_data(detailed_sectors=detailed, current_sub_idx=idx + 1)
+        if callback.data == "sub_confirm":
+            if not current_chosen_subs:
+                return
+            chosen_names = [subs.get(k, k) for k in current_chosen_subs]
+            names_str = ", ".join(chosen_names)
+            detailed.append(f"{current_main_sector} (เน้น: {names_str})")
+            
+            await state.update_data(detailed_sectors=detailed, current_sub_idx=idx + 1, current_chosen_subs=[])
+            await self._ask_next_subsector(callback.message, state)
+            return
+
+        # Toggle subsector
+        if callback.data in current_chosen_subs:
+            current_chosen_subs.remove(callback.data)
+        else:
+            if len(current_chosen_subs) < 3:
+                current_chosen_subs.append(callback.data)
+                
+        await state.update_data(current_chosen_subs=current_chosen_subs)
         await self._ask_next_subsector(callback.message, state)
 
     async def advice_count(self, callback: types.CallbackQuery, state: FSMContext):
