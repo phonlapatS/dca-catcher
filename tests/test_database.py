@@ -66,3 +66,40 @@ def test_requirements_contains_asyncpg():
     with open("requirements.txt") as f:
         content = f.read()
     assert "asyncpg" in content
+
+
+import pytest_asyncio
+
+
+@pytest_asyncio.fixture
+async def db():
+    database = Database("sqlite+aiosqlite:///:memory:")
+    await database.create_tables()
+    yield database
+    await database.close()
+
+
+@pytest.mark.asyncio
+async def test_get_unique_watchlist_symbols(db):
+    async with db.session() as session:
+        u1 = User(telegram_id=1, username="u1")
+        u2 = User(telegram_id=2, username="u2")
+        session.add_all([u1, u2])
+        await session.commit()
+
+        session.add_all(
+            [
+                Watchlist(user_id=u1.id, symbol="AAPL", market="US"),
+                Watchlist(user_id=u1.id, symbol="NVDA", market="US"),
+                Watchlist(user_id=u2.id, symbol="AAPL", market="US"),
+                Watchlist(user_id=u2.id, symbol="PTT.BK", market="TH"),
+            ]
+        )
+        await session.commit()
+
+    symbols = await db.get_unique_watchlist_symbols()
+    assert sorted(symbols) == ["AAPL", "NVDA", "PTT.BK"]
+
+    th_symbols = await db.get_unique_watchlist_symbols(market="TH")
+    assert th_symbols == ["PTT.BK"]
+

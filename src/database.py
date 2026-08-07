@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column
 
@@ -56,6 +56,15 @@ class Database:
 
     async def close(self):
         await self._engine.dispose()
+
+    async def get_unique_watchlist_symbols(self, market: str = None) -> list[str]:
+        async with self.session() as session:
+            query = select(Watchlist.symbol).distinct()
+            if market:
+                query = query.where(Watchlist.market == market)
+            result = await session.execute(query)
+            return [row[0] for row in result.all()]
+
 
 
 def get_engine(url: str):
