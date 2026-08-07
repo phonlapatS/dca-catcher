@@ -512,17 +512,15 @@ class DCABot:
             for symbol, enriched in enriched_signals.items():
                 grade_result = self.grader.grade(enriched, risk_profile=risk_profile)
 
-                # Save signal to database
+                # Save signal to database (using grade field to store score for backwards compatibility)
                 signal_entry = Signal(
                     symbol=grade_result.symbol,
-                    grade=grade_result.grade,
+                    grade=grade_result.score,
                     confidence=grade_result.confidence,
                     advice=grade_result.advice,
                 )
                 session.add(signal_entry)
 
-                emoji = GRADE_EMOJIS.get(grade_result.grade, "❓")
-                label = GRADE_LABELS.get(grade_result.grade, "Unknown")
                 snapshot = enriched.snapshot
 
                 reasons_str = (
@@ -532,7 +530,7 @@ class DCABot:
                 )
 
                 targets_str = (
-                    "\n".join(f"  • {t}" for t in grade_result.buy_targets)
+                    "\n".join(f"  • ${t}" for t in grade_result.buy_targets)
                     if getattr(grade_result, "buy_targets", None)
                     else "  • N/A"
                 )
@@ -542,21 +540,24 @@ class DCABot:
                 filled = int(conf / 10)
                 empty = 10 - filled
                 bar = "█" * filled + "░" * empty
+                
+                # Create a score visual (fire emojis)
+                score_val = max(1, min(10, grade_result.score))
+                score_bar = "🔥" * score_val + "🤍" * (10 - score_val)
 
                 report_text = (
-                    f"{emoji} DCA Analysis: {grade_result.symbol}\n"
-                    f"Grade: {grade_result.grade}/4 — {label}\n"
-                    f"Confidence: {conf}% [{bar}]\n\n"
-                    f"📊 Market Snapshot:\n"
-                    f"• Current Price: ${snapshot.current_price:,.2f}\n"
-                    f"• Drawdown from ATH: {snapshot.drawdown_pct}%\n"
-                    f"• ATH Price: ${snapshot.ath_price:,.2f}\n\n"
-                    f"💡 AI Advice (คำแนะนำ):\n"
+                    f"📊 **{grade_result.symbol} Analysis**\n\n"
+                    f"🏷️ **Current Price:** ${snapshot.current_price:,.2f}\n"
+                    f"📉 **ATH Drawdown:** {snapshot.drawdown_pct}%\n\n"
+                    f"🤖 **AI Score (ความน่าลงทุน):** {score_val}/10\n"
+                    f"[{score_bar}]\n"
+                    f"🎯 **Confidence:** {conf}% [{bar}]\n\n"
+                    f"💡 **คำแนะนำจาก AI:**\n"
                     f"{grade_result.advice}\n\n"
-                    f"🎯 Buy Targets (ราคาเป้าหมาย):\n"
-                    f"{targets_str}\n\n"
-                    f"📝 Reasons:\n"
-                    f"{reasons_str}"
+                    f"📌 **จุดสังเกต:**\n"
+                    f"{reasons_str}\n\n"
+                    f"🛒 **ราคาเป้าหมาย (Buy Targets):**\n"
+                    f"{targets_str}"
                 )
                 await message.reply(report_text)
 
@@ -584,7 +585,7 @@ class DCABot:
             result = self.grader.grade(signal)
             
             targets_str = (
-                "\n".join(f"  • {t}" for t in result.buy_targets)
+                "\n".join(f"  • ${t}" for t in result.buy_targets)
                 if getattr(result, "buy_targets", None)
                 else "  • N/A"
             )
@@ -594,7 +595,10 @@ class DCABot:
             empty = 10 - filled
             bar = "█" * filled + "░" * empty
             
-            msg = f"#{symbol} Analysis:\nGrade: {result.grade}/4\nConfidence: {conf}% [{bar}]\n\n💡 Advice:\n{result.advice}\n\n🎯 Buy Targets:\n{targets_str}"
+            score_val = max(1, min(10, result.score))
+            score_bar = "🔥" * score_val + "🤍" * (10 - score_val)
+            
+            msg = f"#{symbol} Analysis:\n🤖 AI Score: {score_val}/10\n[{score_bar}]\n\n🎯 Confidence: {conf}% [{bar}]\n\n💡 Advice:\n{result.advice}\n\n🛒 Buy Targets:\n{targets_str}"
             kb = create_add_watchlist_keyboard(symbol, bot_user.username)
             try:
                 await self.bot.send_message(self.config.broadcast_channel_id, msg, reply_markup=kb)

@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GradeResult:
     symbol: str
-    grade: int          # 1-4 (1=🔴 risky, 2=🟡 moderate, 3=🟢 low risk, 4=🌟 buy now)
+    score: int          # 1-10 (Investment Attractiveness)
     confidence: int     # 0-100
     advice: str         # Thai-language advice from Gemini
     reasons: list[str]  # Reason tags, e.g. ["✅ RSI < 30", "⚠️ Low volume"]
-    buy_targets: list[str] # e.g. ["170 (มีความเสี่ยงเล็กน้อย)", "160 (ไม่เสี่ยงเลย)"]
+    buy_targets: list[float] # e.g. [170.0, 160.0, 150.0]
 
 
 class SignalGrader:
@@ -33,7 +33,7 @@ class SignalGrader:
         """Send enriched signal dimensions to Gemini for grading.
 
         Constructs a prompt with the 3 dimension scores and asks Gemini
-        to return a JSON response with grade, confidence, advice, and reasons.
+        to return a JSON response with score, confidence, advice, and reasons.
         Tries multiple models sequentially if quota limits are hit.
         """
         prompt = self._build_prompt(signal, news, risk_profile)
@@ -47,13 +47,13 @@ class SignalGrader:
             except Exception as e:
                 logger.warning(f"Model {model_name} failed for {signal.symbol}: {e}")
                 last_error = e
-                continue # Try the next model
+                continue
                 
         # If all models fail, return fallback
         logger.error(f"All Gemini models failed for {signal.symbol}. Last error: {last_error}")
         return GradeResult(
             symbol=signal.symbol,
-            grade=2,
+            score=5,
             confidence=0,
             advice=f"Gemini API error (All models failed): {last_error}",
             reasons=["⚠️ ไม่สามารถติดต่อ AI ได้ (API Error)"],
@@ -66,7 +66,7 @@ class SignalGrader:
         The prompt instructs Gemini to:
         1. Analyze the 3 dimensions (PRICE, FLOW, CONTEXT), indicators, and news
         2. Filter news using NER (Named Entity Recognition)
-        3. Return JSON with: grade (1-4), confidence (0-100),
+        3. Return JSON with: score (1-10), confidence (0-100),
            advice (Thai string), reasons (list of strings), and exactly 3 buy_targets.
         """
         dimensions_summary = []
@@ -107,22 +107,22 @@ Market Snapshot:
 Indicators:
 {indicators_text}
 
-Analysis Dimensions:
+Dimensions:
 {dims_str}
 {news_text}
 
-Instruction:
 1. Evaluate the combined dimensions (PRICE, FLOW, CONTEXT), indicators, and news.
 2. Filter the news using NER (Named Entity Recognition) to ensure the news is truly about {signal.symbol} and not just noise. Only consider "true news" in your analysis.
-3. Calculate exactly 3 suggested buy target prices based on the ATH and current price. Provide the price and a short Thai description of the risk at that level (e.g., "170 (มีความเสี่ยงเล็กน้อย)", "160 (ปลอดภัย)", "150 (Play safe)").
-4. Output concise Thai reasoning.
-5. Return ONLY a valid raw JSON object (without markdown code formatting or extraneous text) matching this lean schema:
+3. Calculate an overall "Investment Attractiveness Score" from 1 to 10 (1 = Avoid, 10 = Strong Buy).
+4. Calculate exactly 3 suggested buy target prices based on the ATH and current price. Provide the numerical prices strictly as floats.
+5. Output concise Thai reasoning.
+6. Return ONLY a valid raw JSON object (without markdown code formatting or extraneous text) matching this lean schema:
 {{
-    "grade": <integer 1 to 4: 1=Risky/High risk, 2=Moderate risk/Hold, 3=Low risk/Good DCA, 4=Strong buy/Now>,
+    "score": <integer 1 to 10>,
     "confidence": <integer 0 to 100>,
     "advice": "<Thai string containing practical DCA investment advice>",
     "reasons": ["<Thai tag string 1 with ✅ or ⚠️>", "<Thai tag string 2>"],
-    "buy_targets": ["<Target 1>", "<Target 2>", "<Target 3>"]
+    "buy_targets": [<float>, <float>, <float>]
 }}
 """
         return prompt
@@ -141,7 +141,7 @@ Instruction:
 
             data = json.loads(cleaned_text)
 
-            grade = int(data.get("grade", 2))
+            score = int(data.get("score", 5))
             confidence = int(data.get("confidence", 0))
             advice = str(data.get("advice", "No advice provided"))
             reasons = list(data.get("reasons", []))
@@ -149,7 +149,7 @@ Instruction:
 
             return GradeResult(
                 symbol=symbol,
-                grade=grade,
+                score=score,
                 confidence=confidence,
                 advice=advice,
                 reasons=reasons,
@@ -159,7 +159,7 @@ Instruction:
             logger.warning(f"Failed to parse Gemini response for {symbol}: {e}. Response text: {text!r}")
             return GradeResult(
                 symbol=symbol,
-                grade=2,
+                score=5,
                 confidence=0,
                 advice=f"Failed to parse response: {e}",
                 reasons=["⚠️ Parse error"],
