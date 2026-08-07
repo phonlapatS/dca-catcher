@@ -2,3 +2,17 @@ venv/
 .pytest_cache/
 __pycache__/
 *.pyc
+
+# Environment variables (dangerous, contains API keys)
+.env
+.env.*
+
+# Local database files
+*.db
+*.sqlite
+*.sqlite3
+
+# IDEs and OS files
+.vscode/
+.idea/
+.DS_Store
