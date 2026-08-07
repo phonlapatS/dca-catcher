@@ -544,8 +544,13 @@ class DCABot:
                 # Create a score visual (fire emojis)
                 score_val = max(1, min(10, grade_result.score))
                 score_bar = "🔥" * score_val + "🤍" * (10 - score_val)
+                
+                # Create mention
+                username = message.from_user.username
+                mention = f"@{username}" if username else f"[{message.from_user.full_name}](tg://user?id={message.from_user.id})"
 
                 report_text = (
+                    f"🗣️ **สำหรับ {mention}**\n"
                     f"📊 **{grade_result.symbol} Analysis**\n\n"
                     f"🏷️ **Current Price:** ${snapshot.current_price:,.2f}\n"
                     f"📉 **ATH Drawdown:** {snapshot.drawdown_pct}%\n\n"
@@ -559,7 +564,7 @@ class DCABot:
                     f"🛒 **ราคาเป้าหมาย (Buy Targets):**\n"
                     f"{targets_str}"
                 )
-                await message.reply(report_text)
+                await message.reply(report_text, parse_mode="Markdown")
 
             await session.commit()
 
