@@ -130,7 +130,7 @@ Dimensions:
 1. Evaluate the combined dimensions (PRICE, FLOW, CONTEXT), indicators, and news.
 2. Filter the news using NER (Named Entity Recognition) to ensure the news is truly about {signal.symbol} and not just noise. Only consider "true news" in your analysis.
 3. Calculate an overall "Investment Attractiveness Score" from 1 to 10 (1 = Avoid, 10 = Strong Buy).
-4. Calculate exactly 3 suggested buy target prices based on the ATH and current price. Provide the numerical prices strictly as floats.
+4. Calculate exactly 3 suggested buy target prices (DCA entry points). **CRITICAL:** The targets must be REALISTIC based on current volatility, volume, and news sentiment. Do not place them too close to the current price (e.g. less than 1% drop) unless the trend is extremely strong. Do not place them unrealistically far (e.g. 50% drop) unless there is a severe crisis. Ensure consistency with the user's risk profile.
 5. Output concise Thai reasoning.
 6. Return ONLY a valid raw JSON object (without markdown code formatting or extraneous text) matching this lean schema:
 {{
@@ -144,11 +144,7 @@ Dimensions:
         return prompt
 
     def _parse_response(self, text: str, symbol: str) -> GradeResult:
-        """Parse Gemini's JSON response into a GradeResult.
-
-        Handles markdown code fences (```json ... ```) in the response.
-        Returns fallback GradeResult on any parse error.
-        """
+        """Parse Gemini JSON output."""
         try:
             cleaned_text = text.strip()
             if cleaned_text.startswith("```"):
@@ -172,15 +168,40 @@ Dimensions:
                 buy_targets=buy_targets,
             )
         except Exception as e:
-            logger.warning(f"Failed to parse Gemini response for {symbol}: {e}. Response text: {text!r}")
-            return GradeResult(
-                symbol=symbol,
-                score=5,
-                confidence=0,
-                advice=f"Failed to parse response: {e}",
-                reasons=["⚠️ Parse error"],
-                buy_targets=[],
-            )
+            logger.error(f"Failed to parse Gemini output for {symbol}: {e}\nRaw Text:\n{text}")
+            raise ValueError(f"Invalid JSON response from Gemini for {symbol}")
+            
+    def generate_insight_report(self, signal: EnrichedSignal, news: list[str], targets: list[float], risk_profile: str = None, fear_greed: str = "Unknown") -> str:
+        """Generate a detailed analyst deep-dive report explaining the chosen targets."""
+        prompt = self._build_prompt(signal, news, risk_profile)
+        prompt += f"\n\n--- INSTRUCTION OVERRIDE ---\n"
+        prompt += f"The AI previously selected these 3 buy targets: {targets}\n"
+        prompt += f"The current CNN Fear & Greed Index is: {fear_greed}\n"
+        prompt += "Act as a Master Investment Strategist synthesizing the views of 3 specialized sub-analysts (Fundamental, News/Sentiment, and Risk/DCA) into one cohesive report.\n"
+        prompt += "Write a comprehensive Thai-language 'Deep Dive Report' that reads like a well-composed, continuous article (เนื้อหาถูกเรียบเรียงมาให้เชื่อมโยงและอ่านต่อเนื่องกัน).\n"
+        prompt += "Your report MUST clearly address the following analytical dimensions:\n"
+        prompt += "1. **Context & Situation (บริบทและสถานการณ์)**: What is the current macro/micro environment for this stock? (Use P/E, Volume, Drawdown).\n"
+        prompt += "2. **News Impact (ผลกระทบจากข่าว)**: Which specific news headlines are driving the sentiment? What is the actual impact of each (positive/negative)?\n"
+        prompt += "3. **Investor Evaluation & Targets (มุมมองนักลงทุนและการตั้งรับ)**: As a DCA investor, how should one play this? Justify EXACTLY WHY the 3 specific targets were chosen based on the context and news. Explain why these are realistic.\n"
+        prompt += "Guidelines: Use normal, easy-to-understand Thai (ภาษาคนธรรมดา เข้าใจง่าย) but show deep expertise and full details (รู้ลึก มีรายละเอียดครบ).\n"
+        prompt += "CRITICAL: At the very end of your report, you MUST explicitly state the 'Fear & Greed Index' and briefly explain what it indicates about the overall market sentiment for this stock/market.\n"
+        prompt += "Output ONLY a beautifully formatted Markdown report with emojis. No JSON. Do not include introductory conversational filler."
+
+        last_error = None
+        for client in self.clients:
+            for model_name in self.advice_models:  # Use smarter models for deep dive
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt
+                    )
+                    return response.text.strip()
+                except Exception as e:
+                    logger.warning(f"Insight Report Model {model_name} failed for {signal.symbol}: {e}")
+                    last_error = e
+                    continue
+        
+        return "❌ ขออภัย ไม่สามารถสร้างบทวิเคราะห์เชิงลึกได้ในขณะนี้ เนื่องจากระบบ AI ขัดข้อง"
 
     def generate_advice(self, risk_profile: str, horizon: str, goal: str, sectors: list[str], count: str = "5", budget: str = "ไม่ระบุ") -> str:
         """Generate a personalized portfolio advice based on user survey.

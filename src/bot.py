@@ -139,6 +139,14 @@ class DCABot:
         self.fetcher = MarketDataFetcher()
         self.transformer = DataTransformer()
         self.grader = SignalGrader(config.gemini_api_keys)
+        
+        # Multi-Agent Pipeline for Deep Dive reports
+        from src.insight_pipeline import InsightPipeline
+        try:
+            self.insight_pipeline = InsightPipeline(config.gemini_api_keys)
+        except ValueError:
+            self.insight_pipeline = None
+            logger.warning("InsightPipeline disabled: no API keys.")
         self.sniper = AlpacaSniper(
             db=self.db,
             api_key=getattr(config, "alpaca_api_key", ""),
@@ -165,6 +173,7 @@ class DCABot:
         self.dp.message.register(self.cmd_remove, Command("remove"))
         self.dp.message.register(self.cmd_list, Command("list"))
         self.dp.message.register(self.cmd_scan, Command("scan"))
+        self.dp.message.register(self.cmd_insight, Command("scan-details"))
         self.dp.message.register(self.cmd_survey, Command("survey"))
         self.dp.message.register(self.cmd_advice, Command("advice"))
         self.dp.message.register(self.cmd_help, Command("help"))
@@ -188,6 +197,9 @@ class DCABot:
         self.dp.callback_query.register(self.tgt_toggle, F.data.startswith("tgt_toggle_"))
         self.dp.callback_query.register(self.tgt_confirm, F.data.startswith("tgt_confirm_"))
         self.dp.callback_query.register(self.set_notify_pref, F.data.startswith("notify_pref_"))
+        
+        # Insight report handler
+        self.dp.callback_query.register(self.insight_btn, F.data.startswith("insight_"))
 
     async def _add_to_watchlist(
         self, telegram_id: int, username: str | None, symbol: str, market: str, target_price: float | list[float] | None = None
@@ -887,6 +899,9 @@ class DCABot:
                     for idx, t in enumerate(grade_result.buy_targets):
                         buttons.append([InlineKeyboardButton(text=f"[ ] ${t:,.2f}", callback_data=f"tgt_toggle_{grade_result.symbol}_{idx}")])
                     buttons.append([InlineKeyboardButton(text="🎯 ยืนยันเป้าหมายที่เลือก", callback_data=f"tgt_confirm_{grade_result.symbol}")])
+                
+                # Add Insight button
+                buttons.append([InlineKeyboardButton(text="📖 เจาะลึกบทวิเคราะห์ (Deep Dive)", callback_data=f"insight_{grade_result.symbol}")])
 
                 keyboard = InlineKeyboardMarkup(inline_keyboard=buttons) if buttons else None
 
@@ -1090,6 +1105,121 @@ class DCABot:
         logger.info("Closing database connections...")
         await self.db.close()
         await self.bot.session.close()
+    async def cmd_insight(self, message: types.Message):
+        """Handle /scan-details <symbol> to generate deep dive report."""
+        if not message.text:
+            return
+        parts = message.text.strip().split()
+        if len(parts) < 2:
+            await message.reply("⚠️ กรุณาระบุชื่อหุ้น เช่น /scan-details NVDA")
+            return
+            
+        symbol = parts[1].upper()
+        await self._generate_and_send_insight(message, symbol)
+        
+    async def insight_btn(self, callback: types.CallbackQuery):
+        """Handle insight inline button click."""
+        await callback.answer("กำลังเจาะลึกข้อมูลวิเคราะห์...")
+        symbol = callback.data.split("_")[1]
+        await self._generate_and_send_insight(callback.message, symbol)
+
+    async def _generate_and_send_insight(self, message: types.Message, symbol: str):
+        """Generate deep-dive insight report using Multi-Agent Pipeline.
+
+        Pipeline: Data Collection → 3 Specialist Agents → Composer → Quality Gate.
+        Shows live progress updates to the user during each phase.
+        Falls back to old single-prompt method if pipeline is unavailable.
+        """
+        status_msg = await message.reply(f"⏳ กำลังเริ่ม Multi-Agent Analysis ของ {symbol}...")
+
+        # --- Check pipeline availability ---
+        if not self.insight_pipeline:
+            await status_msg.edit_text("❌ ระบบ Multi-Agent Pipeline ยังไม่พร้อม (ไม่มี API Key)")
+            return
+
+        # --- Phase 0: Fetch raw data (no LLM) ---
+        try:
+            await status_msg.edit_text(f"📊 กำลังดึงข้อมูลตลาดของ {symbol}...")
+        except Exception:
+            pass
+
+        snapshots = self.fetcher.fetch([symbol])
+        if symbol not in snapshots:
+            await status_msg.edit_text(f"❌ ไม่พบข้อมูลราคาของ {symbol}")
+            return
+
+        signals = self.transformer.enrich(snapshots)
+        signal = signals.get(symbol)
+
+        # Fetch news
+        from src.scrapers.sentiment import get_recent_news, get_fear_greed_index
+        news_headlines = get_recent_news(symbol)
+        fear_greed = get_fear_greed_index()
+
+        # Fetch user risk profile
+        risk_profile = None
+        if message.from_user:
+            async with self.db.session() as session:
+                stmt = select(User).where(User.telegram_id == message.from_user.id)
+                user = (await session.execute(stmt)).scalar_one_or_none()
+                if user:
+                    risk_profile = user.risk_profile
+
+        # --- Run the Multi-Agent Pipeline ---
+        import asyncio
+
+        async def update_progress(stage: str):
+            try:
+                await status_msg.edit_text(f"🤖 {symbol} — {stage}")
+            except Exception:
+                pass  # Telegram rate limit on edits
+
+        def sync_progress(stage: str):
+            """Bridge sync callback to async — best effort UI update."""
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(update_progress(stage))
+            except Exception:
+                pass
+
+        try:
+            # Run pipeline in executor to avoid blocking the event loop
+            loop = asyncio.get_running_loop()
+            report, metadata = await loop.run_in_executor(
+                None,
+                lambda: self.insight_pipeline.generate(
+                    signal=signal,
+                    news_headlines=news_headlines,
+                    fear_greed=fear_greed,
+                    risk_profile=risk_profile,
+                    on_progress=sync_progress,
+                ),
+            )
+        except Exception as e:
+            logger.error(f"InsightPipeline failed for {symbol}: {e}", exc_info=True)
+            await status_msg.edit_text(
+                f"❌ Multi-Agent Pipeline ล้มเหลว: {e}\n\n"
+                f"ลองใช้ /scan {symbol} แทนได้ครับ"
+            )
+            return
+
+        # --- Send final report ---
+        # Telegram has a 4096 char limit per message
+        if len(report) > 4000:
+            # Split into chunks
+            chunks = [report[i:i+4000] for i in range(0, len(report), 4000)]
+            await status_msg.edit_text(chunks[0], parse_mode="Markdown")
+            for chunk in chunks[1:]:
+                try:
+                    await message.reply(chunk, parse_mode="Markdown")
+                except Exception:
+                    await message.reply(chunk)
+        else:
+            try:
+                await status_msg.edit_text(report, parse_mode="Markdown")
+            except Exception as e:
+                logger.warning(f"Markdown parse error: {e}. Sending as plain text.")
+                await status_msg.edit_text(report)
 
 
 async def main():
