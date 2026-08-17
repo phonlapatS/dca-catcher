@@ -42,10 +42,8 @@ class TargetZone:
 
         zones: list[TargetZone] = []
         for part in raw.split(","):
-            part = part.strip()
-            if not part:
-                continue
-            match = re.match(r"^\$?([\d.]+)(?:\s*\((.*?)\))?$", part)
+            clean = part.replace("$", "").strip()
+            match = re.match(r"^(\d+(?:\.\d+)?)(?:\s*\((.*?)\))?$", clean)
             if match:
                 try:
                     price = float(match.group(1))
