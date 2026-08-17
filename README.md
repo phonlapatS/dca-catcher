@@ -2,7 +2,7 @@
 
 DCA Catcher คือ Telegram Bot สำหรับนักลงทุน DCA (Dollar-Cost Averaging) ที่ช่วยวิเคราะห์หุ้นและติดตามราคาเป้าหมายอัตโนมัติ รองรับทั้งตลาดหุ้นสหรัฐฯ (US) และหุ้นไทย (TH) ผ่านข้อมูลตลาดจริง (`yfinance`), ข่าวสารสด (`Google News RSS`), อารมณ์ตลาด (`CNN Fear & Greed Index`), และระบบ Real-time Price Tracking (`Alpaca WebSocket`)
 
-**สถานะปัจจุบัน:** **Phase 5: Multi-Agent Insight Pipeline & Deep Dive Analytics**
+**สถานะปัจจุบัน:** **Phase 5 (Multi-Agent Insight Pipeline & Deep Clean OOP Refactoring)**
 
 ---
 
@@ -59,7 +59,7 @@ DCA Catcher คือ Telegram Bot สำหรับนักลงทุน DC
 - **Quality Gate Agent:** ตรวจสอบความถูกต้องของตัวเลข, การอ้างอิงข่าว, ความสมเหตุสมผลของเป้าหมาย และการเรียบเรียง ให้คะแนน 0-100% (หากไม่ผ่านจะส่ง Remark กลับไปแก้เฉพาะจุดโดยไม่ต้องรันใหม่ทั้งหมด)
 
 ### 3. ระบบสไนเปอร์แจ้งเตือนราคา Real-time (`AlpacaSniper`) 🎯
-- สตรีมราคาหุ้นแบบ WebSocket ผ่าน Alpaca Data Stream ช่วงเวลาตลาดสหรัฐฯ เปิดทำการ (20:30 - 04:00 น. เวลาไทย)
+- สตรีมราคาหุ้นแบบ WebSocket ผ่าน Alpaca Data Stream ช่วงเวลาตลาดสหรัฐฯ เปิดทำการ (ปรับแต่งเวลาได้ใน Config)
 - แจ้งเตือนทาง Direct Message (DM) เมื่อราคาตลาดลงมาถึงเป้าหมายที่ผู้ใช้ตั้งไว้
 - ระบบ Anti-Spam Hysteresis (`last_notified_zone`) ป้องกันการส่งข้อความซ้ำเมื่อราคาแกว่งตัวอยู่ในโซนเดิม
 
@@ -68,7 +68,7 @@ DCA Catcher คือ Telegram Bot สำหรับนักลงทุน DC
 - `/advice`: ออกแบบพอร์ตโฟลิโอตามระยะเวลาลงทุน (Time Horizon), เป้าหมาย (ปันผล/เติบโต), และกลุ่มอุตสาหกรรม (GICS) พร้อมเปรียบเทียบผลตอบแทนกับอัตราเงินเฟ้อ
 
 ### 5. ตั้งเวลาแจ้งเตือนประจำวัน (Automated Broadcast)
-- แจ้งเตือนสรุปสถานะตลาดหุ้นใน Watchlist ผ่านช่องทาง Channel/Group ทุกเช้า (07:00 น.) และรอบเปิดตลาดหุ้นไทย (09:30 น.) / หุ้นสหรัฐฯ (20:00 น.)
+- แจ้งเตือนสรุปสถานะตลาดหุ้นใน Watchlist ผ่านช่องทาง Channel/Group ทุกเช้า และรอบเปิดตลาดหุ้นไทย/สหรัฐฯ (ปรับเวลาได้ใน Config)
 
 ---
 
@@ -94,17 +94,18 @@ DCA Catcher คือ Telegram Bot สำหรับนักลงทุน DC
 dca-catcher/
 ├── src/
 │   ├── bot.py                # Telegram Bot Handlers, Dispatcher & Lifecycle
-│   ├── config.py             # Environment configuration (Tokens, Keys, DB)
+│   ├── config.py             # Central Config (Env variables, Schedules, Operating hours)
+│   ├── models.py             # Shared Domain Models (TargetZone Single Source of Truth)
 │   ├── database.py           # SQLAlchemy Async ORM (User, Watchlist, Signal)
 │   ├── fetcher.py            # Market Data Fetcher via yfinance (OHLCV, Fundamentals)
-│   ├── transform.py          # Technical Indicators calculation (RSI, MA50, BB, Volume)
-│   ├── grader.py             # Single-scan Gemini AI Grader & Advice generator
-│   ├── insight_pipeline.py   # Multi-Agent Pipeline (OOP Architecture & Quality Gate)
+│   ├── transform.py          # Technical & Volume anomaly calculations
+│   ├── grader.py             # Unified Single-scan & Advice generator (via LLMCaller)
+│   ├── insight_pipeline.py   # Multi-Agent Pipeline (Specialists, Composer, Quality Gate)
 │   ├── sniper.py             # Alpaca WebSocket real-time price monitoring
 │   ├── alert_manager.py      # Notification formatter & Hysteresis logic
 │   └── scrapers/
 │       └── sentiment.py      # Google News RSS parser & CNN Fear & Greed scraper
-├── tests/                    # Unit & Integration test suites
+├── tests/                    # 41 Unit & Integration test suites (100% Passed)
 ├── Dockerfile                # Container definition
 ├── docker-compose.yml        # Multi-container service configuration
 └── requirements.txt          # Python dependencies
@@ -112,50 +113,48 @@ dca-catcher/
 
 ---
 
-## ⚙️ การติดตั้งและรันระบบ (Setup & Deployment)
+## 🗺️ Project Roadmap & Development Timeline
 
-### 1. รันแบบ Local Python
-```bash
-# สร้างและเปิด Virtual Environment
-python3 -m venv venv
-source venv/bin/activate
-
-# ติดตั้ง Dependencies
-pip install -r requirements.txt
-
-# กำหนดค่าตัวแปรในไฟล์ .env
-cat <<EOF > .env
-TELEGRAM_TOKEN=your_telegram_bot_token
-GEMINI_API_KEYS=key1,key2
-DATABASE_URL=sqlite+aiosqlite:///dca_catcher.db
-BROADCAST_CHANNEL_ID=-100xxxxxxxxxx
-ALPACA_API_KEY=your_alpaca_key
-ALPACA_SECRET_KEY=your_alpaca_secret
-EOF
-
-# รันระบบ
-python -m src.bot
-```
-
-### 2. รันด้วย Docker Compose
-```bash
-docker-compose up -d --build
-```
-
-### 3. Deploy บน Cloud (Google Cloud Always Free Tier)
-1. สร้าง VM Instance บน Google Cloud Console: รุ่น **`e2-micro`** (Region: `us-central1`, `us-east1`, หรือ `us-west1`)
-2. ติดตั้ง Docker และ Docker Compose บน VM:
-   ```bash
-   sudo apt update && sudo apt install -y docker.io docker-compose
-   ```
-3. Clone repository และรันผ่าน `docker-compose up -d` เพื่อให้ระบบทำงาน 24/7
+### 📍 Phase 1 - 4: Foundation to Production Ready
+*   **Phase 1: Foundation & Data Pipeline** — โครงสร้างฐานข้อมูล, ดึงราคา `yfinance`, คำนวณ Technical Indicators, ดึงข่าวและ Fear & Greed
+*   **Phase 2: AI Brain & Telegram Bot** — ผสาน Gemini ให้คะแนนและตั้งราคาเป้าหมาย, สร้าง Telegram Bot พื้นฐาน, วางระบบ WebSocket
+*   **Phase 3: Interactive UI & Automation** — ปรับปรุง Interactive Buttons, ระบบ Daily Broadcast ผ่าน APScheduler, รองรับ Docker
+*   **Phase 4: Production Ready & Advanced UX** — ระบบแจ้งเตือน DM ส่วนบุคคล, ระบบ Anti-Spam Hysteresis, API Key Rotation, ปรับจูนความเสถียรบน GCP
 
 ---
 
-## 🗺️ ประวัติการพัฒนา (Phase Roadmap)
+### 🚀 Phase 5: Multi-Agent Pipeline & Clean Architecture (Timeline โดยละเอียด)
 
-- **Phase 1: Foundation & Data Pipeline** — โครงสร้างฐานข้อมูล, ดึงราคา `yfinance`, คำนวณ Technical Indicators, ดึงข่าวและ Fear & Greed
-- **Phase 2: AI Brain & Telegram Bot** — ผสาน Gemini ให้คะแนนและตั้งราคาเป้าหมาย, สร้าง Telegram Bot พื้นฐาน, วางระบบ WebSocket
-- **Phase 3: Interactive UI & Automation** — ปรับปรุง Interactive Buttons, ระบบ Daily Broadcast ผ่าน APScheduler, รองรับ Docker
-- **Phase 4: Production Ready & Advanced UX** — ระบบแจ้งเตือน DM ส่วนบุคคล, ระบบ Anti-Spam Hysteresis, API Key Rotation, ปรับจูนความเสถียร
-- **Phase 5: Multi-Agent Insight Pipeline (ปัจจุบัน)** — ออกแบบสถาปัตยกรรม Multi-Agent (Specialists + Composer + Quality Gate), กรองข่าวสารด้วย NER, ดึงงบการเงินและวอลลุ่มแบบเรียลไทม์, ลดการ Hardcode ทั้งระบบด้วย `PipelineConfig`
+การพัฒนาใน Phase 5 แบ่งออกเป็น 4 รอบย่อย (Iterations) ตั้งแต่เริ่มพัฒนาจนถึงปัจจุบัน:
+
+#### 🔹 Iteration 5.1: System Audit & Data Validation
+*   **ตรวจสอบระบบดึงข้อมูลตลาดและข่าวสาร:**
+    *   ทดสอบและยืนยันการดึงข่าวย้อนหลัง 7 วันจาก Google News RSS ร่วมกับ Named Entity Recognition (NER) กรองข่าวสแปม
+    *   ขยาย `fetcher.py` ให้ดึงข้อมูลปัจจัยพื้นฐานจริง: P/E (Trailing), PEG Ratio, Revenue Growth, Profit Margin, Debt to Equity, และ Volume 20-day Average
+    *   ดึงค่า CNN Fear & Greed Index เข้ามาเป็นส่วนประกอบของสภาวะตลาดรวม
+
+#### 🔹 Iteration 5.2: Multi-Agent Insight Pipeline Design & Implementation
+*   **แยกหน้าที่ Agent ให้ทำงานสอดคล้องกัน (ลดการหลอน/Hallucination):**
+    *   สร้าง `src/insight_pipeline.py` ออกแบบสถาปัตยกรรม 5 บทบาท:
+        1. **Data Collector (No LLM):** ดึงและเตรียมข้อมูลดิบ ไม่เปลืองโทเคน
+        2. **Agent 1 (Fundamental Analyst):** วิเคราะห์ความถูก/แพง และความแข็งแกร่งของงบการเงิน
+        3. **Agent 2 (News & Sentiment Analyst):** ให้คะแนนผลกระทบของข่าวแต่ละหัวข้อ
+        4. **Agent 3 (Risk & Target Strategist):** อ่านผลวิเคราะห์จาก Agent 1 และ 2 ก่อนนำมากำหนดราคาเป้าหมาย 3 ระดับ
+        5. **Composer Agent:** เรียบเรียงเป็นบทความภาษาไทยที่ต่อเนื่อง ไม่เป็นข้อๆ แข็งทื่อ
+    *   **Quality Gate Agent (0-100% Scoring):** ตรวจสอบความถูกต้องของตัวเลขและการอ้างอิงข่าว หากคะแนนต่ำกว่า 75 จะส่ง Remark ให้ Composer แก้เฉพาะจุด (จำกัดสูงสุด 2 รอบ)
+    *   สร้างคลาส `LLMCaller` จัดการ Key Rotation และ Fallback ข้ามตระกูลโมเดล Flash/Flash-Lite อัตโนมัติ
+
+#### 🔹 Iteration 5.3: Hardcode Elimination & Config Centralization
+*   **รวมศูนย์ค่าตัวแปรทั้งหมดเข้าสู่ `PipelineConfig`:**
+    *   ปลดล็อก Model lists (`lite_models`, `smart_models`)
+    *   ปลดล็อกเปอร์เซ็นต์ราคาเป้าหมาย (`target_ranges`: Conservative 2-5%, Moderate 5-12%, Deep Value 12-25%)
+    *   ปลดล็อกเกณฑ์การตรวจ Quality Gate (`quality_weights` และ `quality_pass_threshold`)
+    *   แปลงเกณฑ์ AI Confidence Badge เป็น Loop `QUALITY_TIERS`
+
+#### 🔹 Iteration 5.4: System-wide Redundancy Audit & OOP Refactoring
+*   **ขจัดความซ้ำซ้อนระดับ Architecture:**
+    *   **TargetZone Single Source of Truth:** สร้าง `src/models.py` คลาส `TargetZone` รวมการ parse/serialize ข้อความราคาเป้าหมายจาก DB ไว้จุดเดียว แทนที่การเขียน regex ซ้ำกัน 3 ที่ใน `alert_manager.py`, `sniper.py`, และ `bot.py`
+    *   **Unified AI Engine:** ปรับ `grader.py` ให้เรียกใช้ `LLMCaller` และ `PipelineConfig` ร่วมกับ `insight_pipeline.py` หมดปัญหา Dual-Engine ซ้ำซ้อน
+    *   **Cleaner Indicators:** ลบโค้ด placeholder ใน `transform.py` ให้คำนวณ Volume anomaly และ P/E evaluation บริสุทธิ์
+    *   **Configurable Operating Windows:** ย้ายเวลา Broadcast (`07:00, 09:30, 20:00`) และเวลาเปิด Sniper (`20:30-04:00`) เข้า `src/config.py` ปรับค่าผ่าน Environment Variables ได้ 100%
+    *   **Test Suite 100% Pass:** ปรับปรุงชุดทดสอบทั้ง 41 tests ให้รองรับ Architecture ใหม่ทั้งหมด
