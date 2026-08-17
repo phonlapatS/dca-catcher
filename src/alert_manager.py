@@ -5,15 +5,9 @@ from sqlalchemy import select, func
 import math
 
 from src.database import Database, Watchlist, User
+from src.models import TargetZone
 
 logger = logging.getLogger(__name__)
-
-
-def _extract_zone_price(zone_str: Optional[str]) -> Optional[float]:
-    if not zone_str:
-        return None
-    match = re.search(r"(\d+(?:\.\d+)?)", zone_str)
-    return float(match.group(1)) if match else None
 
 
 class AlertManager:
@@ -21,29 +15,14 @@ class AlertManager:
         self.db = db
 
     @staticmethod
-    def parse_zones(target_zones_str: str):
-        if not target_zones_str:
-            return []
-        zones = []
-        parts = target_zones_str.split(',')
-        for p in parts:
-            p = p.strip()
-            if not p:
-                continue
-            m = re.match(r'^\$?([\d\.]+)(?:\s*\((.*?)\))?$', p)
-            if m:
-                try:
-                    price = float(m.group(1))
-                    label = m.group(2) if m.group(2) else "Target"
-                    zones.append({
-                        "price": price,
-                        "label": label,
-                        "raw": p
-                    })
-                except ValueError:
-                    pass
-        zones.sort(key=lambda x: x["price"], reverse=True)
-        return zones
+    def parse_zones(target_zones_str: str) -> list[dict]:
+        """Parse target zones using the shared TargetZone model.
+
+        Returns legacy dict format for backward compatibility with
+        existing callers (sniper.py, bot.py).
+        """
+        zones = TargetZone.parse_many(target_zones_str)
+        return [{"price": z.price, "label": z.label, "raw": f"${z.price} ({z.label})"} for z in zones]
 
     async def check_and_notify(self, user_id: int, symbol: str, current_price: float, target_zones_str: str) -> Tuple[bool, Optional[str]]:
         zones = self.parse_zones(target_zones_str)
@@ -85,7 +64,10 @@ class AlertManager:
                 return abs(z1 - z2) < 1e-5
 
             already_notified = any(
-                is_same_zone(_extract_zone_price(item.last_notified_zone), active_zone["price"])
+                is_same_zone(
+                    TargetZone.to_prices(item.last_notified_zone)[0] if TargetZone.to_prices(item.last_notified_zone) else None,
+                    active_zone["price"]
+                )
                 for item in watchlist_items
             )
             if already_notified:
@@ -99,12 +81,13 @@ class AlertManager:
             if next_zone:
                 msg = (
                     f"🎯 **เป้าหมายที่ถึงแล้ว:** ${active_zone['price']} ({active_zone['label']})\n\n"
-                    f"💬 ท่านสามารถพิจารณาเข้าซื้อที่ราคานี้ได้เลย หรือรอดูสถานการณ์ว่าราคาจะขยับลงต่อถึงเป้าหมายถัดไปที่ ${next_zone['price']} ({next_zone['label']}) หรือไม่"
+                    f"💬 ท่านสามารถเข้าซื้อที่ราคาเป้าหมายตอนนี้ได้แล้ว {active_zone['price']} ({active_zone['label']}) "
+                    f"รอดูสถานการณ์ว่าราคาจะขยับลงต่อถึงเป้าหมายถัดไปที่ {next_zone['price']} ({next_zone['label']}) หรือไม่"
                 )
             else:
                 msg = (
                     f"🎯 **เป้าหมายที่ถึงแล้ว:** ${active_zone['price']} ({active_zone['label']})\n\n"
-                    f"💬 ท่านสามารถพิจารณาเข้าซื้อที่ราคานี้ได้เลยครับ (นี่คือเป้าหมายสุดท้ายที่คุณตั้งไว้)"
+                    f"💬 ท่านสามารถเข้าซื้อที่ราคาเป้าหมายตอนนี้ได้แล้ว {active_zone['price']} ({active_zone['label']}) (นี่คือเป้าหมายสุดท้ายที่คุณตั้งไว้)"
                 )
             return True, msg
 

@@ -109,25 +109,58 @@ class DataTransformer:
             )
 
     def _score_flow(self, snapshot: StockSnapshot) -> DimensionScore:
-        """Score based on volume (placeholder for MVP).
+        """Score based on volume anomaly detection.
 
-        For MVP, return HOLD with score 50 and note "Volume analysis requires
-        historical data — will be enriched with 20-day average comparison."
+        Uses is_volume_anomaly attribute if available (computed by
+        calculate_indicators), otherwise returns a neutral score.
         """
+        is_anomaly = getattr(snapshot, "is_volume_anomaly", None)
+        if is_anomaly is True:
+            return DimensionScore(
+                label="BUY",
+                score=80.0,
+                reason="Volume anomaly detected (>1.5× 20-day avg) — institutional interest likely.",
+            )
+        elif is_anomaly is False:
+            return DimensionScore(
+                label="HOLD",
+                score=40.0,
+                reason="Volume within normal range — no unusual trading activity.",
+            )
         return DimensionScore(
             label="HOLD",
             score=50.0,
-            reason="Volume analysis requires historical data — will be enriched with 20-day average comparison.",
+            reason="Volume data not available for anomaly check.",
         )
 
     def _score_context(self, snapshot: StockSnapshot) -> DimensionScore:
-        """Score based on market context (placeholder for MVP).
+        """Score based on fundamental valuation metrics.
 
-        For MVP, return HOLD with score 50 and note "Context analysis
-        (news sentiment, Fear & Greed) will be added in future iteration."
+        Uses trailing P/E if available to assess whether the stock
+        is overvalued, fairly valued, or undervalued.
         """
-        return DimensionScore(
-            label="HOLD",
-            score=50.0,
-            reason="Context analysis (news sentiment, Fear & Greed) will be added in future iteration.",
-        )
+        pe = getattr(snapshot, "trailing_pe", None)
+        if pe is None:
+            return DimensionScore(
+                label="HOLD",
+                score=50.0,
+                reason="P/E data not available for context scoring.",
+            )
+        if pe < 15:
+            return DimensionScore(
+                label="BUY",
+                score=80.0,
+                reason=f"P/E {pe:.1f} — undervalued relative to broad market.",
+            )
+        elif pe < 30:
+            return DimensionScore(
+                label="HOLD",
+                score=50.0,
+                reason=f"P/E {pe:.1f} — fairly valued.",
+            )
+        else:
+            return DimensionScore(
+                label="HOLD",
+                score=30.0,
+                reason=f"P/E {pe:.1f} — premium valuation, proceed with caution.",
+            )

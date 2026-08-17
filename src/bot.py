@@ -151,6 +151,10 @@ class DCABot:
             db=self.db,
             api_key=getattr(config, "alpaca_api_key", ""),
             secret_key=getattr(config, "alpaca_secret_key", ""),
+            sniper_start_hour=config.sniper_start_hour,
+            sniper_start_minute=config.sniper_start_minute,
+            sniper_end_hour=config.sniper_end_hour,
+            sniper_end_minute=config.sniper_end_minute,
         )
 
         token = config.telegram_token
@@ -1087,9 +1091,9 @@ class DCABot:
 
         logger.info("Starting scheduler...")
         self.scheduler = AsyncIOScheduler(timezone="Asia/Bangkok")
-        self.scheduler.add_job(self.broadcast_scan, 'cron', hour=7, minute=0)
-        self.scheduler.add_job(self.broadcast_scan, 'cron', hour=9, minute=30, args=['TH'])
-        self.scheduler.add_job(self.broadcast_scan, 'cron', hour=20, minute=0, args=['US'])
+        self.scheduler.add_job(self.broadcast_scan, 'cron', hour=self.config.broadcast_morning_hour, minute=self.config.broadcast_morning_minute)
+        self.scheduler.add_job(self.broadcast_scan, 'cron', hour=self.config.broadcast_th_hour, minute=self.config.broadcast_th_minute, args=['TH'])
+        self.scheduler.add_job(self.broadcast_scan, 'cron', hour=self.config.broadcast_us_hour, minute=self.config.broadcast_us_minute, args=['US'])
         self.scheduler.start()
 
         await self.on_startup()

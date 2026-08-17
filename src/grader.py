@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from google import genai
 
 from src.transform import EnrichedSignal
+from src.insight_pipeline import LLMCaller, PipelineConfig
 
 logger = logging.getLogger(__name__)
 
@@ -21,53 +22,47 @@ class GradeResult:
 
 
 class SignalGrader:
-    """Uses Google Gemini to grade enriched stock signals."""
+    """Uses Google Gemini to grade enriched stock signals.
 
-    def __init__(self, api_keys: list[str]):
-        """Configure Gemini with the provided API keys and hybrid fallback models."""
-        self.clients = [genai.Client(api_key=key) for key in api_keys]
-        if not self.clients:
+    Delegates all LLM calls to the shared ``LLMCaller`` from
+    ``insight_pipeline`` so that model lists, API key rotation,
+    and quota fallback are defined in exactly one place.
+    """
+
+    def __init__(self, api_keys: list[str], config: PipelineConfig | None = None):
+        """Configure the grader with shared LLMCaller instances."""
+        from google import genai
+
+        self.config = config or PipelineConfig()
+        clients = [genai.Client(api_key=key) for key in api_keys]
+        if not clients:
             logger.warning("No Gemini API keys provided! Grader will fail.")
-        
-        # Flash Lite is ultra-fast, perfect for simple indicator grading
-        self.scan_models = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3-flash-preview"]
-        
-        # Advice needs deeper reasoning for portfolio generation
-        self.advice_models = ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3-flash-preview"]
+
+        # Fast caller for quick scans, smart caller for advice/reports
+        self.scan_llm = LLMCaller(clients, self.config.lite_models)
+        self.advice_llm = LLMCaller(clients, self.config.smart_models)
 
     def grade(self, signal: EnrichedSignal, news: list[str] = None, risk_profile: str = None) -> GradeResult:
         """Send enriched signal dimensions to Gemini for grading.
 
         Constructs a prompt with the 3 dimension scores and asks Gemini
         to return a JSON response with score, confidence, advice, and reasons.
-        Tries multiple models sequentially if quota limits are hit.
+        Uses shared LLMCaller for automatic model fallback.
         """
         prompt = self._build_prompt(signal, news, risk_profile)
-        last_error = None
-        
-        for client in self.clients:
-            for model_name in self.scan_models:
-                try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt
-                    )
-                    return self._parse_response(response.text, signal.symbol)
-                except Exception as e:
-                    logger.warning(f"Model {model_name} on key failed for {signal.symbol}: {e}")
-                    last_error = e
-                    continue
-                
-        # If all models fail, return fallback
-        logger.error(f"All Gemini models failed for {signal.symbol}. Last error: {last_error}")
-        return GradeResult(
-            symbol=signal.symbol,
-            score=5,
-            confidence=0,
-            advice=f"Gemini API error (All models failed): {last_error}",
-            reasons=["⚠️ ไม่สามารถติดต่อ AI ได้ (API Error)"],
-            buy_targets=[],
-        )
+        try:
+            data = self.scan_llm.call_json(prompt)
+            return self._parse_data(data, signal.symbol)
+        except Exception as e:
+            logger.error(f"All Gemini models failed for {signal.symbol}: {e}")
+            return GradeResult(
+                symbol=signal.symbol,
+                score=5,
+                confidence=0,
+                advice=f"Gemini API error: {e}",
+                reasons=["⚠️ ไม่สามารถติดต่อ AI ได้ (API Error)"],
+                buy_targets=[],
+            )
 
     def _build_prompt(self, signal: EnrichedSignal, news: list[str] = None, risk_profile: str = None) -> str:
         """Build the Gemini prompt from enriched signal data and news.
@@ -143,65 +138,56 @@ Dimensions:
 """
         return prompt
 
+    def _parse_data(self, data: dict, symbol: str) -> GradeResult:
+        """Build GradeResult from a parsed JSON dict."""
+        return GradeResult(
+            symbol=symbol,
+            score=int(data.get("score", 5)),
+            confidence=int(data.get("confidence", 0)),
+            advice=str(data.get("advice", "No advice provided")),
+            reasons=list(data.get("reasons", [])),
+            buy_targets=list(data.get("buy_targets", [])),
+        )
+
     def _parse_response(self, text: str, symbol: str) -> GradeResult:
-        """Parse Gemini JSON output."""
+        """Parse raw text/JSON from Gemini (backward compatibility helper)."""
         try:
-            cleaned_text = text.strip()
-            if cleaned_text.startswith("```"):
-                cleaned_text = re.sub(r"^```(?:json)?\s*", "", cleaned_text)
-                cleaned_text = re.sub(r"\s*```$", "", cleaned_text)
-
-            data = json.loads(cleaned_text)
-
-            score = int(data.get("score", 5))
-            confidence = int(data.get("confidence", 0))
-            advice = str(data.get("advice", "No advice provided"))
-            reasons = list(data.get("reasons", []))
-            buy_targets = list(data.get("buy_targets", []))
-
+            cleaned = text.strip()
+            if cleaned.startswith("```"):
+                cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+                cleaned = re.sub(r"\s*```$", "", cleaned)
+            data = json.loads(cleaned)
+            return self._parse_data(data, symbol)
+        except Exception as e:
             return GradeResult(
                 symbol=symbol,
-                score=score,
-                confidence=confidence,
-                advice=advice,
-                reasons=reasons,
-                buy_targets=buy_targets,
+                score=5,
+                confidence=0,
+                advice=f"Failed to parse AI output: {e}",
+                reasons=["⚠️ Parse error"],
+                buy_targets=[],
             )
-        except Exception as e:
-            logger.error(f"Failed to parse Gemini output for {symbol}: {e}\nRaw Text:\n{text}")
-            raise ValueError(f"Invalid JSON response from Gemini for {symbol}")
             
     def generate_insight_report(self, signal: EnrichedSignal, news: list[str], targets: list[float], risk_profile: str = None, fear_greed: str = "Unknown") -> str:
-        """Generate a detailed analyst deep-dive report explaining the chosen targets."""
+        """Legacy single-prompt insight report.
+
+        .. deprecated::
+            Use ``InsightPipeline.generate()`` instead for the Multi-Agent
+            pipeline with Quality Gate.  This method is kept for backward
+            compatibility only.
+        """
+        logger.warning("generate_insight_report is deprecated — use InsightPipeline.generate() instead.")
         prompt = self._build_prompt(signal, news, risk_profile)
         prompt += f"\n\n--- INSTRUCTION OVERRIDE ---\n"
         prompt += f"The AI previously selected these 3 buy targets: {targets}\n"
         prompt += f"The current CNN Fear & Greed Index is: {fear_greed}\n"
-        prompt += "Act as a Master Investment Strategist synthesizing the views of 3 specialized sub-analysts (Fundamental, News/Sentiment, and Risk/DCA) into one cohesive report.\n"
-        prompt += "Write a comprehensive Thai-language 'Deep Dive Report' that reads like a well-composed, continuous article (เนื้อหาถูกเรียบเรียงมาให้เชื่อมโยงและอ่านต่อเนื่องกัน).\n"
-        prompt += "Your report MUST clearly address the following analytical dimensions:\n"
-        prompt += "1. **Context & Situation (บริบทและสถานการณ์)**: What is the current macro/micro environment for this stock? (Use P/E, Volume, Drawdown).\n"
-        prompt += "2. **News Impact (ผลกระทบจากข่าว)**: Which specific news headlines are driving the sentiment? What is the actual impact of each (positive/negative)?\n"
-        prompt += "3. **Investor Evaluation & Targets (มุมมองนักลงทุนและการตั้งรับ)**: As a DCA investor, how should one play this? Justify EXACTLY WHY the 3 specific targets were chosen based on the context and news. Explain why these are realistic.\n"
-        prompt += "Guidelines: Use normal, easy-to-understand Thai (ภาษาคนธรรมดา เข้าใจง่าย) but show deep expertise and full details (รู้ลึก มีรายละเอียดครบ).\n"
-        prompt += "CRITICAL: At the very end of your report, you MUST explicitly state the 'Fear & Greed Index' and briefly explain what it indicates about the overall market sentiment for this stock/market.\n"
-        prompt += "Output ONLY a beautifully formatted Markdown report with emojis. No JSON. Do not include introductory conversational filler."
+        prompt += "Write a comprehensive Thai-language Deep Dive Report.\n"
+        prompt += "Output ONLY a beautifully formatted Markdown report with emojis. No JSON."
 
-        last_error = None
-        for client in self.clients:
-            for model_name in self.advice_models:  # Use smarter models for deep dive
-                try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt
-                    )
-                    return response.text.strip()
-                except Exception as e:
-                    logger.warning(f"Insight Report Model {model_name} failed for {signal.symbol}: {e}")
-                    last_error = e
-                    continue
-        
-        return "❌ ขออภัย ไม่สามารถสร้างบทวิเคราะห์เชิงลึกได้ในขณะนี้ เนื่องจากระบบ AI ขัดข้อง"
+        try:
+            return self.advice_llm.call(prompt)
+        except Exception:
+            return "❌ ขออภัย ไม่สามารถสร้างบทวิเคราะห์เชิงลึกได้ในขณะนี้ เนื่องจากระบบ AI ขัดข้อง"
 
     def generate_advice(self, risk_profile: str, horizon: str, goal: str, sectors: list[str], count: str = "5", budget: str = "ไม่ระบุ") -> str:
         """Generate a personalized portfolio advice based on user survey.
@@ -246,18 +232,7 @@ Please generate a highly professional and tailored investment plan. Your output 
 Make sure the {count} recommended stocks are real, well-known US or global stocks that strictly fit their risk profile, horizon, goal, and the 3 chosen sectors. Provide the output directly, no introductory or concluding chat.
 """
         
-        last_error = None
-        for client in self.clients:
-            for model_name in self.advice_models:
-                try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt
-                    )
-                    return response.text.strip()
-                except Exception as e:
-                    logger.warning(f"Model {model_name} on key failed for advice generation: {e}")
-                    last_error = e
-                    continue
-                
-        return f"⚠️ ขออภัยครับ AI ระบบขัดข้อง ไม่สามารถจัดพอร์ตให้ได้ในขณะนี้: {last_error}"
+        try:
+            return self.advice_llm.call(prompt)
+        except Exception as e:
+            return f"⚠️ ขออภัยครับ AI ระบบขัดข้อง ไม่สามารถจัดพอร์ตให้ได้ในขณะนี้: {e}"

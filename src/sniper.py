@@ -34,6 +34,10 @@ class AlpacaSniper:
         poll_interval: float = 60.0,
         bot: Optional["Bot"] = None,
         broadcast_channel_id: Optional[str] = None,
+        sniper_start_hour: int = 20,
+        sniper_start_minute: int = 30,
+        sniper_end_hour: int = 4,
+        sniper_end_minute: int = 0,
     ):
         self.db = db
         self.api_key = api_key or os.environ.get("ALPACA_API_KEY", "")
@@ -44,6 +48,10 @@ class AlpacaSniper:
         self.poll_interval = poll_interval
         self.bot = bot
         self.broadcast_channel_id = broadcast_channel_id
+        self.sniper_start_hour = sniper_start_hour
+        self.sniper_start_minute = sniper_start_minute
+        self.sniper_end_hour = sniper_end_hour
+        self.sniper_end_minute = sniper_end_minute
 
         self.running = False
         self._task: Optional[asyncio.Task] = None
@@ -52,7 +60,7 @@ class AlpacaSniper:
         self.targets: dict[str, list[float]] = {}
 
     def is_operating_hours(self, now: Optional[datetime] = None) -> bool:
-        """Check if the current time in Asia/Bangkok is between 20:30 and 04:00."""
+        """Check if the current time in Asia/Bangkok is within sniper window."""
         bkk_tz = ZoneInfo("Asia/Bangkok")
         if now is None:
             now_bkk = datetime.now(bkk_tz)
@@ -62,7 +70,9 @@ class AlpacaSniper:
             now_bkk = now.astimezone(bkk_tz)
 
         t = now_bkk.time()
-        return t >= time(20, 30) or t < time(4, 0)
+        start = time(self.sniper_start_hour, self.sniper_start_minute)
+        end = time(self.sniper_end_hour, self.sniper_end_minute)
+        return t >= start or t < end
 
     def parse_target_zones(self, target_zones_str: Optional[str]) -> list[float]:
         """Parse float target prices from target_zones_str field in descending order."""

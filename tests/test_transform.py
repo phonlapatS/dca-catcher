@@ -76,7 +76,7 @@ def test_score_flow_placeholder():
     score = transformer._score_flow(snapshot)
     assert score.label == "HOLD"
     assert score.score == 50.0
-    assert "Volume analysis requires historical data" in score.reason
+    assert "Volume data" in score.reason
 
 
 def test_score_context_placeholder():
@@ -91,7 +91,7 @@ def test_score_context_placeholder():
     score = transformer._score_context(snapshot)
     assert score.label == "HOLD"
     assert score.score == 50.0
-    assert "Context analysis" in score.reason
+    assert "P/E data" in score.reason
 
 
 def test_enrich():
