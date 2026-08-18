@@ -2,18 +2,20 @@
 
 DCA Catcher คือ Telegram Bot สำหรับนักลงทุน DCA (Dollar-Cost Averaging) ที่ช่วยวิเคราะห์หุ้นและติดตามราคาเป้าหมายอัตโนมัติ รองรับทั้งตลาดหุ้นสหรัฐฯ (US) และหุ้นไทย (TH) ผ่านข้อมูลตลาดจริง (`yfinance`), ข่าวสารสด (`Google News RSS`), อารมณ์ตลาด (`CNN Fear & Greed Index`), และระบบ Real-time Price Tracking (`Alpaca WebSocket`)
 
-**สถานะปัจจุบัน:** **Phase 5.1 (Clean OOP Refactoring, Zero-Hardcode & Architecture Optimization)**
+**สถานะปัจจุบัน:** **Phase 6 (Visual Analytics & Webhook Integration)**
 
 ---
 
 ## 🌟 ฟังก์ชันหลักของระบบ (Current Features)
 
-### 1. ระบบวิเคราะห์หุ้นพื้นฐาน (`/scan`)
+### 1. ระบบวิเคราะห์หุ้นพื้นฐาน & กราฟแท่งเทียน (`/scan`)
 - ดึงข้อมูลราคาล่าสุด, จุดสูงสุดตลอดกาล (ATH), % การย่อตัว (ATH Drawdown), ปริมาณการซื้อขาย (Volume)
 - ดึงข้อมูลปัจจัยพื้นฐานจริง: P/E (Trailing), PEG Ratio, Revenue Growth, Profit Margin, Debt to Equity
 - AI ประเมินความน่าลงทุน (AI Score 1-10) และระดับความมั่นใจ (Confidence Score 0-100%)
 - คำนวณราคาเป้าหมายสำหรับเข้าซื้อแบบ DCA จำนวน 3 ระดับ (อิงตามความเสี่ยงของผู้ใช้)
-- มีปุ่ม Interactive ให้ผู้ใช้กดเลือกบันทึกราคาเป้าหมายเข้าสู่ระบบ Sniper ได้ทันที
+- **Visual Analytics (In-Memory Candlestick Charting):** สร้างและส่งรูปภาพกราฟราคาแท่งเทียนพร้อมเส้นระดับราคาเป้าหมาย (Target Zones) ผ่านระบบ `io.BytesIO` ใน RAM (Zero Disk Footprint)
+- **Adaptive Timeframe:** ปรับช่วงเวลาย้อนหลังอัตโนมัติ (3M ➔ 6M ➔ 1Y) เพื่อให้เส้นราคาเป้าหมายพาดทับแนวรับของแท่งเทียนในอดีตอย่างสมบูรณ์แบบ
+- มีปุ่ม Interactive ให้ผู้ใช้กดเลือกบันทึกราคาเป้าหมายเข้าสู่ระบบ Sniper ได้ทันที พร้อมปุ่ม `❌ ยังไม่สนใจ / ข้าม` สำหรับเคลียร์ตัวเลือก
 
 ### 2. Multi-Agent Deep Dive Insight Pipeline (`/scan-details` หรือปุ่มกด) 🧠
 ระบบวิเคราะห์เจาะลึกแบบหลายเอเจนต์ (Multi-Agent Architecture) แยกหน้าที่การคิดเพื่อความแม่นยำและลดอาการ Hallucination:
@@ -94,18 +96,20 @@ DCA Catcher คือ Telegram Bot สำหรับนักลงทุน DC
 dca-catcher/
 ├── src/
 │   ├── bot.py                # Telegram Bot Handlers, Dispatcher & Lifecycle
-│   ├── config.py             # Central Config (Env variables, Schedules, Operating hours)
+│   ├── config.py             # Central Config (Env variables, Schedules, Ports, Secrets)
 │   ├── models.py             # Shared Domain Models (TargetZone Single Source of Truth)
 │   ├── database.py           # SQLAlchemy Async ORM (User, Watchlist, Signal)
 │   ├── fetcher.py            # Market Data Fetcher via yfinance (OHLCV, Fundamentals)
 │   ├── transform.py          # Technical & Volume anomaly calculations
 │   ├── grader.py             # Unified Single-scan & Advice generator (via LLMCaller)
 │   ├── insight_pipeline.py   # Multi-Agent Pipeline (Specialists, Composer, Quality Gate)
+│   ├── charting.py           # In-Memory Visual Analytics (mplfinance + Adaptive Timeframe)
+│   ├── webhook.py            # Async Webhook Server (aiohttp for TradingView Alerts)
 │   ├── sniper.py             # Alpaca WebSocket real-time price monitoring
 │   ├── alert_manager.py      # Notification formatter & Hysteresis logic
 │   └── scrapers/
 │       └── sentiment.py      # Google News RSS parser & CNN Fear & Greed scraper
-├── tests/                    # 41 Unit & Integration test suites (100% Passed)
+├── tests/                    # 47 Unit & Integration test suites (100% Passed)
 ├── Dockerfile                # Container definition
 ├── docker-compose.yml        # Multi-container service configuration
 └── requirements.txt          # Python dependencies
@@ -123,28 +127,19 @@ dca-catcher/
 
 ---
 
-### 🚀 Phase 5: Multi-Agent Pipeline (AI Brain Evolution)
+### 🚀 Phase 5 & 5.1: Multi-Agent Pipeline & Clean OOP Refactoring
 *   **Multi-Agent Architecture:** พัฒนา `src/insight_pipeline.py` แบ่งหน้าที่ 5 ตัว (DataCollector, FundamentalAgent, NewsAnalystAgent, RiskTargetAgent, ComposerAgent)
 *   **Quality Gate QA:** เพิ่มตัวตรวจงานให้คะแนน 0-100% พร้อม Targeted Micro-Revision แก้เฉพาะจุดโดยไม่ต้องสร้างใหม่ทั้งหมด
-*   **Real-time Data Enriched:** ดึงงบการเงินจริง (P/E, PEG, Margin, Debt/Equity) และข่าวย้อนหลัง 7 วันผ่าน NER Validation
+*   **Clean OOP & Zero-Hardcode:** สร้างโมเดลกลาง `src/models.py` (`TargetZone`), รวมศูนย์คอนฟิกใน `config.py`, ลบค่า Hardcoded และขจัดโค้ดซ้ำซ้อน
+*   **Unified AI Engine:** ปรับ `src/grader.py` ให้เรียกใช้ `LLMCaller` จาก `insight_pipeline.py` ยกเลิกการสร้าง Gemini Client ซ้ำซ้อน
+*   **Pure Indicators:** คำนวณ Pure Math Indicators (Volume anomaly >1.5x, Trailing P/E)
 
 ---
 
-### ⚡ Phase 5.1: Clean OOP Refactoring, Zero-Hardcode & Optimization (ปัจจุบัน)
+### 🎨 Phase 6: Charting & Webhook Integration (ปัจจุบัน)
 
-มุ่งเน้นการปรับปรุงคุณภาพโค้ดระดับสถาปัตยกรรม (Codebase Health), ลบความซ้ำซ้อน, ขจัดค่า Hardcoded และ Optimize ประสิทธิภาพ:
-
-#### 1. 🧹 Refactoring: Single Source of Truth & Redundancy Removal
-*   **สร้างโมเดลกลาง `src/models.py` (`TargetZone`):** รวมศูนย์การ Parse และ Serialize สตริงราคาเป้าหมาย (เช่น `"$185.0 (Conservative)"` ➔ `185.0`) ไว้ที่เดียว ขจัดปัญหา Regex ซ้ำซ้อน 3 ที่ใน `alert_manager.py`, `sniper.py`, และ `bot.py`
-*   **Unified AI Engine:** ปรับ `src/grader.py` ให้เรียกใช้ `LLMCaller` จาก `insight_pipeline.py` ยกเลิกการสร้าง Gemini Client และ Fallback list แยกซ้ำซ้อน
-*   **Pure Indicators:** ล้าง Mock String และฟังก์ชัน Placeholder ใน `transform.py` ให้คำนวณ Volume anomaly (>1.5x) และ Trailing P/E จริง
-
-#### 2. 🚫 Zero-Hardcode: Centralized Configuration
-*   **`PipelineConfig` Dataclass:** รวมศูนย์ Model lists (`lite_models`, `smart_models`), ช่วงเปอร์เซ็นต์ราคาเป้าหมาย (`target_ranges`), และน้ำหนักคะแนน Quality Gate (`quality_weights`, `quality_pass_threshold`)
-*   **`Config` Environment Variables:** ย้ายเวลา Broadcast ประจำวัน (`07:00`, `09:30`, `20:00`) และเวลาเปิด/ปิด Alpaca Sniper (`20:30 - 04:00`) เข้าสู่ `.env` สามารถปรับเปลี่ยนได้ 100% โดยไม่ต้องแก้โค้ด
-
-#### 3. ⚡ Optimization & Reliability Benchmarks
-*   **TargetZone Benchmark:** ประมวลผลและเรียงลำดับราคาเป้าหมายเสร็จสิ้นใน **~0.10 ms**
-*   **Indicators Calculation:** คำนวณ Pure Math Indicators เสร็จสิ้นใน **~0.006 ms**
-*   **Token & Quota Optimization:** การแก้ไขรายงานผ่าน Quality Gate ใช้โทเคนเพียงส่วนย่อย ไม่สูญเสียโควต้า 1,500 RPD ของ Gemini Free Tier
-*   **100% Test Coverage:** ผ่านชุดทดสอบทั้งหมด **41/41 tests** ครอบคลุม Alert Manager, Database, WebSocket, Fetcher, Grader, และ Indicators
+*   **In-Memory Visual Analytics (`src/charting.py`):** พัฒนาคลาส `ChartGenerator` ใช้วาดกราฟแท่งเทียน Candlestick พร้อมตีเส้นระดับราคาเป้าหมาย (Target Zones) ผ่าน RAM (`io.BytesIO`) แบบ Zero Disk Storage
+*   **Adaptive Timeframe:** ปรับ Timeframe อัตโนมัติ (3M ➔ 6M ➔ 1Y) เพื่อให้เส้นราคาเป้าหมายพาดทับแนวรับของแท่งเทียนในอดีตอย่างสมบูรณ์แบบ
+*   **TradingView Webhook Server (`src/webhook.py`):** เปิด Asynchronous Web Server บน `aiohttp` ทำงานคู่ขนานกับ Telegram Bot รองรับสัญญาณ Trigger ภายนอก ตอบรับกลับใน 0.05 วินาที
+*   **Clean UX:** สลับลำดับการส่งบทวิเคราะห์ก่อนแล้วส่งกราฟตาม พร้อมปุ่ม `❌ ยังไม่สนใจ / ข้าม` สำหรับเคลียร์ Checkbox
+*   **100% Test Coverage:** ผ่านชุดทดสอบทั้งหมด **47/47 tests** ครอบคลุมทุกโมดูลในระบบ 100%

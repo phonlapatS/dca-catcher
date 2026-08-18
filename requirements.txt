@@ -12,3 +12,5 @@ requests
 feedparser
 
 apscheduler
+mplfinance
+aiohttp

@@ -15,6 +15,8 @@ class Config:
     broadcast_channel_id: str
     alpaca_api_key: str = ""
     alpaca_secret_key: str = ""
+    webhook_port: int = 8080
+    webhook_secret: str = "default_secret_123"
 
     # Broadcast schedule (hours in Asia/Bangkok timezone)
     broadcast_morning_hour: int = 7
@@ -29,6 +31,10 @@ class Config:
     sniper_start_minute: int = 30
     sniper_end_hour: int = 4
     sniper_end_minute: int = 0
+
+    # Webhook config
+    webhook_port: int = 8080
+    webhook_secret: str = "default_secret_123"
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -51,4 +57,6 @@ class Config:
             sniper_start_minute=int(os.environ.get("SNIPER_START_MINUTE", "30")),
             sniper_end_hour=int(os.environ.get("SNIPER_END_HOUR", "4")),
             sniper_end_minute=int(os.environ.get("SNIPER_END_MINUTE", "0")),
+            webhook_port=int(os.environ.get("WEBHOOK_PORT", "8080")),
+            webhook_secret=os.environ.get("WEBHOOK_SECRET", "default_secret_123"),
         )

@@ -200,6 +200,7 @@ class DCABot:
         # Target approval handlers for /scan
         self.dp.callback_query.register(self.tgt_toggle, F.data.startswith("tgt_toggle_"))
         self.dp.callback_query.register(self.tgt_confirm, F.data.startswith("tgt_confirm_"))
+        self.dp.callback_query.register(self.tgt_dismiss, F.data.startswith("tgt_dismiss_"))
         self.dp.callback_query.register(self.set_notify_pref, F.data.startswith("notify_pref_"))
         
         # Insight report handler
@@ -902,18 +903,38 @@ class DCABot:
                 if getattr(grade_result, "buy_targets", None):
                     for idx, t in enumerate(grade_result.buy_targets):
                         buttons.append([InlineKeyboardButton(text=f"[ ] ${t:,.2f}", callback_data=f"tgt_toggle_{grade_result.symbol}_{idx}")])
-                    buttons.append([InlineKeyboardButton(text="🎯 ยืนยันเป้าหมายที่เลือก", callback_data=f"tgt_confirm_{grade_result.symbol}")])
+                    buttons.append([
+                        InlineKeyboardButton(text="🎯 ยืนยันเป้าหมาย", callback_data=f"tgt_confirm_{grade_result.symbol}"),
+                        InlineKeyboardButton(text="❌ ยังไม่สนใจ / ข้าม", callback_data=f"tgt_dismiss_{grade_result.symbol}")
+                    ])
                 
                 # Add Insight button
                 buttons.append([InlineKeyboardButton(text="📖 เจาะลึกบทวิเคราะห์ (Deep Dive)", callback_data=f"insight_{grade_result.symbol}")])
 
                 keyboard = InlineKeyboardMarkup(inline_keyboard=buttons) if buttons else None
 
+                # 1. Send text analysis first
                 try:
                     await message.reply(report_text, parse_mode="Markdown", reply_markup=keyboard)
                 except Exception as e:
                     logger.error(f"Markdown parse error in scan: {e}. Falling back to plain text.")
                     await message.reply(report_text, reply_markup=keyboard)
+
+                # 2. Send in-memory target zones chart right after text
+                if getattr(grade_result, "buy_targets", None) and getattr(snapshot, "current_price", None):
+                    try:
+                        from src.charting import ChartGenerator
+                        from aiogram.types import BufferedInputFile
+                        chart_bytes = ChartGenerator.generate_target_chart(
+                            symbol=grade_result.symbol,
+                            current_price=snapshot.current_price,
+                            targets=grade_result.buy_targets
+                        )
+                        if chart_bytes:
+                            photo = BufferedInputFile(chart_bytes, filename=f"{grade_result.symbol}_chart.png")
+                            await message.answer_photo(photo=photo, caption=f"📊 **{grade_result.symbol} Target Zones Chart**", parse_mode="Markdown")
+                    except Exception as err:
+                        logger.error(f"Error generating/sending chart for {grade_result.symbol}: {err}")
 
             await session.commit()
 
@@ -978,6 +999,21 @@ class DCABot:
             f"⚙️ **ตั้งค่าการแจ้งเตือน**:\nเมื่อราคาถึงเป้าหมาย คุณต้องการให้บอทแจ้งเตือนแบบไหน?",
             reply_markup=pref_keyboard
         )
+
+    async def tgt_dismiss(self, callback: types.CallbackQuery):
+        """Dismiss target selection buttons to keep chat clean."""
+        await callback.answer("ข้ามการตั้งราคาเป้าหมายแล้ว")
+        symbol = callback.data.split("tgt_dismiss_")[1]
+        
+        # Keep only the Deep Dive button
+        buttons = [
+            [InlineKeyboardButton(text="📖 เจาะลึกบทวิเคราะห์ (Deep Dive)", callback_data=f"insight_{symbol}")]
+        ]
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+        try:
+            await callback.message.edit_reply_markup(reply_markup=keyboard)
+        except Exception:
+            pass
 
     async def set_notify_pref(self, callback: types.CallbackQuery):
         """Handle notification preference selection."""
@@ -1225,15 +1261,50 @@ class DCABot:
                 logger.warning(f"Markdown parse error: {e}. Sending as plain text.")
                 await status_msg.edit_text(report)
 
+        # --- Send Chart right after report ---
+        targets = metadata.get("targets", [])
+        price = metadata.get("price")
+        if targets and price:
+            try:
+                from src.charting import ChartGenerator
+                from aiogram.types import BufferedInputFile
+                chart_bytes = ChartGenerator.generate_target_chart(symbol, price, targets)
+                if chart_bytes:
+                    photo = BufferedInputFile(chart_bytes, filename=f"{symbol}_chart.png")
+                    await message.answer_photo(photo=photo, caption=f"📊 **{symbol} Target Zones Deep Dive Chart**", parse_mode="Markdown")
+            except Exception as err:
+                logger.error(f"Error sending insight chart for {symbol}: {err}")
+
 
 async def main():
     config = Config.from_env()
     bot = DCABot(config)
+    
+    from aiohttp import web
+    from src.webhook import WebhookServer
+    
+    webhook_server = WebhookServer(
+        config=config,
+        pipeline=bot.insight_pipeline,
+        bot=bot.bot,
+        broadcast_channel_id=config.broadcast_channel_id
+    )
+    
+    app = web.Application()
+    app.router.add_post("/webhook/{secret}", webhook_server.handle_webhook)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', config.webhook_port)
+    
     try:
-        await bot.start()
+        await asyncio.gather(
+            bot.start(),
+            site.start()
+        )
     finally:
         await bot.stop()
-
+        await runner.cleanup()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

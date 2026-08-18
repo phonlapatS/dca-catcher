@@ -572,6 +572,9 @@ class InsightPipeline:
         result_3 = self.risk_agent._safe_run(context)
         context["agent_3_targets"] = result_3.data if result_3.success else {}
         metadata["agent_3"] = {"success": result_3.success, "error": result_3.error}
+        metadata["targets"] = context.get("agent_3_targets", {}).get("targets", [])
+        metadata["price"] = context.get("price")
+        metadata["symbol"] = context.get("symbol")
 
         # --- Phase 3: Composition ---
         progress("📝 กำลังเรียบเรียงบทวิเคราะห์...")
