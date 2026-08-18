@@ -6,6 +6,7 @@ __pycache__/
 # Environment variables (dangerous, contains API keys)
 .env
 .env.*
+!.env.example
 
 # Local database files
 *.db
