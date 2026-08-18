@@ -1,145 +1,164 @@
-# DCA Catcher 🚀
+# DCA Catcher 📈
 
-DCA Catcher คือ Telegram Bot สำหรับนักลงทุน DCA (Dollar-Cost Averaging) ที่ช่วยวิเคราะห์หุ้นและติดตามราคาเป้าหมายอัตโนมัติ รองรับทั้งตลาดหุ้นสหรัฐฯ (US) และหุ้นไทย (TH) ผ่านข้อมูลตลาดจริง (`yfinance`), ข่าวสารสด (`Google News RSS`), อารมณ์ตลาด (`CNN Fear & Greed Index`), และระบบ Real-time Price Tracking (`Alpaca WebSocket`)
-
-**สถานะปัจจุบัน:** **Phase 6 (Visual Analytics & Webhook Integration)**
+**DCA Catcher** คือระบบ Telegram Bot ผู้ช่วยวิเคราะห์หุ้นและติดตามราคาเป้าหมายสำหรับการลงทุนแบบ DCA (Dollar-Cost Averaging) รองรับทั้งหุ้นสหรัฐฯ (US) และหุ้นไทย (TH) ทำงานร่วมกับข้อมูลราคาตลาดจริง ข่าวสาร ดัชนีอารมณ์ตลาด และระบบเฝ้าราคาแบบเรียลไทม์
 
 ---
 
-## 🌟 ฟังก์ชันหลักของระบบ (Current Features)
+## ⚙️ กระบวนการทำงานของระบบ (How It Works)
 
-### 1. ระบบวิเคราะห์หุ้นพื้นฐาน & กราฟแท่งเทียน (`/scan`)
-- ดึงข้อมูลราคาล่าสุด, จุดสูงสุดตลอดกาล (ATH), % การย่อตัว (ATH Drawdown), ปริมาณการซื้อขาย (Volume)
-- ดึงข้อมูลปัจจัยพื้นฐานจริง: P/E (Trailing), PEG Ratio, Revenue Growth, Profit Margin, Debt to Equity
-- AI ประเมินความน่าลงทุน (AI Score 1-10) และระดับความมั่นใจ (Confidence Score 0-100%)
-- คำนวณราคาเป้าหมายสำหรับเข้าซื้อแบบ DCA จำนวน 3 ระดับ (อิงตามความเสี่ยงของผู้ใช้)
-- **Visual Analytics (In-Memory Candlestick Charting):** สร้างและส่งรูปภาพกราฟราคาแท่งเทียนพร้อมเส้นระดับราคาเป้าหมาย (Target Zones) ผ่านระบบ `io.BytesIO` ใน RAM (Zero Disk Footprint)
-- **Adaptive Timeframe:** ปรับช่วงเวลาย้อนหลังอัตโนมัติ (3M ➔ 6M ➔ 1Y) เพื่อให้เส้นราคาเป้าหมายพาดทับแนวรับของแท่งเทียนในอดีตอย่างสมบูรณ์แบบ
-- มีปุ่ม Interactive ให้ผู้ใช้กดเลือกบันทึกราคาเป้าหมายเข้าสู่ระบบ Sniper ได้ทันที พร้อมปุ่ม `❌ ยังไม่สนใจ / ข้าม` สำหรับเคลียร์ตัวเลือก
+ระบบถูกออกแบบให้ทำงานแบบแยกชั้น (Decoupled Architecture) โดยแบ่งกระบวนการหลักออกเป็น 4 ส่วน:
 
-### 2. Multi-Agent Deep Dive Insight Pipeline (`/scan-details` หรือปุ่มกด) 🧠
-ระบบวิเคราะห์เจาะลึกแบบหลายเอเจนต์ (Multi-Agent Architecture) แยกหน้าที่การคิดเพื่อความแม่นยำและลดอาการ Hallucination:
 ```
-[Market Data + News + Fear&Greed]
-               │
-               ▼
-┌───────────────────────────────────────────────┐
-│              Data Collector                   │
-│   (รวบรวมข้อมูลดิบแบบ Real-time โดยไม่ใช้ LLM)     │
-└──────┬───────────────┬───────────────┬────────┘
-       │               │               │
-       ▼               ▼               ▼
-┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-│   Agent 1   │ │   Agent 2   │ │   Agent 3   │
-│ Fundamental │ │ News & Sent │ │ Risk/Target │
-│   Analyst   │ │   Analyst   │ │  Strategist │
-└──────┬──────┘ └──────┬──────┘ └──────┬──────┘
-       │               │               │ (อ่านผล 1+2 ก่อนตั้งเป้า)
-       └───────────────┼───────────────┘
-                       ▼
-        ┌─────────────────────────────┐
-        │       Composer Agent        │
-        │ (เรียบเรียงเป็นบทความภาษาไทย) │
-        └──────────────┬──────────────┘
-                       ▼
-        ┌─────────────────────────────┐
-        │     Quality Gate Agent      │
-        │   (ตรวจความถูกต้อง 0-100%)   │
-        └──────────────┬──────────────┘
-                       │
-         ┌─────────────┴─────────────┐
-         ▼ (Score ≥ 75)              ▼ (Score < 75)
-    [ส่ง Report ให้ User]      [Remark ส่งแก้เฉพาะจุด]
-                                     (สูงสุด 2 รอบ)
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│ 1. Data Ingestion│ ──> │ 2. Analysis & AI │ ──> │ 3. Chart & Delivery │
+│ yfinance / News │     │ Indicators / LLM │     │  Telegram & Buttons │
+└─────────────────┘     └──────────────────┘     └─────────────────────┘
+                               ▲
+                               │
+┌──────────────────────────────┴───────────────────────────┐
+│ 4. Real-time Monitoring & Webhooks (Alpaca / TradingView) │
+└──────────────────────────────────────────────────────────┘
 ```
-
-- **Data Collector:** ดึงข้อมูลราคา, งบการเงิน, ข่าว 7 วันล่าสุด, และดัชนี Fear & Greed
-- **Agent 1 (Fundamental Analyst):** วิเคราะห์มูลค่าความถูกแพง (Valuation), คุณภาพการเติบโต, หนี้สิน, และความผิดปกติของ Volume
-- **Agent 2 (News & Sentiment Analyst):** ทำ Named Entity Recognition (NER) กรองข่าวที่ไม่เกี่ยวข้องออก วิเคราะห์ผลกระทบ (Positive/Negative/Neutral) ของแต่ละข่าว
-- **Agent 3 (Risk & Target Strategist):** อ่านผลการวิเคราะห์จาก Agent 1 และ 2 ก่อนนำมาคำนวณเป้าหมายราคา 3 ระดับที่สอดคล้องกับบริบทจริง
-- **Composer Agent:** สังเคราะห์ผลลัพธ์ทั้งหมดเป็นบทความเชิงลึกที่เรียบเรียงต่อเนื่อง อ่านเข้าใจง่าย
-- **Quality Gate Agent:** ตรวจสอบความถูกต้องของตัวเลข, การอ้างอิงข่าว, ความสมเหตุสมผลของเป้าหมาย และการเรียบเรียง ให้คะแนน 0-100% (หากไม่ผ่านจะส่ง Remark กลับไปแก้เฉพาะจุดโดยไม่ต้องรันใหม่ทั้งหมด)
-
-### 3. ระบบสไนเปอร์แจ้งเตือนราคา Real-time (`AlpacaSniper`) 🎯
-- สตรีมราคาหุ้นแบบ WebSocket ผ่าน Alpaca Data Stream ช่วงเวลาตลาดสหรัฐฯ เปิดทำการ (ปรับแต่งเวลาได้ใน Config)
-- แจ้งเตือนทาง Direct Message (DM) เมื่อราคาตลาดลงมาถึงเป้าหมายที่ผู้ใช้ตั้งไว้
-- ระบบ Anti-Spam Hysteresis (`last_notified_zone`) ป้องกันการส่งข้อความซ้ำเมื่อราคาแกว่งตัวอยู่ในโซนเดิม
-
-### 4. ที่ปรึกษาจัดพอร์ตการลงทุนส่วนบุคคล (`/advice` & `/survey`)
-- `/survey`: แบบประเมินระดับความเสี่ยงและสไตล์การลงทุน เพื่อให้ AI ปรับจูนเป้าหมายราคาให้ตรงกับแต่ละบุคคล
-- `/advice`: ออกแบบพอร์ตโฟลิโอตามระยะเวลาลงทุน (Time Horizon), เป้าหมาย (ปันผล/เติบโต), และกลุ่มอุตสาหกรรม (GICS) พร้อมเปรียบเทียบผลตอบแทนกับอัตราเงินเฟ้อ
-
-### 5. ตั้งเวลาแจ้งเตือนประจำวัน (Automated Broadcast)
-- แจ้งเตือนสรุปสถานะตลาดหุ้นใน Watchlist ผ่านช่องทาง Channel/Group ทุกเช้า และรอบเปิดตลาดหุ้นไทย/สหรัฐฯ (ปรับเวลาได้ใน Config)
 
 ---
 
-## 📌 สรุปคำสั่ง Telegram Bot
+### กระบวนการที่ 1: การสแกนหุ้นรายตัว (`/scan <SYMBOL>`)
 
-| คำสั่ง | คำอธิบาย |
+เมื่อผู้ใช้พิมพ์คำสั่งสแกน เช่น `/scan NVDA`:
+1. **ดึงข้อมูลดิบ (Data Fetching):** ดึงราคา OHLCV ย้อนหลัง 3 เดือน, งบการเงินพื้นฐาน (P/E Trailing, PEG, Revenue Growth, Margin, Debt/Equity) ผ่าน `yfinance`
+2. **คำนวณ Technical Indicators:** คำนวณ % การย่อตัวจากจุดสูงสุด (ATH Drawdown), การตรวจจับ Volume ผิดปกติ (>1.5 เท่าของค่าเฉลี่ย 20 วัน) และค่าเฉลี่ยเคลื่อนที่
+3. **ประเมินผลผ่าน AI (Scoring & Target Planning):** ส่งตัวชี้วัดที่คำนวณแล้วให้ Gemini LLM ช่วยสรุปคะแนนความน่าลงทุน (1-10) และเสนอราคาเป้าหมาย DCA 3 ระดับ (ไม้ 1 ความเสี่ยงต่ำ, ไม้ 2 ปานกลาง, ไม้ 3 โซนลึก)
+4. **สร้างกราฟแท่งเทียน (In-Memory Charting):** 
+   - โมดูล `src/charting.py` นำข้อมูลราคามาวาดกราฟ Candlestick ด้วย `mplfinance`
+   - ตีเส้นประระดับราคาเป้าหมาย 3 เส้น (สีฟ้า) และเส้นราคาปัจจุบัน (สีเขียว)
+   - หากราคาเป้าหมายไม้ 3 ลึกกว่าจุดต่ำสุดในรอบ 3 เดือน ระบบจะขยาย Timeframe เป็น 6 เดือน หรือ 1 ปีอัตโนมัติ (Adaptive Timeframe) เพื่อให้เส้นพาดทับแนวรับในอดีตจริง
+   - บันทึกภาพลง RAM (`io.BytesIO`) โดยไม่เซฟไฟล์ลง Harddisk
+5. **ส่งผลลัพธ์เข้า Telegram:** 
+   - ส่งข้อความบทวิเคราะห์ภาษาไทย พร้อมปุ่ม Checkbox เลือกราคาเป้าหมาย
+   - ส่งภาพกราฟตามต่อท้ายข้อความ
+   - หากผู้ใช้กดเลือกราคาแล้วกด `🎯 ยืนยันเป้าหมาย` ระบบจะบันทึกเป้าหมายเข้า Database และเพิ่มเข้าคิวเฝ้าราคาของ WebSocket ทันที (หรือกด `❌ ยังไม่สนใจ / ข้าม` เพื่อซ่อนปุ่ม)
+
+---
+
+### กระบวนการที่ 2: การวิเคราะห์เชิงลึกแบบหลายขั้นตอน (Multi-Agent Insight Pipeline)
+
+เมื่อผู้ใช้กดปุ่ม **`📖 เจาะลึกบทวิเคราะห์ (Deep Dive)`** หรือใช้คำสั่ง `/scan-details`:
+ระบบจะส่งต่อข้อมูลเข้าสู่ Pipeline ที่แบ่งหน้าที่ทำงานเป็นขั้นตอนเพื่อลดอาการข้อมูลคลาดเคลื่อน (Hallucination):
+
+1. **Data Collector (Python):** รวบรวมข่าวย้อนหลัง 7 วันจาก Google News RSS, ดัชนี Fear & Greed Index จาก CNN, และงบการเงินจริง
+2. **Fundamental Analyst (Specialist 1):** ตรวจสอบคุณภาพงบการเงิน หนี้สิน การเติบโต และความผิดปกติของ Volume
+3. **News & Sentiment Analyst (Specialist 2):** กรองข่าวเฉพาะที่เกี่ยวข้องกับหุ้นตัวนั้น และจัดหมวดหมู่อารมณ์ข่าว (บวก/ลบ/เป็นกลาง)
+4. **Risk & Target Strategist (Specialist 3):** อ่านผลจากขั้นตอน 1 และ 2 เพื่อนำมาคำนวณราคาเป้าหมาย 3 ไม้ให้สอดคล้องกับปัจจัยพื้นฐาน
+5. **Composer:** เรียบเรียงข้อมูลทั้งหมดเป็นบทวิเคราะห์ภาษาไทยเชิงลึกที่อ่านเข้าใจง่าย
+6. **Quality Gate:** ตรวจสอบความถูกต้องของตัวเลขและเหตุผล ให้คะแนนคุณภาพ 0-100% (หากคะแนนไม่ผ่านเกณฑ์ จะส่ง Remark ให้ Composer ปรับปรุงเฉพาะจุด สูงสุด 2 รอบ)
+
+---
+
+### กระบวนการที่ 3: การเฝ้าราคาแบบเรียลไทม์ (`Alpaca WebSocket`)
+
+1. **การเชื่อมต่อ:** ในช่วงเวลาตลาดสหรัฐฯ เปิดทำการ (20:30 - 04:00 น. ตามเวลาไทย) บอทจะเปิด WebSocket เชื่อมต่อกับ Alpaca Data Stream (IEX)
+2. **การตรวจจับราคา:** เมื่อมี Tick ข้อมูลราคาเทรดล่าสุดเข้ามา ระบบจะนำราคาไปเปรียบเทียบกับราคาเป้าหมายใน Watchlist
+3. **ระบบป้องกันการสแปม (Hysteresis):** เมื่อราคาลงมาถึงเป้าหมาย ระบบจะส่งข้อความแจ้งเตือนทาง Telegram (DM หรือ Tag ในกลุ่ม) เพียง **1 ครั้งต่อโซนราคา** (`last_notified_zone`) และจะไม่ส่งซ้ำตราบใดที่ราคายังแกว่งตัวอยู่ในโซนเดิม
+
+---
+
+### กระบวนการที่ 4: การรับสัญญาณภายนอก (`TradingView Webhooks`)
+
+1. บอทเปิด HTTP Server ขนาดเล็กด้วย `aiohttp` ที่พอร์ต `8080` (ตั้งค่าได้ใน `.env`)
+2. รอรับ Webhook จาก TradingView ที่ Endpoint `POST /webhook/{WEBHOOK_SECRET}`
+3. เมื่อได้รับสัญญาณแจ้งเตือน ระบบจะตรวจสอบ Secret Key ตอบรับ `200 OK` กลับไปยัง TradingView ภายในเสี้ยววินาที แล้วโยนคำสั่งให้ AI สแกนหุ้นและส่งผลเข้า Telegram ทันที
+
+---
+
+## 📌 คำสั่งการใช้งานบอท (Bot Commands)
+
+| คำสั่ง | หน้าที่และผลลัพธ์ |
 |---|---|
-| `/start` | เริ่มต้นใช้งานบอท และลงทะเบียนผู้ใช้ |
-| `/survey` | ทำแบบประเมินความเสี่ยงเพื่อบันทึกโปรไฟล์การลงทุน |
-| `/advice` | ให้ AI ออกแบบและแนะนำพอร์ตหุ้นเฉพาะบุคคล |
-| `/add <symbol> [market]` | เพิ่มหุ้นเข้า Watchlist (เช่น `/add NVDA US` หรือ `/add PTT.BK TH`) |
-| `/list` | แสดงรายชื่อหุ้นและเป้าหมายราคาที่บันทึกไว้ใน Watchlist |
-| `/scan [symbol]` | สั่งวิเคราะห์หุ้นทันที พร้อมปุ่มเลือกเป้าหมายราคาและปุ่ม Deep Dive |
-| `/scan-details <symbol>` | สั่งรัน Multi-Agent Deep Dive Report เจาะลึกหุ้นตัวนั้นทันที |
-| `/remove <symbol>` | ลบหุ้นออกจาก Watchlist |
-| `/help` | แสดงรายการคำสั่งทั้งหมด |
+| `/start` | เริ่มต้นใช้งานบอท และลงทะเบียนผู้ใช้เข้าฐานข้อมูล |
+| `/scan <SYMBOL>` | สแกนหุ้นรายตัว (เช่น `/scan NVDA` หรือ `/scan PTT.BK`) พร้อมกราฟและปุ่มเลือกเป้าหมาย |
+| `/scan` | สแกนหุ้นทั้งหมดที่มีอยู่ใน Watchlist ของผู้ใช้ |
+| `/scan-details <SYMBOL>` | สั่งรันบทวิเคราะห์เชิงลึก (Deep Dive Report) |
+| `/add <SYMBOL> [PRICE]` | เพิ่มหุ้นเข้า Watchlist พร้อมระบุราคาเป้าหมาย (หรือเพิ่มเดี่ยวๆ ได้) |
+| `/remove <SYMBOL>` | ลบหุ้นออกจาก Watchlist |
+| `/list` | แสดงรายชื่อหุ้นและระดับราคาเป้าหมายที่บันทึกไว้ |
+| `/survey` | ทำแบบประเมินความเสี่ยงเพื่อบันทึกโปรไฟล์การลงทุนของผู้ใช้ |
+| `/advice` | ออกแบบพอร์ตโฟลิโอตามระยะเวลาลงทุนและเป้าหมายผลตอบแทน |
+| `/help` | แสดงคำอธิบายคำสั่งทั้งหมด |
 
 ---
 
-## 🛠️ โครงสร้างโค้ดและสถาปัตยกรรม (Code Architecture)
+## 📁 โครงสร้างโปรเจกต์ (Project Structure)
 
 ```
 dca-catcher/
 ├── src/
-│   ├── bot.py                # Telegram Bot Handlers, Dispatcher & Lifecycle
-│   ├── config.py             # Central Config (Env variables, Schedules, Ports, Secrets)
-│   ├── models.py             # Shared Domain Models (TargetZone Single Source of Truth)
-│   ├── database.py           # SQLAlchemy Async ORM (User, Watchlist, Signal)
-│   ├── fetcher.py            # Market Data Fetcher via yfinance (OHLCV, Fundamentals)
-│   ├── transform.py          # Technical & Volume anomaly calculations
-│   ├── grader.py             # Unified Single-scan & Advice generator (via LLMCaller)
+│   ├── bot.py                # Telegram Bot Handlers, Keyboards & Dispatcher
+│   ├── config.py             # จัดการ Environment Variables และการตั้งค่าระบบ
+│   ├── models.py             # Domain Models กลาง (TargetZone Single Source of Truth)
+│   ├── database.py           # จัดการฐานข้อมูล SQLite ผ่าน Async SQLAlchemy
+│   ├── fetcher.py            # ดึงข้อมูลตลาดและงบการเงินผ่าน yfinance
+│   ├── transform.py          # คำนวณ Technical Indicators และ Volume Anomaly
+│   ├── grader.py             # ประเมินคะแนนความน่าลงทุนและคำนวณเป้าหมายเบื้องต้น
 │   ├── insight_pipeline.py   # Multi-Agent Pipeline (Specialists, Composer, Quality Gate)
-│   ├── charting.py           # In-Memory Visual Analytics (mplfinance + Adaptive Timeframe)
-│   ├── webhook.py            # Async Webhook Server (aiohttp for TradingView Alerts)
-│   ├── sniper.py             # Alpaca WebSocket real-time price monitoring
-│   ├── alert_manager.py      # Notification formatter & Hysteresis logic
+│   ├── charting.py           # สร้างกราฟ Candlestick และ Target Lines (In-Memory)
+│   ├── webhook.py            # aiohttp Server รองรับ Webhook จาก TradingView
+│   ├── sniper.py             # Alpaca WebSocket สตรีมราคาเรียลไทม์
+│   ├── alert_manager.py      # จัดรูปแบบข้อความแจ้งเตือนและระบบ Anti-Spam
 │   └── scrapers/
-│       └── sentiment.py      # Google News RSS parser & CNN Fear & Greed scraper
-├── tests/                    # 47 Unit & Integration test suites (100% Passed)
-├── Dockerfile                # Container definition
-├── docker-compose.yml        # Multi-container service configuration
-└── requirements.txt          # Python dependencies
+│       └── sentiment.py      # ดึงข่าว Google News RSS และดัชนี Fear & Greed
+├── tests/                    # ชุดทดสอบ Unit & Integration Tests (47 รายการ)
+├── requirements.txt          # รายการ Python Dependencies
+├── Dockerfile                # ไฟล์สำหรับ Build Docker Container
+└── docker-compose.yml        # คอนฟิกสำหรับรันระบบบน Docker
 ```
 
 ---
 
-## 🗺️ Project Roadmap & Development Timeline
+## 🚀 การติดตั้งและรันระบบ (Setup & Running)
 
-### 📍 Phase 1 - 4: Foundation to Production Ready
-*   **Phase 1: Foundation & Data Pipeline** — โครงสร้างฐานข้อมูล, ดึงราคา `yfinance`, คำนวณ Technical Indicators, ดึงข่าวและ Fear & Greed
-*   **Phase 2: AI Brain & Telegram Bot** — ผสาน Gemini ให้คะแนนและตั้งราคาเป้าหมาย, สร้าง Telegram Bot พื้นฐาน, วางระบบ WebSocket
-*   **Phase 3: Interactive UI & Automation** — ปรับปรุง Interactive Buttons, ระบบ Daily Broadcast ผ่าน APScheduler, รองรับ Docker
-*   **Phase 4: Production Ready & Advanced UX** — ระบบแจ้งเตือน DM ส่วนบุคคล, ระบบ Anti-Spam Hysteresis, API Key Rotation, ปรับจูนความเสถียรบน GCP
+### 1. เตรียมสภาพแวดล้อม (Prerequisites)
+- Python 3.10 ขึ้นไป
+- บัญชี Telegram Bot Token (จาก @BotFather)
+- Gemini API Key (จาก Google AI Studio)
+- Alpaca API Keys (สำหรับระบบ Real-time Price Stream)
 
----
+### 2. ติดตั้ง Dependencies
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-### 🚀 Phase 5 & 5.1: Multi-Agent Pipeline & Clean OOP Refactoring
-*   **Multi-Agent Architecture:** พัฒนา `src/insight_pipeline.py` แบ่งหน้าที่ 5 ตัว (DataCollector, FundamentalAgent, NewsAnalystAgent, RiskTargetAgent, ComposerAgent)
-*   **Quality Gate QA:** เพิ่มตัวตรวจงานให้คะแนน 0-100% พร้อม Targeted Micro-Revision แก้เฉพาะจุดโดยไม่ต้องสร้างใหม่ทั้งหมด
-*   **Clean OOP & Zero-Hardcode:** สร้างโมเดลกลาง `src/models.py` (`TargetZone`), รวมศูนย์คอนฟิกใน `config.py`, ลบค่า Hardcoded และขจัดโค้ดซ้ำซ้อน
-*   **Unified AI Engine:** ปรับ `src/grader.py` ให้เรียกใช้ `LLMCaller` จาก `insight_pipeline.py` ยกเลิกการสร้าง Gemini Client ซ้ำซ้อน
-*   **Pure Indicators:** คำนวณ Pure Math Indicators (Volume anomaly >1.5x, Trailing P/E)
+### 3. ตั้งค่าไฟล์สภาพแวดล้อม (`.env`)
+สร้างไฟล์ `.env` ที่โฟลเดอร์หลักของโปรเจกต์:
+```env
+TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
+GEMINI_API_KEYS="key1,key2"
+DATABASE_URL="sqlite+aiosqlite:///dca_catcher.db"
+BROADCAST_CHANNEL_ID="-100xxxxxxxxx"
 
----
+# Alpaca WebSocket
+ALPACA_API_KEY="your_alpaca_key"
+ALPACA_SECRET_KEY="your_alpaca_secret"
+ALPACA_SNIPER_START="20:30"
+ALPACA_SNIPER_END="04:00"
 
-### 🎨 Phase 6: Charting & Webhook Integration (ปัจจุบัน)
+# Webhook Server
+WEBHOOK_PORT=8080
+WEBHOOK_SECRET="your_custom_secret_key"
+```
 
-*   **In-Memory Visual Analytics (`src/charting.py`):** พัฒนาคลาส `ChartGenerator` ใช้วาดกราฟแท่งเทียน Candlestick พร้อมตีเส้นระดับราคาเป้าหมาย (Target Zones) ผ่าน RAM (`io.BytesIO`) แบบ Zero Disk Storage
-*   **Adaptive Timeframe:** ปรับ Timeframe อัตโนมัติ (3M ➔ 6M ➔ 1Y) เพื่อให้เส้นราคาเป้าหมายพาดทับแนวรับของแท่งเทียนในอดีตอย่างสมบูรณ์แบบ
-*   **TradingView Webhook Server (`src/webhook.py`):** เปิด Asynchronous Web Server บน `aiohttp` ทำงานคู่ขนานกับ Telegram Bot รองรับสัญญาณ Trigger ภายนอก ตอบรับกลับใน 0.05 วินาที
-*   **Clean UX:** สลับลำดับการส่งบทวิเคราะห์ก่อนแล้วส่งกราฟตาม พร้อมปุ่ม `❌ ยังไม่สนใจ / ข้าม` สำหรับเคลียร์ Checkbox
-*   **100% Test Coverage:** ผ่านชุดทดสอบทั้งหมด **47/47 tests** ครอบคลุมทุกโมดูลในระบบ 100%
+### 4. รันการทดสอบ (Run Tests)
+```bash
+venv/bin/pytest
+```
+
+### 5. เริ่มต้นการทำงานของบอท (Run Bot)
+```bash
+set -a && source .env && set +a && PYTHONPATH=. venv/bin/python -m src.bot
+```
+
+หรือรันผ่าน Docker:
+```bash
+docker-compose up -d --build
+```
