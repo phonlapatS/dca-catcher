@@ -1,0 +1,17 @@
+# fly.toml app configuration file for DCA Catcher Telegram Bot (24/7 Background Worker)
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+
+app = 'dca-catcher'
+primary_region = 'sin'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  PYTHONUNBUFFERED = '1'
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1

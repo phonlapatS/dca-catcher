@@ -137,3 +137,16 @@ set -a && source .env && set +a && PYTHONPATH=. venv/bin/python -m src.bot
 ```bash
 docker-compose up -d --build
 ```
+
+---
+
+## ☁️ การทดลองใช้งานระบบคลาวด์ 24/7 (Cloud Hosting Exploration)
+
+ณ ปัจจุบัน โปรเจกต์กำลังอยู่ในช่วงการทดสอบและเปรียบเทียบการ Deploy บอทบนคลาวด์ 2 แพลตฟอร์มหลัก เพื่อประเมินความเสถียรของเครือข่าย ความคุ้มค่า และความเหมาะสมในการรันงานเฝ้าตลาดหุ้นแบบเรียลไทม์ (24/7 Always-On Worker):
+
+1. **Oracle Cloud Infrastructure (Always Free Tier):**
+   * **จุดเด่น:** สเปกเครื่องสูง (ARM 4 Cores + 24 GB RAM) เหมาะสำหรับรันทั้ง Bot และ Local Database ในเครื่องเดียว
+   * **สถานะการทดสอบ:** ศึกษาการตั้งค่า VCN, Security Lists, และวิเคราะห์ข้อจำกัด Host Capacity ในภูมิภาคต่างๆ
+2. **Fly.io (Region Singapore):**
+   * **จุดเด่น:** ใช้งานง่ายผ่าน `Dockerfile` และ `fly.toml` Latency ต่ำใกล้ประเทศไทย และรองรับระบบ Always-On Worker
+   * **สถานะการทดสอบ:** ทำการ Deploy บอทจริงในโหมด Background Worker และทดสอบการเชื่อมต่อ WebSocket ต่อเนื่อง 24 ชม.
