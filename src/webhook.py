@@ -24,13 +24,23 @@ class WebhookServer:
 
         try:
             data = await request.json()
-            symbol = data.get("symbol")
-            message = data.get("message", "TV Alert")
+            raw_symbol = data.get("symbol") or data.get("ticker") or data.get("sym")
+            message = data.get("message") or data.get("action") or data.get("alert") or "TradingView Signal"
             
-            if not symbol:
-                return web.Response(status=400, text="Missing symbol")
+            if not raw_symbol:
+                return web.Response(status=400, text="Missing symbol or ticker in payload")
 
-            logger.info(f"Received webhook for {symbol}: {message}")
+            # Clean exchange prefix (e.g., "NASDAQ:NVDA" -> "NVDA", "SET:PTT" -> "PTT.BK")
+            if ":" in str(raw_symbol):
+                exchange, sym = str(raw_symbol).split(":", 1)
+                if exchange.upper() in ("SET", "BKK") and not sym.endswith(".BK"):
+                    symbol = f"{sym}.BK".upper()
+                else:
+                    symbol = sym.upper()
+            else:
+                symbol = str(raw_symbol).upper()
+
+            logger.info(f"Received webhook for {symbol} (raw: {raw_symbol}): {message}")
             
             # 2. Schedule background task to avoid blocking the 3-second TV window
             asyncio.create_task(self.process_alert(symbol, message))
@@ -92,7 +102,23 @@ class WebhookServer:
                 f"🛒 **ราคาเป้าหมาย (Buy Targets):**\n{targets_str}"
             )
 
-            # 4. Generate and send chart if targets exist
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            bot_user = await self.bot.bot.get_me()
+            buttons = [
+                [InlineKeyboardButton(text="📖 เจาะลึกบทวิเคราะห์ (Deep Dive)", callback_data=f"insight_{symbol}")],
+                [InlineKeyboardButton(text=f"➕ ติดตาม #{symbol}", url=f"https://t.me/{bot_user.username}?start=add_{symbol}")]
+            ]
+            keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+            # 4. Send text analysis first
+            await self.bot.bot.send_message(
+                chat_id=self.broadcast_channel_id,
+                text=alert_text,
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+
+            # 5. Generate and send chart right after text if targets exist
             if getattr(grade_result, "buy_targets", None) and getattr(snapshot, "current_price", None):
                 try:
                     from src.charting import ChartGenerator
@@ -108,17 +134,11 @@ class WebhookServer:
                         await self.bot.bot.send_photo(
                             chat_id=self.broadcast_channel_id,
                             photo=photo,
-                            caption=f"🚨 **{symbol} TradingView Signal Chart**",
+                            caption=f"📊 **{symbol} TradingView Signal Chart**",
                             parse_mode="Markdown"
                         )
                 except Exception as err:
                     logger.error(f"Error sending webhook chart for {symbol}: {err}")
-
-            await self.bot.bot.send_message(
-                chat_id=self.broadcast_channel_id,
-                text=alert_text,
-                parse_mode="Markdown"
-            )
                 
         except Exception as e:
             logger.error(f"Failed to process alert for {symbol}: {e}", exc_info=True)

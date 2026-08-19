@@ -1313,7 +1313,7 @@ async def main():
     webhook_server = WebhookServer(
         config=config,
         pipeline=bot.insight_pipeline,
-        bot=bot.bot,
+        bot=bot,
         broadcast_channel_id=config.broadcast_channel_id
     )
     
