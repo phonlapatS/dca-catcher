@@ -84,6 +84,7 @@ dca-catcher/
 │   ├── bot.py                # Telegram Bot Handlers, Keyboards & Dispatcher
 │   ├── config.py             # จัดการ Environment Variables และการตั้งค่าระบบ
 │   ├── models.py             # Domain Models กลาง (TargetZone Single Source of Truth)
+│   ├── memory.py             # Adaptive AI Memory (2+1 Window & Multi-tenant Snapshots)
 │   ├── database.py           # จัดการฐานข้อมูล SQLite ผ่าน Async SQLAlchemy
 │   ├── fetcher.py            # ดึงข้อมูลตลาดและงบการเงินผ่าน yfinance
 │   ├── transform.py          # คำนวณ Technical Indicators และ Volume Anomaly
@@ -96,7 +97,7 @@ dca-catcher/
 │   └── scrapers/
 │       └── sentiment.py      # ดึงข่าว Google News RSS และดัชนี Fear & Greed
 ├── assets/                   # รูปภาพตัวอย่างและ Assets ของโปรเจกต์
-├── tests/                    # ชุดทดสอบ Unit & Integration Tests (47 รายการ)
+├── tests/                    # ชุดทดสอบ Unit & Integration Tests (50 รายการ ผ่าน 100%)
 ├── requirements.txt          # รายการ Python Dependencies
 ├── Dockerfile                # ไฟล์สำหรับ Build Docker Container
 └── docker-compose.yml        # คอนฟิกสำหรับรันระบบบน Docker

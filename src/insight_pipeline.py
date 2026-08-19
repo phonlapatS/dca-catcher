@@ -293,7 +293,9 @@ class RiskTargetAgent(BaseAgent):
         news = context.get("agent_2_news", {})
         ranges = self.config.target_ranges
 
-        prompt = f"""You are a DCA Risk & Target Strategist. Your job is to set 3 realistic buy target prices.
+        timeline_history = context.get("timeline_history", "ไม่มีประวัติการสแกนเดิมในระบบ (First-time / Cold Start Scan)")
+
+        prompt = f"""You are a DCA Risk & Target Strategist. Your job is to set 3 realistic buy target prices and evaluate the investment thesis continuity.
 
 You MUST base your targets on the combined analysis below. Do NOT guess.
 
@@ -302,6 +304,9 @@ Current Price: ${context['price']}
 ATH: ${context['ath_price']}
 Drawdown: {context['drawdown_pct']}%
 User Risk Profile: {context.get('risk_profile', 'ไม่ได้ระบุ')}
+
+--- Chronological Memory Timeline (2+1 Window) ---
+{timeline_history}
 
 --- Fundamental Analysis (from Agent 1) ---
 {json.dumps(fundamental, ensure_ascii=False, indent=2) if fundamental else 'ไม่มีข้อมูล (Agent 1 ล้มเหลว)'}
@@ -313,9 +318,8 @@ Rules:
 - Target 1: Conservative entry (small dip, {ranges['conservative'][0]}-{ranges['conservative'][1]}% below current price)
 - Target 2: Moderate entry (meaningful pullback, {ranges['moderate'][0]}-{ranges['moderate'][1]}% below current price)
 - Target 3: Deep value entry (significant correction, {ranges['deep_value'][0]}-{ranges['deep_value'][1]}% below current price)
-- Adjust ranges based on user's risk profile and the fundamental/news context.
-- If fundamentals are strong and news is bullish, targets can be tighter.
-- If fundamentals are weak or news is bearish, targets should be wider.
+- Evaluate Timeline: Check if previous assumptions from timeline history are still valid or invalidated.
+- Calibrate Confidence (0-100%): Base on data completeness, metric alignment, and narrative continuity.
 
 Return ONLY valid JSON:
 {{
@@ -325,7 +329,10 @@ Return ONLY valid JSON:
         "Thai string explaining target 2",
         "Thai string explaining target 3"
     ],
-    "overall_strategy": "Thai string — how should a DCA investor play this?"
+    "overall_strategy": "Thai string — how should a DCA investor play this?",
+    "thesis_status": "CONTINUING" | "INVALIDATED" | "NEW_CATALYST" | "RESOLVED",
+    "thesis_summary": "Thai string — 1-sentence core thesis summary for future memory",
+    "calibrated_confidence": 85
 }}"""
 
         data = self.llm.call_json(prompt)
@@ -345,6 +352,7 @@ class ComposerAgent(BaseAgent):
         fundamental = context.get("agent_1_fundamental", {})
         news = context.get("agent_2_news", {})
         targets = context.get("agent_3_targets", {})
+        timeline_history = context.get("timeline_history", "")
 
         prompt = f"""You are a Master Investment Strategist writing a comprehensive Thai-language report.
 
@@ -360,6 +368,9 @@ P/E: {context.get('pe_ratio', 'N/A')}
 PEG: {context.get('peg_ratio', 'N/A')}
 Fear & Greed Index: {context.get('fear_greed', 'Unknown')}
 
+--- Chronological Memory Timeline (2+1 Window) ---
+{timeline_history}
+
 --- Agent 1: Fundamental Analysis ---
 {json.dumps(fundamental, ensure_ascii=False, indent=2)}
 
@@ -372,10 +383,11 @@ Fear & Greed Index: {context.get('fear_greed', 'Unknown')}
 Writing Guidelines:
 1. Write in normal, easy-to-understand Thai (ภาษาคนธรรมดา เข้าใจง่าย) with deep expertise.
 2. The report must flow as a continuous, well-composed article — NOT a list of bullet points.
-3. Structure: Context → News Impact → Target Justification → Conclusion.
-4. You MUST reference specific news headlines and data points (P/E, Volume, Drawdown) in your narrative.
-5. End with the Fear & Greed Index and what it means for this stock.
-6. Use emojis tastefully for section headers.
+3. Structure: Context & Timeline Evolution → News Impact → Target Justification → Conclusion.
+4. If historical memory exists, weave in a clear narrative comparison (เช่น พัฒนาการจากรอบก่อนหน้า ว่าปัญหาเดิมคลี่คลายหรือยังคงอยู่).
+5. You MUST reference specific news headlines and data points (P/E, Volume, Drawdown) in your narrative.
+6. End with the Fear & Greed Index and what it means for this stock.
+7. Use emojis tastefully for section headers.
 
 Output ONLY the Markdown report. No JSON. No introductory filler."""
 
@@ -507,6 +519,7 @@ class InsightPipeline:
         news_headlines: list[str],
         fear_greed: str,
         risk_profile: str | None,
+        timeline_history: str = "",
     ) -> dict[str, Any]:
         """Phase 1: Build the shared context from raw data (no LLM)."""
         snapshot = signal.snapshot
@@ -524,6 +537,7 @@ class InsightPipeline:
             "news_headlines": news_headlines,
             "fear_greed": fear_greed,
             "risk_profile": risk_profile or self.config.default_risk_profile,
+            "timeline_history": timeline_history,
         }
 
     def generate(
@@ -532,6 +546,7 @@ class InsightPipeline:
         news_headlines: list[str],
         fear_greed: str,
         risk_profile: str | None = None,
+        timeline_history: str = "",
         on_progress: callable = None,
     ) -> tuple[str, dict[str, Any]]:
         """Run the full pipeline and return (report_text, metadata).
@@ -541,6 +556,7 @@ class InsightPipeline:
             news_headlines: Pre-fetched news titles
             fear_greed: CNN Fear & Greed rating string
             risk_profile: User's risk profile string
+            timeline_history: Structured chronological history from 2+1 memory window
             on_progress: Optional callback(stage_name: str) for UI updates
 
         Returns:
@@ -554,7 +570,7 @@ class InsightPipeline:
 
         # --- Phase 1: Data Collection ---
         progress("📊 กำลังรวบรวมข้อมูลตลาด...")
-        context = self._collect_data(signal, news_headlines, fear_greed, risk_profile)
+        context = self._collect_data(signal, news_headlines, fear_greed, risk_profile, timeline_history)
 
         # --- Phase 2: Specialist Analysis (3 agents) ---
         progress("🔵 Agent 1: กำลังวิเคราะห์ข้อมูลพื้นฐาน...")
@@ -573,6 +589,9 @@ class InsightPipeline:
         context["agent_3_targets"] = result_3.data if result_3.success else {}
         metadata["agent_3"] = {"success": result_3.success, "error": result_3.error}
         metadata["targets"] = context.get("agent_3_targets", {}).get("targets", [])
+        metadata["thesis_status"] = context.get("agent_3_targets", {}).get("thesis_status", "CONTINUING")
+        metadata["thesis_summary"] = context.get("agent_3_targets", {}).get("thesis_summary", "")
+        metadata["calibrated_confidence"] = context.get("agent_3_targets", {}).get("calibrated_confidence", 80)
         metadata["price"] = context.get("price")
         metadata["symbol"] = context.get("symbol")
 

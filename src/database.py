@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, select, func, text
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
 
@@ -39,6 +39,24 @@ class Signal(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
+
+
+class UserAnalysisMemory(Base):
+    """Stores chronological analysis snapshots per user and symbol (2+1 Memory Window)."""
+    __tablename__ = "user_analysis_memories"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    user: Mapped["User"] = relationship("User")
+    symbol: Mapped[str] = mapped_column(String, index=True)
+    market: Mapped[str] = mapped_column(String, default="US")
+    analyzed_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
+    price_at_analysis: Mapped[float] = mapped_column(Float)
+    target_prices_str: Mapped[str | None] = mapped_column(String, nullable=True)
+    thesis_status: Mapped[str | None] = mapped_column(String, nullable=True)  # CONTINUING, INVALIDATED, NEW_CATALYST, RESOLVED
+    thesis_summary: Mapped[str | None] = mapped_column(String, nullable=True) # Concise 1-sentence thesis
+    calibrated_confidence: Mapped[int | None] = mapped_column(Integer, nullable=True) # 0-100%
 
 
 class Database:

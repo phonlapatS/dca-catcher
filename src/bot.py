@@ -1198,12 +1198,18 @@ class DCABot:
 
         # Fetch user risk profile
         risk_profile = None
+        user_db_id = None
+        timeline_str = "ไม่มีประวัติการสแกนเดิมในระบบ (First-time / Cold Start Scan)"
         if message.from_user:
             async with self.db.session() as session:
                 stmt = select(User).where(User.telegram_id == message.from_user.id)
                 user = (await session.execute(stmt)).scalar_one_or_none()
                 if user:
+                    user_db_id = user.id
                     risk_profile = user.risk_profile
+                    from src.memory import MemoryManager
+                    recent_memory = await MemoryManager.get_recent_timeline(session, user_id=user.id, symbol=symbol, limit=2)
+                    timeline_str = MemoryManager.format_timeline_prompt(recent_memory)
 
         # --- Run the Multi-Agent Pipeline ---
         import asyncio
@@ -1232,6 +1238,7 @@ class DCABot:
                     news_headlines=news_headlines,
                     fear_greed=fear_greed,
                     risk_profile=risk_profile,
+                    timeline_history=timeline_str,
                     on_progress=sync_progress,
                 ),
             )
@@ -1242,6 +1249,28 @@ class DCABot:
                 f"ลองใช้ /scan {symbol} แทนได้ครับ"
             )
             return
+
+        # Save memory snapshot asynchronously for user continuity
+        targets = metadata.get("targets", [])
+        price = metadata.get("price", snapshot.current_price)
+        if user_db_id and price:
+            try:
+                async with self.db.session() as session:
+                    from src.memory import MemoryManager
+                    targets_joined = ", ".join(f"{t}" for t in targets) if targets else None
+                    await MemoryManager.save_memory_snapshot(
+                        session=session,
+                        user_id=user_db_id,
+                        symbol=symbol,
+                        price=float(price),
+                        target_prices_str=targets_joined,
+                        thesis_status=metadata.get("thesis_status", "CONTINUING"),
+                        thesis_summary=metadata.get("thesis_summary", ""),
+                        calibrated_confidence=metadata.get("calibrated_confidence", 80),
+                        market="TH" if symbol.endswith(".BK") else "US"
+                    )
+            except Exception as mem_err:
+                logger.error(f"Failed to persist memory snapshot for {symbol}: {mem_err}")
 
         # --- Send final report ---
         # Telegram has a 4096 char limit per message
@@ -1262,8 +1291,6 @@ class DCABot:
                 await status_msg.edit_text(report)
 
         # --- Send Chart right after report ---
-        targets = metadata.get("targets", [])
-        price = metadata.get("price")
         if targets and price:
             try:
                 from src.charting import ChartGenerator
