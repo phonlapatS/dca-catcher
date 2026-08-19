@@ -44,9 +44,10 @@
 
 ---
 
-### 4. การเชื่อมต่อสัญญาณภายนอก (`TradingView Webhooks`)
-*   เปิด Asynchronous HTTP Server (`aiohttp`) รับสัญญาณ Alert จากภายนอก
-*   ส่งต่อสัญญาณให้ระบบสแกนอัตโนมัติและแจ้งเตือนเข้า Telegram
+### 4. ระบบความจำวิเคราะห์ต่อเนื่อง (`Adaptive AI Memory`)
+*   **2+1 Memory Window:** ดึงประวัติย้อนหลัง 2 ก้าว (`T-2`, `T-1`) เพื่อให้ AI เห็นพัฒนาการของหุ้น (Storyline Continuity)
+*   **Dynamic Reflection:** จำแนกสถานะสมมติฐานอัตโนมัติ (`CONTINUING`, `INVALIDATED`, `NEW_CATALYST`, `RESOLVED`)
+*   **ML Uncertainty Calibration:** คำนวณคะแนนความมั่นใจ (0–100%) ตามมาตรฐานสากล Machine Learning
 
 ---
 
@@ -91,13 +92,14 @@ dca-catcher/
 │   ├── grader.py             # ประเมินคะแนนความน่าลงทุนและคำนวณเป้าหมายเบื้องต้น
 │   ├── insight_pipeline.py   # Multi-Agent Pipeline (Specialists, Composer, Quality Gate)
 │   ├── charting.py           # สร้างกราฟ Candlestick และ Target Lines (In-Memory)
-│   ├── webhook.py            # aiohttp Server รองรับ Webhook จาก TradingView
 │   ├── sniper.py             # Alpaca WebSocket สตรีมราคาเรียลไทม์
 │   ├── alert_manager.py      # จัดรูปแบบข้อความแจ้งเตือนและระบบ Anti-Spam
 │   └── scrapers/
 │       └── sentiment.py      # ดึงข่าว Google News RSS และดัชนี Fear & Greed
+├── docs/
+│   └── archived_webhook_system.md # เอกสารสถาปัตยกรรม Webhook ที่บันทึกไว้
 ├── assets/                   # รูปภาพตัวอย่างและ Assets ของโปรเจกต์
-├── tests/                    # ชุดทดสอบ Unit & Integration Tests (50 รายการ ผ่าน 100%)
+├── tests/                    # ชุดทดสอบ Unit & Integration Tests (48 รายการ ผ่าน 100%)
 ├── requirements.txt          # รายการ Python Dependencies
 ├── Dockerfile                # ไฟล์สำหรับ Build Docker Container
 └── docker-compose.yml        # คอนฟิกสำหรับรันระบบบน Docker

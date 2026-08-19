@@ -1307,31 +1307,10 @@ async def main():
     config = Config.from_env()
     bot = DCABot(config)
     
-    from aiohttp import web
-    from src.webhook import WebhookServer
-    
-    webhook_server = WebhookServer(
-        config=config,
-        pipeline=bot.insight_pipeline,
-        bot=bot,
-        broadcast_channel_id=config.broadcast_channel_id
-    )
-    
-    app = web.Application()
-    app.router.add_post("/webhook/{secret}", webhook_server.handle_webhook)
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', config.webhook_port)
-    
     try:
-        await asyncio.gather(
-            bot.start(),
-            site.start()
-        )
+        await bot.start()
     finally:
         await bot.stop()
-        await runner.cleanup()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
