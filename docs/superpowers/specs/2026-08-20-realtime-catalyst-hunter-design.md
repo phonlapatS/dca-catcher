@@ -194,3 +194,17 @@ dca-catcher/
 2.  **Test Microstructure & Density Filter:** ทดสอบการตัดข่าวคลิกเบตทิ้ง และทดสอบการคำนวณ Spread / Dollar Volume
 3.  **Test LLM Schema Output:** ทดสอบ Mock Response ว่าได้ค่า `CatalystVerdict` ตรงตามฟิลด์ ไม่มี Error
 4.  **Test End-to-End Flow:** ทดสอบการรันจำลองตั้งแต่ข่าวเข้า ➔ AI ประเมิน ➔ ส่งข้อความ Telegram สำเร็จ
+
+---
+
+## 📚 9. ฐานความรู้อ้างอิงทางวิชาการ (Academic & Industry Foundations)
+
+สถาปัตยกรรมทั้งหมดอ้างอิงตามผลการทดลองและทฤษฎีจากงานวิจัยระดับสากล *(อ่านรายละเอียดฉบับเต็มได้ที่ [docs/research/academic_foundations.md](file:///Users/rocket/Desktop/Python/dca-catcher/docs/research/academic_foundations.md))*:
+
+1.  **EMNLP 2025 (HKUST):** *"Automate Strategy Finding with LLM in Quant Investment"* (arXiv:2409.06289) — นำมาใช้ใน **Agent 2 (Multi-Agent Bull/Bear Debate)**
+2.  **University of Florida:** *"Can ChatGPT Forecast Stock Price Movements? Return Predictability and LLMs"* — นำมาใช้ใน **Agent 1 (Headline-Level Quantification Hit Rate 88-93%)**
+3.  **ICAIF (ACM AI in Finance):** *"MarketSenseAI 2.0: A Multi-Agent Architecture for Holistic Stock Analysis"* (arXiv:2502.00415) — นำมาใช้ใน **Event-Temporal Timeline Anchoring**
+4.  **Computational Finance:** *"Beyond Sentiment: Structured Information Extraction from Financial News"* (arXiv:2607.28496) — นำมาใช้ใน **CatalystVerdict 4-D Pydantic Schema**
+5.  **Informativeness NLP:** *"ClickGuard: Detecting and Spoiling Clickbait News with Informativeness Measures"* (arXiv:2607.20463) — นำมาใช้ใน **Agent 0 (Fact Density & Zero-Token Preprocessing)**
+6.  **Journal of Finance:** *Loughran-McDonald Financial Sentiment Dictionary* — นำมาใช้ใน **Financial Domain Prompt Calibration**
+
