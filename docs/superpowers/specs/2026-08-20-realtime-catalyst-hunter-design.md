@@ -105,6 +105,12 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 
+class ConnectedAsset(BaseModel):
+    symbol: str = Field(description="Ticker ของหุ้นที่เชื่อมโยงหรือได้รับผลกระทบทางอ้อม เช่น $VRT, $TSM, $BNTX")
+    relationship: str = Field(description="ความสัมพันธ์: SUPPLIER, CUSTOMER, COMPETITOR, SYMPATHY_PEER")
+    impact_direction: str = Field(description="POSITIVE (ได้ประโยชน์) หรือ NEGATIVE (เสียประโยชน์)")
+    rationale_thai: str = Field(description="คำอธิบายสั้นๆ ว่าเชื่อมโยงและได้รับผลกระทบอย่างไร")
+
 class CatalystArticle(BaseModel):
     headline: str
     headline_hash: str
@@ -124,6 +130,10 @@ class CatalystVerdict(BaseModel):
     bear_risks: str = Field(description="ปัจจัยลบ ความเสี่ยงที่ซ่อนอยู่ และความเสี่ยงราคาเปิดกระโดด")
     dca_guidance: str = Field(description="มุมมองกลยุทธ์ DCA แนวรับที่ปลอดภัย ไม่สนับสนุนการไล่ราคา")
     thai_summary: str = Field(description="สรุปเนื้อหาข่าวภาษาไทย 1-2 ประโยค")
+    connected_stocks: List[ConnectedAsset] = Field(
+        default_factory=list,
+        description="รายชื่อหุ้นที่เชื่อมโยงในห่วงโซ่อุปทาน (Supply Chain / Economic Links) หรือ Sympathy Plays ที่ได้รับผลกระทบทางอ้อม"
+    )
 ```
 
 ---
@@ -179,11 +189,15 @@ dca-catcher/
 • 🟢 ปัจจัยบวก (Bull Catalyst): ปลดล็อก New S-Curve ของธุรกิจวัคซีนรักษามะเร็ง เป็นแหล่งรายได้ประจำ 3-5 ปีข้างหน้า
 • 🔴 ความเสี่ยง (Bear Risks): ต้องรอการยื่นอนุมัติอย่างเป็นทางการจาก FDA และระวังความผันผวนของราคาเปิดกระโดด (Gap Up)
 
+🔗 หุ้นที่เชื่อมโยงในห่วงโซ่อุปทาน (Connected / Spillover Plays):
+• 🟢 $MRK (Merck): พันธมิตรร่วมพัฒนา Keytruda + mRNA-4157 (ได้ประโยชน์โดยตรง)
+• 🟢 $BNTX (BioNTech): คู่แข่งในกลุ่มเทคโนโลยี mRNA (Sympathy Rally ตามกลุ่ม)
+
 🏷️ ราคาตลาดล่าสุด: $65.20 (Pre-market)
 🛒 แผนกลยุทธ์ DCA Catcher:
 "แม้จะมี Upside ระยะยาวสูง แต่ตามวินัย DCA ไม่แนะนำให้ไล่ซื้อราคาเปิดกระโดด แนะนำรอราคาพักตัวเข้าสู่แนวรับสะสมไม้ 1 ที่ $61.50"
 
-[➕ เพิ่มเข้า Watchlist] [🎯 ตั้งราคาแนวรับนี้เข้า Sniper] [📖 สแกนเจาะลึกงบเต็ม]
+[➕ เพิ่มเข้า Watchlist] [🎯 ตั้งราคาแนวรับนี้เข้า Sniper] [🔍 สแกน $MRK] [📖 สแกนเจาะลึกงบเต็ม]
 ```
 
 ---
@@ -207,4 +221,6 @@ dca-catcher/
 4.  **Computational Finance:** *"Beyond Sentiment: Structured Information Extraction from Financial News"* (arXiv:2607.28496) — นำมาใช้ใน **CatalystVerdict 4-D Pydantic Schema**
 5.  **Informativeness NLP:** *"ClickGuard: Detecting and Spoiling Clickbait News with Informativeness Measures"* (arXiv:2607.20463) — นำมาใช้ใน **Agent 0 (Fact Density & Zero-Token Preprocessing)**
 6.  **Journal of Finance:** *Loughran-McDonald Financial Sentiment Dictionary* — นำมาใช้ใน **Financial Domain Prompt Calibration**
+7.  **Journal of Finance (Smith Breeden Prize):** *"Economic Links and Predictable Returns"* (Cohen & Frazzini 2008) — นำมาใช้ใน **Connected Stocks & Supply Chain Spillovers Analysis**
+
 

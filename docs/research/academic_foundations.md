@@ -66,6 +66,14 @@
 
 ---
 
+### 📄 7. "Economic Links and Predictable Returns" (Supply Chain & Customer-Supplier Spillovers)
+*   **แหล่งตีพิมพ์:** Journal of Finance (2008) — ได้รับรางวัลอันทรงเกียรติ **Smith Breeden Prize (Best Paper in Asset Pricing)**
+*   **คณะผู้วิจัย:** Prof. Lauren Cohen and Prof. Andrea Frazzini (Harvard Business School / AQR Capital)
+*   **แนวคิดหลัก:** พิสูจน์ทางคณิตศาสตร์ว่าเกิดภาวะ **"Investor Inattention"** คือนักลงทุนมักให้ความสนใจเฉพาะบริษัทใหญ่ที่มีข่าวโดยตรง (เช่น NVDA หรือ MRNA) แต่ **มองข้ามหุ้นในห่วงโซ่อุปทาน (Suppliers, Partners, & Sympathy Peers)** ทำให้ราคาหุ้นของบริษัทคู่ค้าปรับตัวตามหลังด้วยความล่าช้า (Delayed Reaction Lag) ซึ่งสร้าง Alpha ส่วนเพิ่มได้สูงกว่า 150 bps ต่อเดือน
+*   **สิ่งที่นำมาปรับใช้ใน DCA Catcher:** สถาปัตยกรรม **Agent 2 (Connected Stocks Extractor)** ที่จะระบุรายชื่อหุ้นคู่ค้า ซัพพลายเออร์ และคู่แข่งในกลุ่มเดียวกันที่กำลังจะได้อานิสงส์จากข่าวใหญ่ทันที
+
+---
+
 ## 🏛️ 2. ทฤษฎีโครงสร้างจุลภาคของตลาด (Market Microstructure & Empirical Quant)
 
 ### 📈 1. Post-Earnings Announcement Drift (PEAD)
