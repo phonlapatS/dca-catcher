@@ -17,6 +17,23 @@
 | **2026-08-20 12:45 BKK** | **Spec Approval & Sign-off** | Design Spec ได้รับการอนุมัติและบันทึกใน `docs/superpowers/specs/` |
 | **2026-08-20 13:10 BKK** | **Priority Framework Breakdown** | จัดลำดับ 5 ลำดับความสำคัญ (Domain ➔ Ingestion ➔ AI Evaluator ➔ Batcher/Telegram ➔ Integration) |
 | **2026-08-20 13:15 BKK** | **Implementation Plan Finalization** | จัดทำ Implementation Plan แบบ TDD ครอบคลุมทุกไฟล์พร้อมคำสั่งทดสอบ |
+| **2026-08-20 13:20 BKK** | **Phase 6 Continuity & Strict Gate** | ระบุความเชื่อมโยงจาก Phase 6 สู่ Phase 7 และกำหนดกระบวนการ Review & Vulnerability Audit |
+
+---
+
+## 🔗 ความต่อเนื่องจาก Phase 6 สู่ Phase 7 (Architectural Continuity)
+
+Phase 7 ไม่ใช่ระบบที่สร้างขึ้นมาลอยๆ แต่เป็นการ **"ต่อยอดและผสานรวมเข้ากับโครงสร้างที่สร้างสำเร็จใน Phase 6"** อย่างแนบแน่น:
+
+1. **ต่อยอดจาก Adaptive AI Memory (`src/memory.py`):**
+   * ใน Phase 6 เราสร้างความจำ 2+1 Window (`T-2`, `T-1`) สำหรับการวิเคราะห์หุ้น
+   * ใน Phase 7 เมื่อระบบตรวจพบข่าวสำคัญ (เช่น MRNA) เหตุการณ์นี้จะถูกส่งต่อเข้าสู่ Memory เพื่อเป็น `NEW_CATALYST` ทำให้ประวัติการวิเคราะห์ของหุ้นตัวนั้นมีความต่อเนื่องแบบเรียลไทม์
+2. **ต่อยอดจาก In-Memory Visual Analytics (`src/charting.py`):**
+   * เมื่อแจ้งเตือนข่าวด่วน Tier S ระบบสามารถเรียกใช้ `generate_candlestick_chart()` ส่งแนบควบคู่กับข่าว เพื่อให้ผู้ใช้เห็นทรงกราฟและแนวรับทันทีโดยไม่ต้องไปเปิด TradingView
+3. **ต่อยอดจาก Alpaca WebSocket Sniper (`src/sniper.py`):**
+   * ปุ่ม Action Hub `[🎯 ตั้งราคาเข้า Sniper]` ในการแจ้งเตือนข่าว จะบันทึกราคาแนวรับ DCA เข้าสู่ Watchlist DB และส่งเข้า Alpaca Sniper เพื่อเฝ้าราคาหน้างานทันที
+4. **ต่อยอดจากการ Deploy บน Fly.io 24/7 Worker:**
+   * สถาปัตยกรรม 0-Token Ingestion และ Cascade AI ทำให้ระบบ Phase 7 รันบน Fly.io Worker (512MB RAM) ได้ต่อเนื่องโดยไม่เกินโควต้าทรัพยากร
 
 ---
 
@@ -86,7 +103,7 @@
 
 ## 📋 แผนดำเนินงานทีละ Task (Bite-Sized Tasks)
 
-### Task 1: Domain Contracts & Database Deduplication Model (Priority 1)
+### Task 1: Domain Contracts & Database Deduplication Model (Priority 1) ✅
 
 **Files to modify/create:**
 - `src/catalyst/__init__.py`
@@ -94,12 +111,13 @@
 - `src/database.py`
 - `tests/test_catalyst_models.py`
 
-- [ ] **Step 1:** Write the failing test for `CatalystArticle`, `ConnectedAsset`, and `CatalystVerdict` models in `tests/test_catalyst_models.py`.
-- [ ] **Step 2:** Run pytest to verify test failure: `venv/bin/pytest tests/test_catalyst_models.py`.
-- [ ] **Step 3:** Implement `src/catalyst/models.py` and export in `src/catalyst/__init__.py`.
-- [ ] **Step 4:** Add `SeenCatalyst` model in `src/database.py` with methods `record_seen_catalyst(headline_hash, symbol, title)` and `is_catalyst_seen(headline_hash) -> bool`.
-- [ ] **Step 5:** Run tests and ensure 100% pass: `venv/bin/pytest tests/test_catalyst_models.py tests/test_database.py`.
-- [ ] **Step 6:** Commit changes: `git commit -m "feat(catalyst): add domain models and database deduplication layer"`.
+- [x] **Step 1:** Write the failing test for `CatalystArticle`, `ConnectedAsset`, and `CatalystVerdict` models in `tests/test_catalyst_models.py`.
+- [x] **Step 2:** Run pytest to verify test failure: `venv/bin/pytest tests/test_catalyst_models.py`.
+- [x] **Step 3:** Implement `src/catalyst/models.py` and export in `src/catalyst/__init__.py`.
+- [x] **Step 4:** Add `SeenCatalyst` model in `src/database.py` with methods `record_seen_catalyst(headline_hash, symbol, title)` and `is_catalyst_seen(headline_hash) -> bool`.
+- [x] **Step 5:** Run tests and ensure 100% pass: `venv/bin/pytest tests/test_catalyst_models.py tests/test_database.py`.
+- [x] **Step 6:** Commit changes: `git commit -m "feat(catalyst): add domain models and database deduplication layer"`.
+
 
 ---
 

@@ -59,7 +59,21 @@ class UserAnalysisMemory(Base):
     calibrated_confidence: Mapped[int | None] = mapped_column(Integer, nullable=True) # 0-100%
 
 
+class SeenCatalyst(Base):
+    """Tracks processed news catalyst hashes to prevent duplicate evaluation (Zero-Token Deduplication)."""
+    __tablename__ = "seen_catalysts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    headline_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    headline: Mapped[str] = mapped_column(Text)
+    publisher: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
 class Database:
+
     """Manages async SQLAlchemy engine and session lifecycle."""
 
     def __init__(self, url: str):
@@ -113,6 +127,34 @@ class Database:
                 query = query.where(Watchlist.market == market)
             result = await session.execute(query)
             return [row[0] for row in result.all()]
+
+    async def record_seen_catalyst(
+        self, headline_hash: str, symbol: str, headline: str, publisher: str | None = None
+    ) -> bool:
+        """Records a catalyst headline hash. Returns True if recorded, False if already exists."""
+        async with self.session() as session:
+            try:
+                catalyst = SeenCatalyst(
+                    headline_hash=headline_hash,
+                    symbol=symbol.upper(),
+                    headline=headline,
+                    publisher=publisher,
+                )
+                session.add(catalyst)
+                await session.commit()
+                return True
+            except Exception:
+                await session.rollback()
+                return False
+
+    async def is_catalyst_seen(self, headline_hash: str) -> bool:
+        """Checks whether a catalyst hash has already been processed."""
+        async with self.session() as session:
+            result = await session.execute(
+                select(SeenCatalyst.id).where(SeenCatalyst.headline_hash == headline_hash)
+            )
+            return result.scalar_one_or_none() is not None
+
 
 
 

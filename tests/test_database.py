@@ -103,3 +103,29 @@ async def test_get_unique_watchlist_symbols(db):
     th_symbols = await db.get_unique_watchlist_symbols(market="TH")
     assert th_symbols == ["PTT.BK"]
 
+
+@pytest.mark.asyncio
+async def test_seen_catalysts_deduplication(db):
+    hash1 = "hash_123456"
+    assert await db.is_catalyst_seen(hash1) is False
+
+    # Record first time
+    recorded = await db.record_seen_catalyst(
+        headline_hash=hash1,
+        symbol="MRNA",
+        headline="Moderna Phase 3 Melanoma Success",
+        publisher="Business Wire"
+    )
+    assert recorded is True
+    assert await db.is_catalyst_seen(hash1) is True
+
+    # Try recording duplicate hash
+    recorded_again = await db.record_seen_catalyst(
+        headline_hash=hash1,
+        symbol="MRNA",
+        headline="Duplicate Moderna Headline",
+        publisher="Reuters"
+    )
+    assert recorded_again is False
+
+
