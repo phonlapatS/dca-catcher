@@ -68,6 +68,22 @@
 
 ---
 
+## 🛡️ มาตรฐานคุณภาพและกฎเหล็กการพัฒนา (Engineering & Risk Standards)
+
+1. **🧪 100% Test-Driven Development (TDD):**
+   * ทุก Task ต้องเริ่มด้วยการเขียน Failing Test ใน `tests/` ก่อนเขียนโค้ดจริงเสมอ
+   * ต้องรัน `pytest` และยืนยันว่าผลลัพธ์ผ่าน 100% (Green) ก่อน Commit ทุกครั้ง
+2. **🏗️ Clean OOP & SOLID Principles (Maintainability):**
+   * **Single Responsibility:** แยกโมดูลชัดเจน (`providers`, `verifiers`, `evaluator`, `hunter`) ห้ามรวมโค้ดในไฟล์เดียว
+   * **Open/Closed:** เพิ่ม Provider หรือ Verifier ใหม่ได้ด้วยการสืบทอด Base Class โดยไม่ต้องแก้ไข Core Logic
+   * **Dependency Injection:** ส่ง DB Session และ HTTP Client ผ่าน Constructor เพื่อให้ง่ายต่อการ Mock ใน Unit Test
+3. **⚠️ การประเมินและป้องกันความเสี่ยง (Risk Assessment & Mitigation):**
+   * *ความเสี่ยง API Rate Limits:* ใช้ In-Memory Hash Cache และ Density Filter กรองทิ้ง 95% ก่อนถึง LLM
+   * *ความเสี่ยง Network/Feed ล่ม:* มี Exception Catching และ Retry Backoff ไม่ทำให้ Event Loop หลักของบอทหยุดทำงาน
+   * *ความเสี่ยง Memory รั่วไหลบน Cloud:* ใช้ Stateless Processing และจำกัดขนาด Queue ไม่ให้เกิน 250MB RAM
+
+---
+
 ## 📋 แผนดำเนินงานทีละ Task (Bite-Sized Tasks)
 
 ### Task 1: Domain Contracts & Database Deduplication Model (Priority 1)
