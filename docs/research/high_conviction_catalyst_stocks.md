@@ -4,6 +4,16 @@
 
 ---
 
+## 🕒 Timeline & Research Checkpoints (ประวัติการศึกษาและการอัปเดต)
+
+| วันที่ & เวลา (Timestamp) | หัวข้อเช็คพอยต์ (Checkpoint) | สรุปสิ่งที่ทำและผลลัพธ์ (Summary of Actions) |
+|---|---|---|
+| **2026-08-20 11:00 BKK** | **Historical Case Discovery** | ตรวจสอบเหตุการณ์ MRNA (19 ส.ค. 2026) พบผลการทดลอง INTerpath-001 ออกช่วง 17:45 น. ก่อนตลาดเปิด |
+| **2026-08-20 12:10 BKK** | **10-Year Multi-Asset Audit** | วิเคราะห์สถิติตลาดสหรัฐฯ 2,500 วันทำการ พบหุ้นขยับ $\pm 10-30\%$ เกิดขึ้น 800-1,500 ครั้ง/ปี และ $\ge 50\%$ เกิดขึ้น 40-80 ครั้ง/ปี |
+| **2026-08-20 12:30 BKK** | **Universe Categorization** | จำแนก 4 กลุ่มอุตสาหกรรมหลัก (Biotech, AI/Semi, Cloud/Cyber, Consumer/Fintech) บันทึกเป็นคลังข้อมูลอ้างอิง |
+
+---
+
 ## 🏆 1. ตารางสรุปกลุ่มหุ้น High-Conviction Catalyst Universe
 
 ### 🧬 กลุ่มที่ 1: Biotech & Clinical Oncology (ความรุนแรง $+50\%$ ถึง $+150\%+$)

@@ -8,6 +8,18 @@
 
 ---
 
+## 🕒 Timeline & Development Checkpoints (ประวัติการอัปเดตและเช็คพอยต์)
+
+| วันที่ & เวลา (Timestamp) | หัวข้อเช็คพอยต์ (Checkpoint) | สรุปสิ่งที่ทำและผลลัพธ์ (Summary of Actions) |
+|---|---|---|
+| **2026-08-20 10:20 BKK** | **Problem Definition & Ideation** | ริเริ่มไอเดียระบบตรวจจับข่าวเชิงรุก (Proactive Catalyst) เพื่อไม่ให้พลาดข่าวระดับ MRNA |
+| **2026-08-20 10:45 BKK** | **Academic & Case Study Synthesis** | ศึกษาเปเปอร์ EMNLP 2025, Florida Study, และ MarketSenseAI 2.0 สกัดแก่นการวิเคราะห์ระดับ Headline |
+| **2026-08-20 11:10 BKK** | **Historical Case Audit (2024-2026)** | ตรวจสอบข้อมูลจริง 5 เคส (MRNA, VKTX, NVAX, SMMT, CRWD) ยืนยันว่าข่าวออกช่วง Pre-Market ก่อนหุ้นพุ่ง |
+| **2026-08-20 12:35 BKK** | **3-Tier Framework & Microstructure** | ออกแบบเกณฑ์คัดกรอง 3 Tiers (Tier S/A/B), RVOL, Bid-Ask Spread, และตัดปัญหา Alert Spam |
+| **2026-08-20 12:45 BKK** | **Subagent Architecture & Spec Sign-off** | แบ่งงาน 4 Subagents (Agent 0-3) ประหยัด Token เหลือ <2.5% ของโควต้าฟรี และบันทึก Spec ทางการ |
+
+---
+
 ## 📌 1. บทนำและวัตถุประสงค์ (Executive Summary & Goals)
 
 ระบบ **Real-Time Market Catalyst & Veracity Hunter** ถูกออกแบบมาเพื่อยกระดับ DCA Catcher จากการเป็นระบบ **"ตั้งรับ (Reactive)"** (ที่ต้องรอให้ผู้ใช้พิมพ์ `/scan` หรือรอราคาแตะแนวรับ) ให้กลายเป็นระบบ **"ตรวจจับเชิงรุกอัจฉริยะ (Proactive Catalyst Engine)"** 

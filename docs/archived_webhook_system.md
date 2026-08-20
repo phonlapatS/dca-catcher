@@ -6,6 +6,16 @@
 
 ---
 
+## 🕒 Timeline & Archival Checkpoints (ประวัติการพัฒนาและการปลดระวาง)
+
+| วันที่ & เวลา (Timestamp) | หัวข้อเช็คพอยต์ (Checkpoint) | สรุปสิ่งที่ทำและผลลัพธ์ (Summary of Actions) |
+|---|---|---|
+| **2026-08-18 23:45 BKK** | **Webhook Implementation** | พัฒนา `src/webhook.py` รองรับ aiohttp Asynchronous Server ตอบสนอง <0.05 วินาที พร้อม Pine Script v5 |
+| **2026-08-20 01:55 BKK** | **Paywall Evaluation** | ผู้ใช้และทีมงานวิเคราะห์พบ TradingView ล็อก Webhook ไว้หลังแพ็กเกจเสียเงิน ($15-$60/mo) ขัดกับปรัชญาฟรี 100% |
+| **2026-08-20 02:05 BKK** | **System Decommission & Archival** | ลบ `src/webhook.py`, ปิด HTTP Port ใน `src/bot.py`, บันทึก Source Code และคู่มือกู้คืนเข้า `docs/archived_webhook_system.md` |
+
+---
+
 ## 🎯 1. ทำไมถึงตัดสินใจถอดระบบ Webhook ออก? (Rationale & Motivation)
 
 ### ❌ ปัญหาและข้อจำกัดที่พบ (Key Constraints):
