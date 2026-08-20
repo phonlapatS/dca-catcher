@@ -159,21 +159,22 @@ Phase 7 ไม่ใช่ระบบที่สร้างขึ้นมา
 
 ---
 
-### Task 4: Dual-Perspective AI Evaluator & Supply Chain Mapper (Priority 3)
+### Task 4: Dual-Perspective AI Evaluator & Supply Chain Mapper (Priority 3) ✅
 
 **Files to create:**
 - `src/catalyst/evaluator.py`
 - `tests/test_catalyst_evaluator.py`
 
-- [ ] **Step 1:** Write failing unit tests in `tests/test_catalyst_evaluator.py` with mocked Gemini responses to verify:
+- [x] **Step 1:** Write failing unit tests in `tests/test_catalyst_evaluator.py` with mocked Gemini responses to verify:
   - Materiality classification (1.0 - 10.0 score)
   - Dual perspective extraction (Bull Catalysts + Bear Risks)
   - Supply Chain & Economic links mapping (`connected_stocks` with Ticker, relationship, and impact)
   - Fallback handling when Gemini fails or returns invalid JSON
-- [ ] **Step 2:** Run pytest to verify failure: `venv/bin/pytest tests/test_catalyst_evaluator.py`.
-- [ ] **Step 3:** Implement `CatalystEvaluator` in `src/catalyst/evaluator.py` using `google-genai` client and Pydantic structured output.
-- [ ] **Step 4:** Run tests and verify 100% passing: `venv/bin/pytest tests/test_catalyst_evaluator.py`.
-- [ ] **Step 5:** Commit changes: `git commit -m "feat(catalyst): implement dual-perspective AI evaluator and supply chain mapper"`.
+- [x] **Step 2:** Run pytest to verify failure: `venv/bin/pytest tests/test_catalyst_evaluator.py`.
+- [x] **Step 3:** Implement `CatalystEvaluator` in `src/catalyst/evaluator.py` using `google-genai` client and Pydantic structured output.
+- [x] **Step 4:** Run tests and verify 100% passing: `venv/bin/pytest tests/test_catalyst_evaluator.py`.
+- [x] **Step 5:** Commit changes: `git commit -m "feat(catalyst): implement dual-perspective AI evaluator and supply chain mapper"`.
+
 
 ---
 
