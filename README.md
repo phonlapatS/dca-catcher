@@ -23,7 +23,7 @@
 ---
 
 ### 1. การสแกนหุ้นรายตัว (`/scan <SYMBOL>`)
-*   **การประมวลผลข้อมูล:** ดึงราคาและงบการเงินพื้นฐานผ่าน `yfinance` พร้อมคำนวณตัวชี้วัดทางเทคนิค (ATH Drawdown, Volume Anomaly, Moving Averages)
+*   **การประประมวลผลข้อมูล:** ดึงราคาและงบการเงินพื้นฐานผ่าน `yfinance` พร้อมคำนวณตัวชี้วัดทางเทคนิค (ATH Drawdown, Volume Anomaly, Moving Averages)
 *   **การประเมินเป้าหมาย:** ประมวลผลร่วมกับ AI เพื่อสรุปคะแนนและเสนอระดับราคาเป้าหมาย DCA 3 ไม้ตามระดับความเสี่ยง
 *   **Visual Analytics (กราฟแท่งเทียน In-Memory):** สร้างภาพกราฟ Candlestick ด้วย `mplfinance` ใน RAM (`io.BytesIO`) พร้อมระบบ **Adaptive Timeframe** ปรับช่วงเวลาย้อนหลังอัตโนมัติเพื่อให้เส้นเป้าหมายพาดทับแนวรับในอดีตจริง
 *   **Interactive Confirmation:** ส่งข้อความบทวิเคราะห์ตามด้วยรูปกราฟ พร้อมปุ่ม Checkbox ให้เลือกบันทึกเป้าหมายเข้าสู่ระบบ Sniper ทันที
@@ -97,7 +97,9 @@ dca-catcher/
 │   └── scrapers/
 │       └── sentiment.py      # ดึงข่าว Google News RSS และดัชนี Fear & Greed
 ├── docs/
-│   └── archived_webhook_system.md # เอกสารสถาปัตยกรรม Webhook ที่บันทึกไว้
+│   ├── archived_webhook_system.md # เอกสารสถาปัตยกรรม Webhook ที่บันทึกไว้
+│   ├── superpowers/specs/    # เอกสารการออกแบบสถาปัตยกรรมระบบ (Design Specs)
+│   └── research/             # เอกสารวิจัยและฐานความรู้สากล (Research Foundations)
 ├── assets/                   # รูปภาพตัวอย่างและ Assets ของโปรเจกต์
 ├── tests/                    # ชุดทดสอบ Unit & Integration Tests (48 รายการ ผ่าน 100%)
 ├── requirements.txt          # รายการ Python Dependencies
@@ -150,3 +152,20 @@ docker-compose up -d --build
 2. **Fly.io (Region Singapore):**
    * **จุดเด่น:** ใช้งานง่ายผ่าน `Dockerfile` และ `fly.toml` Latency ต่ำใกล้ประเทศไทย และรองรับระบบ Always-On Worker
    * **สถานะการทดสอบ:** ทำการ Deploy บอทจริงในโหมด Background Worker และทดสอบการเชื่อมต่อ WebSocket ต่อเนื่อง 24 ชม.
+
+---
+
+## 🔮 แผนงานและการวิจัยที่กำลังพัฒนา (Phase 7: Real-Time Catalyst & Supply Chain Hunter)
+
+ปัจจุบันระบบกำลังต่อยอดความสามารถสู่การตรวจจับข่าวสารเชิงรุก (Proactive Catalyst Detection) โดยอ้างอิงหลักการจากงานวิจัยด้าน Financial NLP และเศรษฐศาสตร์การเงิน:
+
+*   **การตรวจจับข่าวสารสำคัญล่วงหน้า (Pre-Market Catalyst Detection):** 
+    * อ้างอิงงานวิจัยด้านผลกระทบของพาดหัวข่าวต่อการเคลื่อนไหวของราคา (University of Florida, EMNLP) 
+    * ระบบจะดักฟังข่าวสารทางการ (Press Releases, SEC Filings) ในช่วง Pre-Market (17:00–19:30 น. เวลาไทย) เพื่อสรุปสาระสำคัญให้ผู้ใช้เตรียมตัวล่วงหน้าก่อนตลาดเปิด
+*   **การประเมิน 2 ด้านอย่างเป็นกลาง (Dual-Perspective Evaluation):**
+    * นำเสนอทั้งโอกาสเติบโตทางธุรกิจ (Bullish Factors) ควบคู่กับความเสี่ยงและจุดที่ต้องระวัง (Bearish Risks) เพื่อป้องกันการไล่ซื้อราคาเปิดกระโดด
+*   **การวิเคราะห์ผลกระทบเชื่อมโยงในห่วงโซ่อุปทาน (Supply Chain & Spillover Analysis):**
+    * อ้างอิงงานวิจัยด้าน Economic Links & Investor Inattention (Journal of Finance) 
+    * เมื่อเกิดเหตุการณ์สำคัญกับบริษัทหลัก ระบบจะประเมินผลกระทบทางอ้อมไปยังบริษัทคู่ค้า ซัพพลายเออร์ หรือกลุ่มอุตสาหกรรมเดียวกันที่อาจได้รับอานิสงส์ตามมา
+*   **การจัดการระบบอย่างมีประสิทธิภาพ (Layered Processing):**
+    * ใช้การคัดกรองข้อมูลแบบหลายชั้น (Multi-tier Filtering) และจำแนกความสำคัญของข่าวสาร เพื่อให้ระบบทำงานได้รวดเร็ว ประหยัดทรัพยากรเซิร์ฟเวอร์ และส่งเฉพาะการแจ้งเตือนที่มีคุณภาพ ไม่รบกวนผู้ใช้
