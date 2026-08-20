@@ -16,6 +16,8 @@ from src.fetcher import MarketDataFetcher
 from src.grader import SignalGrader
 from src.sniper import AlpacaSniper
 from src.transform import DataTransformer
+from src.catalyst.hunter import CatalystHunter
+
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +168,13 @@ class DCABot:
         self.bot = Bot(token=token)
         self.sniper.bot = self.bot
         self.sniper.broadcast_channel_id = config.broadcast_channel_id
+        self.catalyst_hunter = CatalystHunter(
+            db=self.db,
+            bot=self.bot,
+            channel_id=config.broadcast_channel_id,
+            gemini_api_key=config.gemini_api_keys[0] if config.gemini_api_keys else None
+        )
+
         
         self.dp = Dispatcher()
         self._register_handlers()
@@ -205,6 +214,12 @@ class DCABot:
         
         # Insight report handler
         self.dp.callback_query.register(self.insight_btn, F.data.startswith("insight_"))
+
+        # Catalyst Action Hub handlers
+        self.dp.callback_query.register(self.cat_watch_btn, F.data.startswith("cat_watch_"))
+        self.dp.callback_query.register(self.cat_sniper_btn, F.data.startswith("cat_sniper_"))
+        self.dp.callback_query.register(self.cat_scan_btn, F.data.startswith("cat_scan_"))
+
 
     async def _add_to_watchlist(
         self, telegram_id: int, username: str | None, symbol: str, market: str, target_price: float | list[float] | None = None
@@ -1130,6 +1145,9 @@ class DCABot:
         self.scheduler.add_job(self.broadcast_scan, 'cron', hour=self.config.broadcast_morning_hour, minute=self.config.broadcast_morning_minute)
         self.scheduler.add_job(self.broadcast_scan, 'cron', hour=self.config.broadcast_th_hour, minute=self.config.broadcast_th_minute, args=['TH'])
         self.scheduler.add_job(self.broadcast_scan, 'cron', hour=self.config.broadcast_us_hour, minute=self.config.broadcast_us_minute, args=['US'])
+        # Adaptive Catalyst Hunter Schedule (Turbo 17:00-20:30, Eco during day)
+        self.scheduler.add_job(self.catalyst_hunter.run_scan_cycle, 'cron', hour='17-20', minute='*/2')
+        self.scheduler.add_job(self.catalyst_hunter.run_scan_cycle, 'cron', hour='8-16', minute='*/30')
         self.scheduler.start()
 
         await self.on_startup()
@@ -1145,7 +1163,34 @@ class DCABot:
         logger.info("Closing database connections...")
         await self.db.close()
         await self.bot.session.close()
+
+    async def cat_watch_btn(self, callback: types.CallbackQuery):
+        """Handle '➕ เพิ่มเข้า Watchlist' button click on Catalyst alert."""
+        symbol = callback.data.split("_")[2]
+        market = "TH" if symbol.endswith(".BK") else "US"
+        res_text = await self._add_to_watchlist(
+            callback.from_user.id, callback.from_user.username, symbol, market
+        )
+        await callback.answer(res_text, show_alert=True)
+
+    async def cat_sniper_btn(self, callback: types.CallbackQuery):
+        """Handle '🎯 ตั้งเป้า Sniper' button click on Catalyst alert."""
+        symbol = callback.data.split("_")[2]
+        await callback.answer(f"🎯 พิมพ์ /scan {symbol} เพื่อเลือกราคาเป้าหมายเข้าสู่ Sniper!", show_alert=True)
+
+    async def cat_scan_btn(self, callback: types.CallbackQuery):
+        """Handle '🔍 สแกน $SYMBOL' button click on Catalyst alert for connected stocks."""
+        symbol = callback.data.split("_")[2]
+        await callback.answer(f"🔍 กำลังสแกน ${symbol}...")
+        if callback.message:
+            msg = callback.message
+            msg.text = f"/scan {symbol}"
+            msg.from_user = callback.from_user
+            await self.cmd_scan(msg)
+
+
     async def cmd_insight(self, message: types.Message):
+
         """Handle /scan-details <symbol> to generate deep dive report."""
         if not message.text:
             return

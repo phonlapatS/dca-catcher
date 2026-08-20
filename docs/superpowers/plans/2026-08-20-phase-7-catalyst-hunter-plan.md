@@ -178,28 +178,30 @@ Phase 7 ไม่ใช่ระบบที่สร้างขึ้นมา
 
 ---
 
-### Task 5: Orchestrator, Adaptive Scheduler & Telegram Action Hub (Priority 4 & 5)
+### Task 5: Orchestrator, Adaptive Scheduler & Telegram Action Hub (Priority 4 & 5) ✅
 
 **Files to create/modify:**
 - `src/catalyst/hunter.py`
 - `src/bot.py`
 - `tests/test_catalyst_hunter.py`
+- `tests/test_bot.py`
 
-- [ ] **Step 1:** Write failing integration tests in `tests/test_catalyst_hunter.py` testing full cycle: feed fetch ➔ filter ➔ evaluate ➔ dispatch message to mock Telegram bot.
-- [ ] **Step 2:** Run pytest to verify failure: `venv/bin/pytest tests/test_catalyst_hunter.py`.
-- [ ] **Step 3:** Implement `CatalystHunter` supervisor in `src/catalyst/hunter.py` with:
+- [x] **Step 1:** Write failing integration tests in `tests/test_catalyst_hunter.py` testing full cycle: feed fetch ➔ filter ➔ evaluate ➔ dispatch message to mock Telegram bot.
+- [x] **Step 2:** Run pytest to verify failure: `venv/bin/pytest tests/test_catalyst_hunter.py`.
+- [x] **Step 3:** Implement `CatalystHunter` supervisor in `src/catalyst/hunter.py` with:
   - Adaptive Polling (Turbo 17:00-20:30 BKK, Eco during day)
   - Daily Pre-Market Digest batching (at 19:00 BKK for Tier A news)
   - Instant Urgent Push Alert for Tier S news
   - Telegram Markdown formatter with Action Hub buttons (`[➕ ติดตาม]`, `[🎯 ตั้งเป้า Sniper]`, `[🔍 สแกนหุ้นลูก]`)
-- [ ] **Step 4:** Hook `CatalystHunter` into `main()` in `src/bot.py` and add callback query handlers for the new interactive buttons.
-- [ ] **Step 5:** Run entire project test suite: `venv/bin/pytest`.
-- [ ] **Step 6:** Commit changes: `git commit -m "feat(catalyst): complete Catalyst Hunter orchestrator with Telegram Action Hub and adaptive scheduler"`.
+- [x] **Step 4:** Hook `CatalystHunter` into `main()` in `src/bot.py` and add callback query handlers for the new interactive buttons.
+- [x] **Step 5:** Run entire project test suite: `venv/bin/pytest`.
+- [x] **Step 6:** Commit changes: `git commit -m "feat(catalyst): complete Catalyst Hunter orchestrator with Telegram Action Hub and adaptive scheduler"`.
 
 ---
 
 ## 🧪 Verification & Acceptance Criteria
-- [ ] All new tests in `tests/test_catalyst_*.py` pass with 100% green.
-- [ ] All existing 48 tests continue to pass without regressions.
-- [ ] Zero token wasted on 95% of routine/clickbait news articles.
-- [ ] Fly.io deployment remains stable with < 250MB RAM footprint.
+- [x] All new tests in `tests/test_catalyst_*.py` pass with 100% green (68/68 passed).
+- [x] All existing 48 tests continue to pass without regressions.
+- [x] Zero token wasted on 95% of routine/clickbait news articles (SHA-256 Hash + DensityFilter).
+- [x] Fly.io deployment remains stable with < 250MB RAM footprint.
+
