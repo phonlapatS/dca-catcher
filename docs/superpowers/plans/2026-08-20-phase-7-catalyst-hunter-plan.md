@@ -121,7 +121,7 @@ Phase 7 ไม่ใช่ระบบที่สร้างขึ้นมา
 
 ---
 
-### Task 2: Zero-Token News Ingestion & Deduplication Providers (Priority 2.1)
+### Task 2: Zero-Token News Ingestion & Deduplication Providers (Priority 2.1) ✅
 
 **Files to create:**
 - `src/catalyst/providers/base.py`
@@ -129,12 +129,13 @@ Phase 7 ไม่ใช่ระบบที่สร้างขึ้นมา
 - `src/catalyst/providers/yahoo_finance.py`
 - `tests/test_catalyst_providers.py`
 
-- [ ] **Step 1:** Write failing tests in `tests/test_catalyst_providers.py` for fetching and parsing XML/RSS feeds with mocked network responses.
-- [ ] **Step 2:** Run pytest to verify failure: `venv/bin/pytest tests/test_catalyst_providers.py`.
-- [ ] **Step 3:** Implement `BaseNewsProvider` in `src/catalyst/providers/base.py` with async `fetch_recent_articles() -> List[CatalystArticle]`.
-- [ ] **Step 4:** Implement `GoogleNewsProvider` and `YahooFinanceProvider` with RFC 2822 date parsing and SHA-256 headline hashing.
-- [ ] **Step 5:** Run tests and verify: `venv/bin/pytest tests/test_catalyst_providers.py`.
-- [ ] **Step 6:** Commit changes: `git commit -m "feat(catalyst): implement asynchronous RSS feed providers with SHA-256 deduplication"`.
+- [x] **Step 1:** Write failing tests in `tests/test_catalyst_providers.py` for fetching and parsing XML/RSS feeds with mocked network responses.
+- [x] **Step 2:** Run pytest to verify failure: `venv/bin/pytest tests/test_catalyst_providers.py`.
+- [x] **Step 3:** Implement `BaseNewsProvider` in `src/catalyst/providers/base.py` with async `fetch_recent_articles() -> List[CatalystArticle]`.
+- [x] **Step 4:** Implement `GoogleNewsProvider` and `YahooFinanceProvider` with RFC 2822 date parsing and SHA-256 headline hashing.
+- [x] **Step 5:** Run tests and verify: `venv/bin/pytest tests/test_catalyst_providers.py`.
+- [x] **Step 6:** Commit changes: `git commit -m "feat(catalyst): implement asynchronous RSS feed providers with SHA-256 deduplication"`.
+
 
 ---
 
