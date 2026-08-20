@@ -86,3 +86,47 @@ async def test_catalyst_hunter_skips_seen_article(db):
     # Evaluator should not be called (0 Token used)
     assert not hunter.evaluator.evaluate_catalyst.called
     assert not bot_mock.send_message.called
+
+
+@pytest.mark.asyncio
+async def test_catalyst_hunter_tier_a_batching_and_digest(db):
+    bot_mock = AsyncMock()
+    hunter = CatalystHunter(db=db, bot=bot_mock, channel_id="@test_channel", gemini_api_key="mock_key")
+
+    article_tier_a = CatalystArticle(
+        headline="Apple signs minor supplier contract for sensors",
+        headline_hash="hash_aapl_a",
+        symbol="AAPL",
+        publisher="Reuters",
+        published_at=datetime.utcnow(),
+        raw_snippet="Supply chain agreement for next-gen sensors."
+    )
+    verdict_tier_a = CatalystVerdict(
+        is_material=True,
+        materiality_score=7.8, # Tier A (7.5 - 8.9) -> Batched to 19:00 Digest
+        event_category="CONTRACT",
+        bull_catalysts="ขยายห่วงโซ่อุปทาน",
+        bear_risks="มาร์จิ้นต่ำ",
+        dca_guidance="สะสมตามรอบปกติ",
+        thai_summary="Apple ลงนามสัญญาจัดซื้อเซนเซอร์รุ่นใหม่",
+        connected_stocks=[]
+    )
+
+    hunter.providers[0].fetch_articles_for_symbol = AsyncMock(return_value=[article_tier_a])
+    hunter.evaluator.evaluate_catalyst = AsyncMock(return_value=verdict_tier_a)
+
+    # 1. Scan cycle: should not send instant message, but put into digest queue
+    processed_count = await hunter.run_scan_cycle(symbols=["AAPL"])
+    assert processed_count == 1
+    assert not bot_mock.send_message.called
+    assert len(hunter.digest_queue) == 1
+
+    # 2. Trigger daily digest at 19:00
+    sent_count = await hunter.send_daily_digest()
+    assert sent_count == 1
+    assert bot_mock.send_message.called
+    call_kwargs = bot_mock.send_message.call_args[1]
+    assert "PRE-MARKET CATALYST DAILY DIGEST" in call_kwargs["text"]
+    assert "$AAPL" in call_kwargs["text"]
+    assert len(hunter.digest_queue) == 0
+

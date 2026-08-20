@@ -33,6 +33,7 @@ class CatalystHunter:
         self.density_filter = DensityFilter()
         self.microstructure_checker = MarketMicrostructureChecker()
         self.evaluator = CatalystEvaluator(api_key=gemini_api_key)
+        self.digest_queue: List[tuple[CatalystArticle, CatalystVerdict]] = []
 
     async def run_scan_cycle(self, symbols: Optional[List[str]] = None) -> int:
         """Runs a complete scan cycle across specified symbols or master watchlist."""
@@ -70,9 +71,14 @@ class CatalystHunter:
                     # 3. Dual-Perspective AI Evaluation (Gemini)
                     verdict = await self.evaluator.evaluate_catalyst(article)
 
-                    # 4. Dispatch Alert if Material Catalyst (Score >= 8.0)
-                    if verdict.is_material and verdict.materiality_score >= 8.0:
+                    # 4. 3-Tier Alert Routing Framework:
+                    # Tier S (Score >= 9.0): Instant Urgent Alert
+                    if verdict.is_material and verdict.materiality_score >= 9.0:
                         await self._dispatch_catalyst_alert(article, verdict)
+                        processed_count += 1
+                    # Tier A (7.5 <= Score < 9.0): Batched into 19:00 Daily Digest
+                    elif verdict.is_material and verdict.materiality_score >= 7.5:
+                        self.digest_queue.append((article, verdict))
                         processed_count += 1
 
                     # 5. Record Hash in Database
@@ -84,6 +90,45 @@ class CatalystHunter:
                     )
 
         return processed_count
+
+    async def send_daily_digest(self) -> int:
+        """Dispatches consolidated Pre-Market Daily Digest at 19:00 BKK for Tier A items."""
+        if not self.digest_queue:
+            return 0
+
+        if not self.bot or not self.channel_id:
+            logger.warning("Telegram Bot or Channel ID not configured for Daily Digest")
+            return 0
+
+        count = len(self.digest_queue)
+        header = (
+            "📰 **PRE-MARKET CATALYST DAILY DIGEST (19:00 น.)**\n"
+            f"สรุปเหตุการณ์สำคัญรอบวันก่อนตลาดเปิด ({count} รายการ):\n\n"
+        )
+        items_text = []
+        for i, (art, verd) in enumerate(self.digest_queue, 1):
+            items_text.append(
+                f"{i}. 🔹 **${art.symbol}** — {verd.thai_summary}\n"
+                f"   • แหล่งข่าว: {art.publisher} | คะแนน: {verd.materiality_score:.1f}/10\n"
+                f"   • ปัจจัยบวก: {verd.bull_catalysts}\n"
+                f"   • ความเสี่ยง: {verd.bear_risks}\n"
+                f"   • แผน DCA: {verd.dca_guidance}\n"
+            )
+
+        full_text = header + "\n".join(items_text)
+        try:
+            await self.bot.send_message(
+                chat_id=self.channel_id,
+                text=full_text,
+                parse_mode="Markdown",
+            )
+            self.digest_queue.clear()
+            logger.info(f"Dispatched Daily Pre-Market Digest ({count} items) to {self.channel_id}")
+            return count
+        except Exception as e:
+            logger.error(f"Failed to dispatch daily digest: {e}")
+            return 0
+
 
     async def _dispatch_catalyst_alert(self, article: CatalystArticle, verdict: CatalystVerdict):
         """Formats and dispatches the catalyst alert with interactive action hub buttons."""

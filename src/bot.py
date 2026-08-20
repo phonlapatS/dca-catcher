@@ -1145,10 +1145,12 @@ class DCABot:
         self.scheduler.add_job(self.broadcast_scan, 'cron', hour=self.config.broadcast_morning_hour, minute=self.config.broadcast_morning_minute)
         self.scheduler.add_job(self.broadcast_scan, 'cron', hour=self.config.broadcast_th_hour, minute=self.config.broadcast_th_minute, args=['TH'])
         self.scheduler.add_job(self.broadcast_scan, 'cron', hour=self.config.broadcast_us_hour, minute=self.config.broadcast_us_minute, args=['US'])
-        # Adaptive Catalyst Hunter Schedule (Turbo 17:00-20:30, Eco during day)
+        # Adaptive Catalyst Hunter Schedule (Turbo 17:00-20:30, Eco during day, Digest at 19:00)
         self.scheduler.add_job(self.catalyst_hunter.run_scan_cycle, 'cron', hour='17-20', minute='*/2')
         self.scheduler.add_job(self.catalyst_hunter.run_scan_cycle, 'cron', hour='8-16', minute='*/30')
+        self.scheduler.add_job(self.catalyst_hunter.send_daily_digest, 'cron', hour=19, minute=0)
         self.scheduler.start()
+
 
         await self.on_startup()
 
