@@ -139,22 +139,23 @@ Phase 7 ไม่ใช่ระบบที่สร้างขึ้นมา
 
 ---
 
-### Task 3: Fact Density & Pre-Market Microstructure Verifiers (Priority 2.2)
+### Task 3: Fact Density & Pre-Market Microstructure Verifiers (Priority 2.2) ✅
 
 **Files to create:**
 - `src/catalyst/verifiers/density_filter.py`
 - `src/catalyst/verifiers/market_check.py`
 - `tests/test_catalyst_verifiers.py`
 
-- [ ] **Step 1:** Write failing tests in `tests/test_catalyst_verifiers.py` testing:
+- [x] **Step 1:** Write failing tests in `tests/test_catalyst_verifiers.py` testing:
   - Ticker extraction from headline / summary (e.g. `$MRNA`, `Moderna Inc.`)
   - Informativeness density filtering (rejecting clickbaits with zero hard facts)
   - Pre-market liquidity check (Dollar volume $\ge \$2\text{M}$ and Bid-Ask Spread $< 2.0\%$)
-- [ ] **Step 2:** Run pytest to verify failure: `venv/bin/pytest tests/test_catalyst_verifiers.py`.
-- [ ] **Step 3:** Implement `DensityFilter` in `src/catalyst/verifiers/density_filter.py`.
-- [ ] **Step 4:** Implement `MarketMicrostructureChecker` in `src/catalyst/verifiers/market_check.py` using `yfinance` / `Alpaca` fast quotes.
-- [ ] **Step 5:** Run tests and ensure all pass: `venv/bin/pytest tests/test_catalyst_verifiers.py`.
-- [ ] **Step 6:** Commit changes: `git commit -m "feat(catalyst): add zero-token fact density filter and microstructure validator"`.
+- [x] **Step 2:** Run pytest to verify failure: `venv/bin/pytest tests/test_catalyst_verifiers.py`.
+- [x] **Step 3:** Implement `DensityFilter` in `src/catalyst/verifiers/density_filter.py`.
+- [x] **Step 4:** Implement `MarketMicrostructureChecker` in `src/catalyst/verifiers/market_check.py` using `yfinance` / `Alpaca` fast quotes.
+- [x] **Step 5:** Run tests and ensure all pass: `venv/bin/pytest tests/test_catalyst_verifiers.py`.
+- [x] **Step 6:** Commit changes: `git commit -m "feat(catalyst): add zero-token fact density filter and microstructure validator"`.
+
 
 ---
 
