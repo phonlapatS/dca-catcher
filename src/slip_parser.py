@@ -14,12 +14,13 @@ class GeminiSlipParser:
     async def parse_slip(self, image_bytes: bytes) -> dict | None:
         prompt = (
             "You are a financial OCR agent specializing in Thai broker apps like Dime. "
-            "Read this US stock trade slip. Extract the ticker, action (BUY/SELL), execution price in USD, and volume. "
-            "Return ONLY a strict JSON object with keys: symbol, action, price, volume. "
-            "If it's not a trade slip, return an empty JSON object {}."
+            "Read this US stock trade slip. The slip might be in Thai ('ซื้อ' = BUY, 'ขาย' = SELL). "
+            "Extract the ticker symbol (e.g., AAPL, NVDA), action (BUY/SELL), execution price in USD, and volume (shares). "
+            "Return ONLY a strict JSON object with exactly these keys: symbol, action, price, volume. "
+            "If it's absolutely not a trade slip, return an empty JSON object {}."
         )
         try:
-            response = await self.client.models.generate_content_async(
+            response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=[
                     types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
