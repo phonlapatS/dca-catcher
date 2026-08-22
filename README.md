@@ -49,6 +49,15 @@
 *   **Dynamic Reflection:** จำแนกสถานะสมมติฐานอัตโนมัติ (`CONTINUING`, `INVALIDATED`, `NEW_CATALYST`, `RESOLVED`)
 *   **ML Uncertainty Calibration:** คำนวณคะแนนความมั่นใจ (0–100%) ตามมาตรฐานสากล Machine Learning
 
+### 5. ระบบดักจับข่าวและวิเคราะห์ห่วงโซ่อุปทาน (Real-Time Catalyst & Supply Chain Hunter)
+*   **Pre-Market Adaptive Hunter:** ดักจับเหตุการณ์สำคัญของบริษัท (Corporate Catalysts) ในช่วงเวลา Pre-Market (17:00–20:30 น. เวลาไทย) ด้วยระบบ Zero-Token Deduplication & Fact Density Filter กรองข่าวซ้ำและข่าวคลิกเบตทิ้งได้กว่า 95% ก่อนส่งประมวลผล
+*   **Dual-Perspective Evaluation:** ประเมินปัจจัยบวก (Bull Catalysts) และความเสี่ยงซ่อนเร้น (Bear Risks) ควบคู่กับคำแนะนำแนวรับสะสม DCA อย่างเป็นกลาง ไม่สนับสนุนการไล่ราคาเปิดกระโดด
+*   **Supply Chain Spillovers (Economic Links):** วิเคราะห์ผลกระทบทางอ้อมไปยังบริษัทคู่ค้า ซัพพลายเออร์ และกลุ่มอุตสาหกรรมที่เชื่อมโยงกัน (อ้างอิงงานวิจัย Journal of Finance)
+*   **3-Tier Smart Routing & Action Hub:**
+    * 🚨 **Tier S (ข่าวด่วนระดับสูง):** ยิงแจ้งเตือนด่วนทันทีพร้อมปุ่มโต้ตอบ (`[➕ เพิ่มเข้า Watchlist]`, `[🎯 ตั้งเป้า Sniper]`, `[🔍 สแกนหุ้นลูก]`)
+    * 📰 **Tier A (ข่าวน่าติดตาม):** รวบยอดส่งเป็น **Pre-Market Daily Digest เวลา 19:00 น. (เวลาไทย)**
+    * 🔕 **Tier B:** จัดเก็บเป็นประวัติในฐานข้อมูลสำหรับการเรียกดูผ่านคำสั่ง `/scan`
+
 ---
 
 ## 📊 ตัวอย่างภาพกราฟที่ระบบสร้างขึ้น (Visual Analytics Preview)
@@ -94,6 +103,12 @@ dca-catcher/
 │   ├── charting.py           # สร้างกราฟ Candlestick และ Target Lines (In-Memory)
 │   ├── sniper.py             # Alpaca WebSocket สตรีมราคาเรียลไทม์
 │   ├── alert_manager.py      # จัดรูปแบบข้อความแจ้งเตือนและระบบ Anti-Spam
+│   ├── catalyst/             # 🛰️ Phase 7: Real-Time Market Catalyst & Supply Chain Hunter
+│   │   ├── models.py         # Data Contracts (CatalystArticle, CatalystVerdict, ConnectedAsset)
+│   │   ├── evaluator.py      # Dual-Perspective AI Evaluator & Supply Chain Mapper
+│   │   ├── hunter.py         # Supervisor Orchestrator & 3-Tier Alert Dispatcher
+│   │   ├── providers/        # Async News Providers (Google News, Yahoo Finance RSS)
+│   │   └── verifiers/        # Fact Density Regex Gate & Microstructure Validator
 │   └── scrapers/
 │       └── sentiment.py      # ดึงข่าว Google News RSS และดัชนี Fear & Greed
 ├── docs/
@@ -101,7 +116,7 @@ dca-catcher/
 │   ├── superpowers/specs/    # เอกสารการออกแบบสถาปัตยกรรมระบบ (Design Specs)
 │   └── research/             # เอกสารวิจัยและฐานความรู้สากล (Research Foundations)
 ├── assets/                   # รูปภาพตัวอย่างและ Assets ของโปรเจกต์
-├── tests/                    # ชุดทดสอบ Unit & Integration Tests (48 รายการ ผ่าน 100%)
+├── tests/                    # ชุดทดสอบ Unit & Integration Tests (69 รายการ ผ่าน 100%)
 ├── requirements.txt          # รายการ Python Dependencies
 ├── Dockerfile                # ไฟล์สำหรับ Build Docker Container
 └── docker-compose.yml        # คอนฟิกสำหรับรันระบบบน Docker
@@ -152,20 +167,3 @@ docker-compose up -d --build
 2. **Fly.io (Region Singapore):**
    * **จุดเด่น:** ใช้งานง่ายผ่าน `Dockerfile` และ `fly.toml` Latency ต่ำใกล้ประเทศไทย และรองรับระบบ Always-On Worker
    * **สถานะการทดสอบ:** ทำการ Deploy บอทจริงในโหมด Background Worker และทดสอบการเชื่อมต่อ WebSocket ต่อเนื่อง 24 ชม.
-
----
-
-## 🔮 แผนงานและการวิจัยที่กำลังพัฒนา (Phase 7: Real-Time Catalyst & Supply Chain Hunter)
-
-ปัจจุบันระบบกำลังต่อยอดความสามารถสู่การตรวจจับข่าวสารเชิงรุก (Proactive Catalyst Detection) โดยอ้างอิงหลักการจากงานวิจัยด้าน Financial NLP และเศรษฐศาสตร์การเงิน:
-
-*   **การตรวจจับข่าวสารสำคัญล่วงหน้า (Pre-Market Catalyst Detection):** 
-    * อ้างอิงงานวิจัยด้านผลกระทบของพาดหัวข่าวต่อการเคลื่อนไหวของราคา (University of Florida, EMNLP) 
-    * ระบบจะดักฟังข่าวสารทางการ (Press Releases, SEC Filings) ในช่วง Pre-Market (17:00–19:30 น. เวลาไทย) เพื่อสรุปสาระสำคัญให้ผู้ใช้เตรียมตัวล่วงหน้าก่อนตลาดเปิด
-*   **การประเมิน 2 ด้านอย่างเป็นกลาง (Dual-Perspective Evaluation):**
-    * นำเสนอทั้งโอกาสเติบโตทางธุรกิจ (Bullish Factors) ควบคู่กับความเสี่ยงและจุดที่ต้องระวัง (Bearish Risks) เพื่อป้องกันการไล่ซื้อราคาเปิดกระโดด
-*   **การวิเคราะห์ผลกระทบเชื่อมโยงในห่วงโซ่อุปทาน (Supply Chain & Spillover Analysis):**
-    * อ้างอิงงานวิจัยด้าน Economic Links & Investor Inattention (Journal of Finance) 
-    * เมื่อเกิดเหตุการณ์สำคัญกับบริษัทหลัก ระบบจะประเมินผลกระทบทางอ้อมไปยังบริษัทคู่ค้า ซัพพลายเออร์ หรือกลุ่มอุตสาหกรรมเดียวกันที่อาจได้รับอานิสงส์ตามมา
-*   **การจัดการระบบอย่างมีประสิทธิภาพ (Layered Processing):**
-    * ใช้การคัดกรองข้อมูลแบบหลายชั้น (Multi-tier Filtering) และจำแนกความสำคัญของข่าวสาร เพื่อให้ระบบทำงานได้รวดเร็ว ประหยัดทรัพยากรเซิร์ฟเวอร์ และส่งเฉพาะการแจ้งเตือนที่มีคุณภาพ ไม่รบกวนผู้ใช้
