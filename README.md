@@ -4,6 +4,16 @@ DCA Catcher เป็น Telegram Bot พลัง AI (Google Gemini) ที่�
 
 **สถานะของ Branch นี้:** สิ้นสุดที่ **Phase 3 (Deployment & Schedulers)**
 
+
+## 🚀 What's New in Phase 3 (พัฒนาต่อยอดจาก Phase 2 อย่างไร?)
+
+ใน Phase 2 เราทำระบบวิเคราะห์และตีราคาเป้าหมายสำเร็จ สำหรับ **Phase 3** นี้ เราได้พัฒนาระบบ "หน่วยความจำและโต้ตอบ" ได้แก่:
+1. **Local Database (SQLite):** เพิ่มระบบฐานข้อมูลเพื่อบันทึก Watchlist ของผู้ใช้ และรองรับการดึงข้อมูลเพื่อมาเฝ้าจับตา
+2. **Interactive UI & Deep Linking:** เพิ่มปุ่มกด (Inline Keyboards) บนแชท Telegram ช่วยให้ผู้ใช้สามารถกดบันทึกเป้าหมายเข้าพอร์ตได้เพียงคลิกเดียว (1-Click Add)
+3. **Price Monitoring (Sniper):** วางรากฐานระบบดักจับราคาและแจ้งเตือนผ่าน Alpaca แบบเรียลไทม์
+
+---
+
 ---
 
 ## 🌟 ฟีเจอร์ที่ทำงานได้ใน Phase 3
