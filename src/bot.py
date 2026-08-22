@@ -1556,7 +1556,7 @@ class DCABot:
                 # Simplified sell logic for average cost preservation
 
         # Fetch prices and format
-        lines = ["💼 **สรุปพอร์ต DCA ของคุณ**\n```text", "━━━━━━━━━━━━━━━━━━━━━━━"]
+        lines = ["💼 **สรุปพอร์ต DCA ของคุณ**\n```", "━━━━━━━━━━━━━━━━━━━━━━━"]
         for sym, data in portfolio.items():
             if data["shares"] <= 0:
                 continue
@@ -1573,11 +1573,11 @@ class DCABot:
             lines.append("━━━━━━━━━━━━━━━━━━━━━━━")
         lines.append("```")
 
-        if len(lines) == 1:
+        if len(lines) == 2:
             await status.edit_text("พอร์ตคุณยังว่างเปล่า! โยนรูปสลิปแอปเทรดเข้ามาเพื่อเริ่มบันทึกพอร์ตได้เลยครับ")
             return
 
-        await status.edit_text("\n".join(lines))
+        await status.edit_text("\n".join(lines), parse_mode="Markdown")
 
 
 
