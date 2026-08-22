@@ -2,6 +2,7 @@ import json
 import logging
 from google import genai
 from google.genai import types
+from src.insight_pipeline import PipelineConfig
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 class GeminiSlipParser:
     def __init__(self, api_key: str):
         self.client = genai.Client(api_key=api_key)
-        self.model = "gemini-3.6-flash"
+        self.config = PipelineConfig()
 
     async def parse_slip(self, image_bytes: bytes) -> dict | None:
         prompt = (
@@ -19,36 +20,36 @@ class GeminiSlipParser:
             "Return ONLY a strict JSON object with exactly these keys: symbol, action, price, volume. "
             "If it's absolutely not a trade slip, return an empty JSON object {}."
         )
-        try:
-            if hasattr(self.client, "models") and hasattr(self.client.models, "generate_content_async"):
-                response = await self.client.models.generate_content_async(
-                    model=self.model,
-                    contents=[
-                        types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
-                        prompt,
-                    ],
-                )
-            else:
+        
+        last_error = None
+        # Use the models the user specified in insight_pipeline (smart_models)
+        for model_name in self.config.smart_models:
+            try:
+                logger.info(f"Trying Gemini vision extraction with model: {model_name}")
                 response = await self.client.aio.models.generate_content(
-                    model=self.model,
+                    model=model_name,
                     contents=[
                         types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
                         prompt,
                     ],
                 )
-            raw_text = response.text.strip()
-            if raw_text.startswith("```json"):
-                raw_text = raw_text[7:]
-            elif raw_text.startswith("```"):
-                raw_text = raw_text[3:]
-            if raw_text.endswith("```"):
-                raw_text = raw_text[:-3]
-            raw_text = raw_text.strip()
+                raw_text = response.text.strip()
+                if raw_text.startswith("```json"):
+                    raw_text = raw_text[7:]
+                elif raw_text.startswith("```"):
+                    raw_text = raw_text[3:]
+                if raw_text.endswith("```"):
+                    raw_text = raw_text[:-3]
+                raw_text = raw_text.strip()
 
-            data = json.loads(raw_text)
-            if not data.get("symbol"):
-                return None
-            return data
-        except Exception as e:
-            logger.error(f"Failed to parse slip: {e}")
-            return None
+                data = json.loads(raw_text)
+                if not data.get("symbol"):
+                    return None
+                return data
+            except Exception as e:
+                logger.warning(f"Model {model_name} failed: {e}")
+                last_error = e
+                continue
+                
+        logger.error(f"All specified models failed. Last error: {last_error}")
+        return None
