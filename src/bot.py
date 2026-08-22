@@ -190,6 +190,7 @@ class DCABot:
         self.dp.message.register(self.cmd_survey, Command("survey"))
         self.dp.message.register(self.cmd_advice, Command("advice"))
         self.dp.message.register(self.cmd_help, Command("help"))
+        self.dp.message.register(self.cmd_test_catalyst, Command("test-catalyst"))
         
         # FSM handlers for /survey
         self.dp.callback_query.register(self.survey_style, RiskSurvey.waiting_for_style)
@@ -1192,6 +1193,15 @@ class DCABot:
             msg.from_user = callback.from_user
             await self.cmd_scan(msg)
 
+
+    async def cmd_test_catalyst(self, message: types.Message):
+        """[Admin] Force a catalyst scan immediately."""
+        await message.reply("🔄 บังคับรัน Catalyst Hunter (Zero-Token + AI Evaluation)... กรุณารอสักครู่")
+        try:
+            count = await self.catalyst_hunter.run_scan_cycle(["NVDA", "TSLA", "AAPL"])
+            await message.reply(f"✅ ประมวลผลและคัดกรองข่าวสารเสร็จสิ้น! พบข่าวด่วน (Tier S/A) จำนวน {count} รายการ")
+        except Exception as e:
+            await message.reply(f"❌ เกิดข้อผิดพลาด: {e}")
 
     async def cmd_insight(self, message: types.Message):
 
