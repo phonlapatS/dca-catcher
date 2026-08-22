@@ -1575,7 +1575,7 @@ class DCABot:
             lines.append("━━━━━━━━━━━━━━━━━━━━━━━")
         lines.append("```")
 
-        if len(lines) == 2:
+        if len(lines) == 3:
             await status.edit_text("พอร์ตคุณยังว่างเปล่า! โยนรูปสลิปแอปเทรดเข้ามาเพื่อเริ่มบันทึกพอร์ตได้เลยครับ")
             return
 
