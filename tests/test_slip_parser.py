@@ -13,7 +13,7 @@ async def test_parse_slip_success(mock_client_cls):
     mock_response.text = (
         '{"symbol": "AAPL", "action": "BUY", "price": 150.0, "volume": 10.5}'
     )
-    mock_client.models.generate_content_async = AsyncMock(return_value=mock_response)
+    mock_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
 
     parser = GeminiSlipParser(api_key="fake")
     result = await parser.parse_slip(b"fake_image_bytes")
@@ -23,7 +23,7 @@ async def test_parse_slip_success(mock_client_cls):
     assert result["action"] == "BUY"
     assert result["price"] == 150.0
     assert result["volume"] == 10.5
-    mock_client.models.generate_content_async.assert_called_once()
+    mock_client.aio.models.generate_content.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -36,7 +36,7 @@ async def test_parse_slip_markdown_wrapped(mock_client_cls):
     mock_response.text = (
         '```json\n{"symbol": "TSLA", "action": "BUY", "price": 210.5, "volume": 4.0}\n```'
     )
-    mock_client.models.generate_content_async = AsyncMock(return_value=mock_response)
+    mock_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
 
     parser = GeminiSlipParser(api_key="fake")
     result = await parser.parse_slip(b"fake_image_bytes")
@@ -56,7 +56,7 @@ async def test_parse_slip_non_slip_empty_json(mock_client_cls):
 
     mock_response = MagicMock()
     mock_response.text = "{}"
-    mock_client.models.generate_content_async = AsyncMock(return_value=mock_response)
+    mock_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
 
     parser = GeminiSlipParser(api_key="fake")
     result = await parser.parse_slip(b"fake_image_bytes")
@@ -72,7 +72,7 @@ async def test_parse_slip_invalid_json(mock_client_cls):
 
     mock_response = MagicMock()
     mock_response.text = "not a valid json response"
-    mock_client.models.generate_content_async = AsyncMock(return_value=mock_response)
+    mock_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
 
     parser = GeminiSlipParser(api_key="fake")
     result = await parser.parse_slip(b"fake_image_bytes")
@@ -85,7 +85,7 @@ async def test_parse_slip_invalid_json(mock_client_cls):
 async def test_parse_slip_api_exception(mock_client_cls):
     mock_client = MagicMock()
     mock_client_cls.return_value = mock_client
-    mock_client.models.generate_content_async = AsyncMock(
+    mock_client.aio.models.generate_content = AsyncMock(
         side_effect=Exception("API Error")
     )
 
