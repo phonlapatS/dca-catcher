@@ -22,8 +22,9 @@ class GeminiSlipParser:
         )
         
         last_error = None
-        # Use the models the user specified in insight_pipeline (smart_models)
-        for model_name in self.config.smart_models:
+        # Use the models the user specified in insight_pipeline (smart_models) + fallback to 1.5
+        models_to_try = self.config.smart_models + ["gemini-2.5-flash", "gemini-1.5-flash"]
+        for model_name in models_to_try:
             try:
                 logger.info(f"Trying Gemini vision extraction with model: {model_name}")
                 response = await self.client.aio.models.generate_content(
