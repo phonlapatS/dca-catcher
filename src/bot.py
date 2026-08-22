@@ -841,7 +841,8 @@ class DCABot:
 
         await message.reply(f"🔍 Scanning {len(symbols)} symbol(s): {', '.join(symbols)}...")
 
-        snapshots = self.fetcher.fetch(symbols)
+        loop = asyncio.get_running_loop()
+        snapshots = await loop.run_in_executor(None, self.fetcher.fetch, symbols)
         if not snapshots:
             await message.reply(f"❌ Failed to fetch market data for: {', '.join(symbols)}")
             return
@@ -1086,7 +1087,8 @@ class DCABot:
             mention = f"@{user.username}" if user.username else f"User_{user.id}"
             symbol_risk_users[key].append(mention)
 
-        snapshots = self.fetcher.fetch(list(unique_symbols))
+        loop = asyncio.get_running_loop()
+        snapshots = await loop.run_in_executor(None, self.fetcher.fetch, list(unique_symbols))
         if not snapshots:
             return
 
@@ -1230,7 +1232,8 @@ class DCABot:
         except Exception:
             pass
 
-        snapshots = self.fetcher.fetch([symbol])
+        loop = asyncio.get_running_loop()
+        snapshots = await loop.run_in_executor(None, self.fetcher.fetch, [symbol])
         if symbol not in snapshots:
             await status_msg.edit_text(f"❌ ไม่พบข้อมูลราคาของ {symbol}")
             return
@@ -1238,10 +1241,11 @@ class DCABot:
         signals = self.transformer.enrich(snapshots)
         signal = signals.get(symbol)
 
-        # Fetch news
+        # Fetch news in executor to prevent blocking the event loop
+        loop = asyncio.get_running_loop()
         from src.scrapers.sentiment import get_recent_news, get_fear_greed_index
-        news_headlines = get_recent_news(symbol)
-        fear_greed = get_fear_greed_index()
+        news_headlines = await loop.run_in_executor(None, get_recent_news, symbol)
+        fear_greed = await loop.run_in_executor(None, get_fear_greed_index)
 
         # Fetch user risk profile
         risk_profile = None
@@ -1259,7 +1263,7 @@ class DCABot:
                     timeline_str = MemoryManager.format_timeline_prompt(recent_memory)
 
         # --- Run the Multi-Agent Pipeline ---
-        import asyncio
+        main_loop = asyncio.get_running_loop()
 
         async def update_progress(stage: str):
             try:
@@ -1270,8 +1274,7 @@ class DCABot:
         def sync_progress(stage: str):
             """Bridge sync callback to async — best effort UI update."""
             try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(update_progress(stage))
+                asyncio.run_coroutine_threadsafe(update_progress(stage), main_loop)
             except Exception:
                 pass
 
@@ -1299,7 +1302,7 @@ class DCABot:
 
         # Save memory snapshot asynchronously for user continuity
         targets = metadata.get("targets", [])
-        price = metadata.get("price", snapshot.current_price)
+        price = metadata.get("price", snapshots[symbol].current_price)
         if user_db_id and price:
             try:
                 async with self.db.session() as session:
