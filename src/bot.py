@@ -18,8 +18,20 @@ from src.sniper import AlpacaSniper
 from src.transform import DataTransformer
 from src.catalyst.hunter import CatalystHunter
 
-
 logger = logging.getLogger(__name__)
+
+async def global_error_handler(event: ErrorEvent):
+    logger.error(f"Critical Global Error: {event.exception}", exc_info=True)
+    if event.update.message:
+        try:
+            await event.update.message.reply(
+                f"⚠️ **ขออภัย เกิดข้อผิดพลาดในระบบหลังบ้าน (System Error)**\n"
+                f"```text\n{type(event.exception).__name__}: {str(event.exception)[:100]}...\n```\n"
+                f"ระบบได้บันทึก Log นี้ไว้แล้ว กรุณาลองใหม่อีกครั้งครับ",
+                parse_mode="Markdown"
+            )
+        except Exception:
+            pass
 
 GRADE_EMOJIS = {
     1: "🔴",
@@ -178,7 +190,7 @@ class DCABot:
         
         self.dp = Dispatcher()
         self._register_handlers()
-
+        self.dp.errors.register(global_error_handler)
     def _register_handlers(self):
         """Register all Telegram command handlers."""
         self.dp.message.register(self.cmd_start, Command("start"))
