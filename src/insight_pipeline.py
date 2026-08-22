@@ -43,14 +43,14 @@ class PipelineConfig:
         default_factory=lambda: [
             "gemini-3.5-flash-lite",
             "gemini-3.1-flash-lite",
-            "gemini-1.5-flash",
+            "gemini-3-flash-preview",
         ]
     )
     smart_models: list[str] = field(
         default_factory=lambda: [
             "gemini-3.5-flash",
             "gemini-3.6-flash",
-            "gemini-1.5-flash",
+            "gemini-3-flash-preview",
         ]
     )
 
