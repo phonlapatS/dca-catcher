@@ -29,6 +29,17 @@ class Watchlist(Base):
     last_notified_zone: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
+class PortfolioTransaction(Base):
+    __tablename__ = "portfolio_transactions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    symbol: Mapped[str] = mapped_column(String, index=True)
+    action: Mapped[str] = mapped_column(String)  # 'BUY' or 'SELL'
+    price: Mapped[float] = mapped_column(Float)
+    shares: Mapped[float] = mapped_column(Float)
+    transaction_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Signal(Base):
     __tablename__ = "signals"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

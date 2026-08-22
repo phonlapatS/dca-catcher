@@ -2,7 +2,7 @@ from datetime import datetime
 import pytest
 from sqlalchemy import inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.database import Base, Database, Signal, User, Watchlist
+from src.database import Base, Database, PortfolioTransaction, Signal, User, Watchlist
 
 
 @pytest.mark.asyncio
@@ -127,5 +127,26 @@ async def test_seen_catalysts_deduplication(db):
         publisher="Reuters"
     )
     assert recorded_again is False
+
+
+@pytest.mark.asyncio
+async def test_portfolio_transaction_model(db):
+    async with db.session() as session:
+        txn = PortfolioTransaction(
+            user_id=1,
+            symbol="NVDA",
+            action="BUY",
+            price=115.50,
+            shares=5.0
+        )
+        session.add(txn)
+        await session.commit()
+        
+        result = await session.execute(select(PortfolioTransaction).where(PortfolioTransaction.symbol == "NVDA"))
+        saved = result.scalar_one_or_none()
+        assert saved is not None
+        assert saved.price == 115.50
+        assert saved.shares == 5.0
+
 
 
