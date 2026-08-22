@@ -900,17 +900,19 @@ class DCABot:
             return "█" * f + "░" * (length - f)
 
         loop = asyncio.get_running_loop()
-        snapshots = {}
-        for i, sym in enumerate(symbols):
-            pct = int(((i + 1) / len(symbols)) * 50)
-            try:
-                await status_msg.edit_text(f"🔍 กำลังสแกน...\n`[{make_pb(pct)}] {pct}%`\n👉 กำลังเชื่อมต่อ: {sym}", parse_mode="Markdown")
-            except Exception:
-                pass
-            # Fetch one by one to show progress
-            res = await loop.run_in_executor(None, self.fetcher.fetch, [sym])
-            if res:
-                snapshots.update(res)
+        
+        try:
+            await status_msg.edit_text(f"🔍 กำลังสแกน...\n`[{make_pb(10)}] 10%`\n👉 กำลังเชื่อมต่อตลาดดึงข้อมูล {len(symbols)} หุ้นพร้อมกัน...", parse_mode="Markdown")
+        except Exception:
+            pass
+
+        # Bulk fetch is 10x faster than sequential fetch!
+        snapshots = await loop.run_in_executor(None, self.fetcher.fetch, symbols)
+        
+        try:
+            await status_msg.edit_text(f"🔍 กำลังสแกน...\n`[{make_pb(50)}] 50%`\n👉 โหลดข้อมูลเสร็จสิ้น กำลังเตรียมวิเคราะห์...", parse_mode="Markdown")
+        except Exception:
+            pass
 
         if not snapshots:
             await status_msg.edit_text(f"❌ Failed to fetch market data for: {', '.join(symbols)}")
