@@ -36,6 +36,10 @@ class Config:
     webhook_port: int = 8080
     webhook_secret: str = "default_secret_123"
 
+    @property
+    def gemini_api_key(self) -> str:
+        return self.gemini_api_keys[0] if self.gemini_api_keys else ""
+
     @classmethod
     def from_env(cls) -> "Config":
         keys_str = os.environ.get("GEMINI_API_KEYS", os.environ.get("GEMINI_API_KEY", ""))

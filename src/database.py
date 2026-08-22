@@ -178,6 +178,19 @@ class Database:
             )
             return result.scalar_one_or_none() is not None
 
+    async def get_user(self, telegram_id: int, username: str | None = None) -> User:
+        """Fetch user by telegram_id or create if not found."""
+        async with self.session() as session:
+            stmt = select(User).where(User.telegram_id == telegram_id)
+            res = await session.execute(stmt)
+            user = res.scalar_one_or_none()
+            if not user:
+                user = User(telegram_id=telegram_id, username=username)
+                session.add(user)
+                await session.commit()
+                await session.refresh(user)
+            return user
+
 
 
 

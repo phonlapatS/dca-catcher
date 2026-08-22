@@ -5,23 +5,26 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ErrorEvent
 from aiogram.utils.token import TokenValidationError, validate_token
 from sqlalchemy import select
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from src.config import Config
-from src.database import Database, Signal, User, Watchlist
+from src.database import Database, Signal, User, Watchlist, PortfolioTransaction
 from src.fetcher import MarketDataFetcher
 from src.grader import SignalGrader
 from src.sniper import AlpacaSniper
 from src.transform import DataTransformer
 from src.catalyst.hunter import CatalystHunter
+from src.slip_parser import GeminiSlipParser
 
 logger = logging.getLogger(__name__)
 
 async def global_error_handler(event: ErrorEvent):
     logger.error(f"Critical Global Error: {event.exception}", exc_info=True)
+    
+    # Notify the user who triggered it (if any)
     if event.update.message:
         try:
             await event.update.message.reply(
@@ -32,6 +35,27 @@ async def global_error_handler(event: ErrorEvent):
             )
         except Exception:
             pass
+            
+    # Notify Admin (Rockget GoGo)
+    try:
+        if event.update.bot:
+            admin_id = 8942457900  # Rockget GoGo's Telegram ID
+            error_msg = (
+                f"🚨 **[ADMIN ALERT] System Crash Detected!** 🚨\n"
+                f"**Error:** `{type(event.exception).__name__}`\n"
+                f"**Details:** `{str(event.exception)}`\n"
+            )
+            if event.update.message:
+                error_msg += f"**Triggered by User:** {event.update.message.from_user.id}\n"
+                error_msg += f"**Message:** {event.update.message.text}\n"
+            
+            await event.update.bot.send_message(
+                chat_id=admin_id,
+                text=error_msg,
+                parse_mode="Markdown"
+            )
+    except Exception as e:
+        logger.error(f"Failed to send alert to admin: {e}")
 
 GRADE_EMOJIS = {
     1: "🔴",
@@ -232,6 +256,11 @@ class DCABot:
         self.dp.callback_query.register(self.cat_watch_btn, F.data.startswith("cat_watch_"))
         self.dp.callback_query.register(self.cat_sniper_btn, F.data.startswith("cat_sniper_"))
         self.dp.callback_query.register(self.cat_scan_btn, F.data.startswith("cat_scan_"))
+
+        # Photo slip upload and fast confirmation
+        self.dp.message.register(self.handle_photo_slip, F.photo)
+        self.dp.callback_query.register(self.handle_slip_confirm, F.data.startswith("slip_confirm_"))
+        self.dp.callback_query.register(self.handle_slip_cancel, F.data == "slip_cancel")
 
 
     async def _add_to_watchlist(
@@ -1394,6 +1423,66 @@ class DCABot:
                     await message.answer_photo(photo=photo, caption=f"📊 **{symbol} Target Zones Deep Dive Chart**", parse_mode="Markdown")
             except Exception as err:
                 logger.error(f"Error sending insight chart for {symbol}: {err}")
+
+    async def handle_photo_slip(self, message: types.Message):
+        status = await message.reply("📸 กำลังให้ AI สแกนสลิป...")
+        # Download photo bytes
+        file = await self.bot.get_file(message.photo[-1].file_id)
+        img_bytes = await self.bot.download_file(file.file_path)
+
+        api_key = getattr(self.config, "gemini_api_key", None) or (self.config.gemini_api_keys[0] if self.config.gemini_api_keys else "")
+        parser = GeminiSlipParser(api_key=api_key)
+        if hasattr(img_bytes, "read"):
+            raw_bytes = img_bytes.read()
+            if not raw_bytes and hasattr(img_bytes, "getvalue"):
+                raw_bytes = img_bytes.getvalue()
+        elif isinstance(img_bytes, bytes):
+            raw_bytes = img_bytes
+        else:
+            raw_bytes = bytes(img_bytes)
+
+        data = await parser.parse_slip(raw_bytes)
+
+        if not data:
+            await status.edit_text("❌ ไม่พบข้อมูลการซื้อขายหุ้น US ในรูปนี้ครับ")
+            return
+
+        text = (
+            f"🎯 สแกนสลิปสำเร็จ!\n"
+            f"คุณทำรายการ **{data['action']} {data['symbol']}** "
+            f"จำนวน **{data['volume']} หุ้น** ที่ราคา **${data['price']}**\n\n"
+            f"ถูกต้องไหมครับ?"
+        )
+
+        # Save temp data in state or callback string
+        cb_data = f"slip_confirm_{data['symbol']}_{data['action']}_{data['price']}_{data['volume']}"
+        markup = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="✅ ยืนยันบันทึก", callback_data=cb_data),
+                    InlineKeyboardButton(text="❌ ยกเลิก", callback_data="slip_cancel"),
+                ]
+            ]
+        )
+        await status.edit_text(text, reply_markup=markup)
+
+    async def handle_slip_confirm(self, cq: types.CallbackQuery):
+        _, _, sym, act, prc, vol = cq.data.split("_")
+        user = await self.db.get_user(cq.from_user.id, username=cq.from_user.username)
+        async with self.db.session() as session:
+            txn = PortfolioTransaction(
+                user_id=user.id,
+                symbol=sym,
+                action=act,
+                price=float(prc),
+                shares=float(vol),
+            )
+            session.add(txn)
+            await session.commit()
+        await cq.message.edit_text(f"✅ บันทึก {act} {sym} จำนวน {vol} หุ้น เข้าพอร์ตเรียบร้อยแล้ว!")
+
+    async def handle_slip_cancel(self, cq: types.CallbackQuery):
+        await cq.message.edit_text("❌ ยกเลิกการบันทึกสลิปครับ")
 
 
 async def main():
