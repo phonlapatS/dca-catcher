@@ -35,7 +35,7 @@ class CatalystHunter:
         self.evaluator = CatalystEvaluator(api_key=gemini_api_key)
         self.digest_queue: List[tuple[CatalystArticle, CatalystVerdict]] = []
 
-    async def run_scan_cycle(self, symbols: Optional[List[str]] = None) -> int:
+    async def run_scan_cycle(self, symbols: Optional[List[str]] = None, on_progress=None) -> int:
         """Runs a complete scan cycle across specified symbols or master watchlist."""
         if symbols is None:
             symbols = await self.db.get_unique_watchlist_symbols(market="US")
@@ -43,8 +43,13 @@ class CatalystHunter:
                 symbols = ["NVDA", "MRNA", "TSLA", "AAPL", "AMD", "PLTR", "CRWD"]
 
         processed_count = 0
+        total_symbols = len(symbols)
 
-        for symbol in symbols:
+        for idx, symbol in enumerate(symbols):
+            if on_progress:
+                percent = int((idx / total_symbols) * 100)
+                await on_progress(f"กำลังเช็คข่าว {symbol}...", percent)
+
             for provider in self.providers:
                 try:
                     articles = await provider.fetch_articles_for_symbol(symbol)
@@ -67,6 +72,9 @@ class CatalystHunter:
                             publisher=article.publisher,
                         )
                         continue
+
+                    if on_progress:
+                        await on_progress(f"เจอข่าวหนาแน่นของ {symbol} ส่งให้ AI ประเมิน...", percent)
 
                     # 3. Dual-Perspective AI Evaluation (Gemini)
                     verdict = await self.evaluator.evaluate_catalyst(article)

@@ -557,34 +557,37 @@ class InsightPipeline:
             fear_greed: CNN Fear & Greed rating string
             risk_profile: User's risk profile string
             timeline_history: Structured chronological history from 2+1 memory window
-            on_progress: Optional callback(stage_name: str) for UI updates
+            on_progress: Optional callback(stage_name: str, percent: int) for UI updates
 
         Returns:
             Tuple of (final_report_markdown, pipeline_metadata_dict)
         """
-        def progress(msg: str):
+        def progress(msg: str, percent: int):
             if on_progress:
-                on_progress(msg)
+                try:
+                    on_progress(msg, percent)
+                except TypeError:
+                    on_progress(msg)
 
         metadata: dict[str, Any] = {"retries": 0, "quality_score": 0}
 
         # --- Phase 1: Data Collection ---
-        progress("📊 กำลังรวบรวมข้อมูลตลาด...")
+        progress("📊 กำลังรวบรวมข้อมูลตลาด...", 10)
         context = self._collect_data(signal, news_headlines, fear_greed, risk_profile, timeline_history)
 
         # --- Phase 2: Specialist Analysis (3 agents) ---
-        progress("🔵 Agent 1: กำลังวิเคราะห์ข้อมูลพื้นฐาน...")
+        progress("🔵 Agent 1: กำลังวิเคราะห์ข้อมูลพื้นฐาน...", 25)
         result_1 = self.fundamental_agent._safe_run(context)
         context["agent_1_fundamental"] = result_1.data if result_1.success else {}
         metadata["agent_1"] = {"success": result_1.success, "error": result_1.error}
 
-        progress("🟢 Agent 2: กำลังกรองและวิเคราะห์ข่าว...")
+        progress("🟢 Agent 2: กำลังกรองและวิเคราะห์ข่าว...", 45)
         result_2 = self.news_agent._safe_run(context)
         context["agent_2_news"] = result_2.data if result_2.success else {}
         metadata["agent_2"] = {"success": result_2.success, "error": result_2.error}
 
         # Agent 3 reads Agent 1+2 results (inter-agent communication)
-        progress("🟠 Agent 3: กำลังประเมินความเสี่ยงและตั้งเป้าหมาย...")
+        progress("🟠 Agent 3: กำลังประเมินความเสี่ยงและตั้งเป้าหมาย...", 65)
         result_3 = self.risk_agent._safe_run(context)
         context["agent_3_targets"] = result_3.data if result_3.success else {}
         metadata["agent_3"] = {"success": result_3.success, "error": result_3.error}
@@ -596,7 +599,7 @@ class InsightPipeline:
         metadata["symbol"] = context.get("symbol")
 
         # --- Phase 3: Composition ---
-        progress("📝 กำลังเรียบเรียงบทวิเคราะห์...")
+        progress("📝 กำลังเรียบเรียงบทวิเคราะห์...", 80)
         compose_result = self.composer._safe_run(context)
         if not compose_result.success:
             return self._fallback_report(context, metadata), metadata
@@ -607,7 +610,7 @@ class InsightPipeline:
         # --- Phase 4: Quality Gate (with retry loop) ---
         final_report = draft
         for attempt in range(1 + self.config.max_retries):
-            progress(f"🔬 Quality Gate: กำลังตรวจสอบรอบที่ {attempt + 1}...")
+            progress(f"🔬 Quality Gate: กำลังตรวจสอบรอบที่ {attempt + 1}...", 85 + (attempt * 5))
             qg_result = self.quality_gate._safe_run(context)
 
             if not qg_result.success:
@@ -628,7 +631,7 @@ class InsightPipeline:
 
             if attempt < self.config.max_retries and remarks:
                 # Revise only the problematic sections
-                progress(f"🔄 แก้ไขจุดที่ต้องปรับปรุง ({len(remarks)} จุด)...")
+                progress(f"🔄 แก้ไขจุดที่ต้องปรับปรุง ({len(remarks)} จุด)...", 90 + (attempt * 4))
                 metadata["retries"] = attempt + 1
                 revise_result = self.composer.revise(context, remarks)
                 if revise_result.success:

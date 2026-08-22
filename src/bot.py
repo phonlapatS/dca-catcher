@@ -1196,12 +1196,25 @@ class DCABot:
 
     async def cmd_test_catalyst(self, message: types.Message):
         """[Admin] Force a catalyst scan immediately."""
-        await message.reply("🔄 บังคับรัน Catalyst Hunter (Zero-Token + AI Evaluation)... กรุณารอสักครู่")
+        status_msg = await message.reply("🔄 บังคับรัน Catalyst Hunter (Zero-Token + AI Evaluation)... กรุณารอสักครู่")
+        
+        def make_progress_bar(percent: int, length: int = 12) -> str:
+            filled = int((percent / 100.0) * length)
+            empty = length - filled
+            return "█" * filled + "░" * empty
+
+        async def update_progress(stage: str, percent: int = 0):
+            try:
+                bar = make_progress_bar(percent)
+                await status_msg.edit_text(f"⏳ **Catalyst Hunter**\n`[{bar}] {percent}%`\n\n👉 {stage}", parse_mode="Markdown")
+            except Exception:
+                pass
+
         try:
-            count = await self.catalyst_hunter.run_scan_cycle(["NVDA", "TSLA", "AAPL"])
-            await message.reply(f"✅ ประมวลผลและคัดกรองข่าวสารเสร็จสิ้น! พบข่าวด่วน (Tier S/A) จำนวน {count} รายการ")
+            count = await self.catalyst_hunter.run_scan_cycle(["NVDA", "TSLA", "AAPL"], on_progress=update_progress)
+            await status_msg.edit_text(f"✅ ประมวลผลและคัดกรองข่าวสารเสร็จสิ้น! พบข่าวด่วน (Tier S/A) จำนวน {count} รายการ")
         except Exception as e:
-            await message.reply(f"❌ เกิดข้อผิดพลาด: {e}")
+            await status_msg.edit_text(f"❌ เกิดข้อผิดพลาด: {e}")
 
     async def cmd_insight(self, message: types.Message):
 
@@ -1275,16 +1288,22 @@ class DCABot:
         # --- Run the Multi-Agent Pipeline ---
         main_loop = asyncio.get_running_loop()
 
-        async def update_progress(stage: str):
+        def make_progress_bar(percent: int, length: int = 12) -> str:
+            filled = int((percent / 100.0) * length)
+            empty = length - filled
+            return "█" * filled + "░" * empty
+
+        async def update_progress(stage: str, percent: int = 0):
             try:
-                await status_msg.edit_text(f"🤖 {symbol} — {stage}")
+                bar = make_progress_bar(percent)
+                await status_msg.edit_text(f"⏳ **Deep Dive Analysis:** {symbol}\n`[{bar}] {percent}%`\n\n👉 {stage}", parse_mode="Markdown")
             except Exception:
                 pass  # Telegram rate limit on edits
 
-        def sync_progress(stage: str):
+        def sync_progress(stage: str, percent: int = 0):
             """Bridge sync callback to async — best effort UI update."""
             try:
-                asyncio.run_coroutine_threadsafe(update_progress(stage), main_loop)
+                asyncio.run_coroutine_threadsafe(update_progress(stage, percent), main_loop)
             except Exception:
                 pass
 
