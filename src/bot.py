@@ -190,7 +190,7 @@ class DCABot:
         self.dp.message.register(self.cmd_survey, Command("survey"))
         self.dp.message.register(self.cmd_advice, Command("advice"))
         self.dp.message.register(self.cmd_help, Command("help"))
-        self.dp.message.register(self.cmd_test_catalyst, Command("test-catalyst"))
+        self.dp.message.register(self.cmd_news, Command("news", "hotnews"))
         
         # FSM handlers for /survey
         self.dp.callback_query.register(self.survey_style, RiskSurvey.waiting_for_style)
@@ -327,6 +327,8 @@ class DCABot:
             "🔹 `/scan` - 🔍 สั่ง AI ให้วิเคราะห์พอร์ตหุ้น **ทุกตัว** ใน Watchlist ทันที\n"
             "🔹 `/scan <ชื่อหุ้น>` - 🔍 สั่ง AI ให้วิเคราะห์หุ้น **เฉพาะตัวที่ระบุ**\n"
             "   *(ตัวอย่าง: /scan TSLA)*\n"
+            "🔹 `/scan-details <ชื่อหุ้น>` - 🧬 บทวิเคราะห์เจาะลึกปัจจัยพื้นฐานและข่าว\n"
+            "🔹 `/news` หรือ `/hotnews` - 🛰️ เปิดเรดาร์จับข่าวด่วนของหุ้นในพอร์ตทั้งหมด\n"
             "🔹 `/remove <ชื่อหุ้น>` - 🗑️ ลบหุ้นออกจาก Watchlist\n"
             "🔹 `/help` - ❓ แสดงรายการคำสั่งทั้งหมด\n"
             "🔹 `/start` - 🚀 เริ่มต้นใช้งานบอท"
@@ -1194,9 +1196,9 @@ class DCABot:
             await self.cmd_scan(msg)
 
 
-    async def cmd_test_catalyst(self, message: types.Message):
-        """[Admin] Force a catalyst scan immediately."""
-        status_msg = await message.reply("🔄 บังคับรัน Catalyst Hunter (Zero-Token + AI Evaluation)... กรุณารอสักครู่")
+    async def cmd_news(self, message: types.Message):
+        """Force a catalyst scan immediately."""
+        status_msg = await message.reply("🔄 เปิดเรดาร์เช็คข่าวด่วนล่าสุด (Real-time Catalyst)... กรุณารอสักครู่")
         
         def make_progress_bar(percent: int, length: int = 12) -> str:
             filled = int((percent / 100.0) * length)
