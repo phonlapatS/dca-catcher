@@ -175,6 +175,14 @@ class DCABot:
         self.config = config
         self.db = Database(config.database_url)
         self.fetcher = MarketDataFetcher()
+        if not hasattr(self.fetcher, "fetch_current_price"):
+            async def _fetch_current_price(symbol: str) -> float:
+                loop = asyncio.get_running_loop()
+                snapshots = await loop.run_in_executor(None, self.fetcher.fetch, [symbol])
+                if symbol in snapshots:
+                    return snapshots[symbol].current_price
+                return 0.0
+            self.fetcher.fetch_current_price = _fetch_current_price
         self.transformer = DataTransformer()
         self.grader = SignalGrader(config.gemini_api_keys)
         
@@ -226,6 +234,7 @@ class DCABot:
         self.dp.message.register(self.cmd_survey, Command("survey"))
         self.dp.message.register(self.cmd_advice, Command("advice"))
         self.dp.message.register(self.cmd_help, Command("help"))
+        self.dp.message.register(self.cmd_portfolio, Command("portfolio"))
         self.dp.message.register(self.cmd_news, Command("news", "hotnews"))
         
         # FSM handlers for /survey
@@ -365,6 +374,7 @@ class DCABot:
             "🔹 `/add <ชื่อหุ้น> [ตลาด]` - ➕ เพิ่มหุ้นเข้า Watchlist เพื่อให้ AI ช่วยเตือนทุกวัน\n"
             "   *(ตัวอย่าง: /add NVDA US หรือ /add PTT.BK TH)*\n"
             "🔹 `/list` - 📋 ดูรายชื่อหุ้นทั้งหมดที่คุณติดตามอยู่ (Watchlist)\n"
+            "🔹 `/portfolio` - 💼 สรุปพอร์ตหุ้น DCA และคำนวณกำไร/ขาดทุน (PnL)\n"
             "🔹 `/scan` - 🔍 สั่ง AI ให้วิเคราะห์พอร์ตหุ้น **ทุกตัว** ใน Watchlist ทันที\n"
             "🔹 `/scan <ชื่อหุ้น>` - 🔍 สั่ง AI ให้วิเคราะห์หุ้น **เฉพาะตัวที่ระบุ**\n"
             "   *(ตัวอย่าง: /scan TSLA)*\n"
@@ -1483,6 +1493,50 @@ class DCABot:
 
     async def handle_slip_cancel(self, cq: types.CallbackQuery):
         await cq.message.edit_text("❌ ยกเลิกการบันทึกสลิปครับ")
+
+    async def cmd_portfolio(self, message: types.Message):
+        user = await self.db.get_user(message.from_user.id)
+        status = await message.reply("⏳ กำลังคำนวณต้นทุนพอร์ตและดึงราคาตลาดสด...")
+
+        async with self.db.session() as session:
+            res = await session.execute(select(PortfolioTransaction).where(PortfolioTransaction.user_id == user.id))
+            txns = res.scalars().all()
+
+        if not txns:
+            await status.edit_text("พอร์ตคุณยังว่างเปล่า! โยนรูปสลิปแอปเทรดเข้ามาเพื่อเริ่มบันทึกพอร์ตได้เลยครับ")
+            return
+
+        # Group logic
+        portfolio = {}
+        for t in txns:
+            if t.symbol not in portfolio:
+                portfolio[t.symbol] = {"shares": 0, "total_cost": 0}
+            if t.action == "BUY":
+                portfolio[t.symbol]["shares"] += t.shares
+                portfolio[t.symbol]["total_cost"] += t.price * t.shares
+            elif t.action == "SELL":
+                portfolio[t.symbol]["shares"] -= t.shares
+                # Simplified sell logic for average cost preservation
+
+        # Fetch prices and format
+        lines = ["💼 **สรุปพอร์ต DCA ของคุณ**\n"]
+        for sym, data in portfolio.items():
+            if data["shares"] <= 0:
+                continue
+            avg_cost = data["total_cost"] / data["shares"]
+            # fetcher logic
+            live_price = await self.fetcher.fetch_current_price(sym)
+            pnl_pct = ((live_price - avg_cost) / avg_cost) * 100
+            emoji = "🟢" if pnl_pct >= 0 else "🔴"
+            lines.append(f"• **{sym}** ({data['shares']} หุ้น)")
+            lines.append(f"  ต้นทุน: ${avg_cost:.2f} | ปัจจุบัน: ${live_price:.2f} {emoji} {pnl_pct:+.2f}%\n")
+
+        if len(lines) == 1:
+            await status.edit_text("พอร์ตคุณยังว่างเปล่า! โยนรูปสลิปแอปเทรดเข้ามาเพื่อเริ่มบันทึกพอร์ตได้เลยครับ")
+            return
+
+        await status.edit_text("\n".join(lines))
+
 
 
 async def main():

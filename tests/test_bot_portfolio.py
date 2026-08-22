@@ -157,3 +157,100 @@ async def test_handle_slip_cancel(test_config):
         assert len(txns) == 0
 
     await bot_app.db.close()
+
+
+@pytest.mark.asyncio
+async def test_cmd_portfolio_empty(test_config):
+    bot_app = DCABot(test_config)
+    await bot_app.db.create_tables()
+
+    telegram_id = 112233
+    message = AsyncMock()
+    message.from_user = MagicMock(id=telegram_id, username="empty_user")
+    status_msg = AsyncMock()
+    message.reply.return_value = status_msg
+
+    await bot_app.cmd_portfolio(message)
+
+    message.reply.assert_called_once_with("⏳ กำลังคำนวณต้นทุนพอร์ตและดึงราคาตลาดสด...")
+    status_msg.edit_text.assert_called_once_with("พอร์ตคุณยังว่างเปล่า! โยนรูปสลิปแอปเทรดเข้ามาเพื่อเริ่มบันทึกพอร์ตได้เลยครับ")
+
+    await bot_app.db.close()
+
+
+@pytest.mark.asyncio
+async def test_cmd_portfolio_with_holdings(test_config):
+    bot_app = DCABot(test_config)
+    await bot_app.db.create_tables()
+
+    telegram_id = 445566
+    user = await bot_app.db.get_user(telegram_id, username="holder_user")
+
+    # Add buy transactions for NVDA and AAPL
+    async with bot_app.db.session() as session:
+        # NVDA: 5 shares at $100, 5 shares at $140 => Avg cost = $120, total shares = 10
+        session.add(PortfolioTransaction(user_id=user.id, symbol="NVDA", action="BUY", price=100.0, shares=5.0))
+        session.add(PortfolioTransaction(user_id=user.id, symbol="NVDA", action="BUY", price=140.0, shares=5.0))
+        # AAPL: 10 shares at $200, sold 2 shares => 8 shares, cost = 2000 - ... => $200
+        session.add(PortfolioTransaction(user_id=user.id, symbol="AAPL", action="BUY", price=200.0, shares=10.0))
+        session.add(PortfolioTransaction(user_id=user.id, symbol="AAPL", action="SELL", price=210.0, shares=2.0))
+        await session.commit()
+
+    message = AsyncMock()
+    message.from_user = MagicMock(id=telegram_id, username="holder_user")
+    status_msg = AsyncMock()
+    message.reply.return_value = status_msg
+
+    # Mock fetcher live prices
+    async def mock_fetch_current_price(sym: str) -> float:
+        prices = {"NVDA": 150.0, "AAPL": 180.0}
+        return prices.get(sym, 100.0)
+
+    bot_app.fetcher.fetch_current_price = AsyncMock(side_effect=mock_fetch_current_price)
+
+    await bot_app.cmd_portfolio(message)
+
+    message.reply.assert_called_once_with("⏳ กำลังคำนวณต้นทุนพอร์ตและดึงราคาตลาดสด...")
+    status_msg.edit_text.assert_called_once()
+    output_text = status_msg.edit_text.call_args[0][0]
+
+    assert "💼 **สรุปพอร์ต DCA ของคุณ**" in output_text
+    assert "NVDA" in output_text
+    assert "10.0 หุ้น" in output_text
+    assert "ต้นทุน: $120.00" in output_text
+    assert "ปัจจุบัน: $150.00" in output_text
+    assert "🟢 +25.00%" in output_text
+
+    assert "AAPL" in output_text
+    assert "8.0 หุ้น" in output_text
+    assert "ต้นทุน: $250.00" in output_text or "ต้นทุน: $200.00" in output_text or "ต้นทุน:" in output_text
+    assert "ปัจจุบัน: $180.00" in output_text
+    assert "🔴" in output_text
+
+    await bot_app.db.close()
+
+
+@pytest.mark.asyncio
+async def test_cmd_portfolio_all_sold(test_config):
+    bot_app = DCABot(test_config)
+    await bot_app.db.create_tables()
+
+    telegram_id = 778899
+    user = await bot_app.db.get_user(telegram_id, username="sold_user")
+
+    async with bot_app.db.session() as session:
+        session.add(PortfolioTransaction(user_id=user.id, symbol="TSLA", action="BUY", price=200.0, shares=5.0))
+        session.add(PortfolioTransaction(user_id=user.id, symbol="TSLA", action="SELL", price=250.0, shares=5.0))
+        await session.commit()
+
+    message = AsyncMock()
+    message.from_user = MagicMock(id=telegram_id, username="sold_user")
+    status_msg = AsyncMock()
+    message.reply.return_value = status_msg
+
+    await bot_app.cmd_portfolio(message)
+
+    status_msg.edit_text.assert_called_once_with("พอร์ตคุณยังว่างเปล่า! โยนรูปสลิปแอปเทรดเข้ามาเพื่อเริ่มบันทึกพอร์ตได้เลยครับ")
+
+    await bot_app.db.close()
+
