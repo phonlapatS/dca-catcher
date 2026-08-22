@@ -893,17 +893,42 @@ class DCABot:
             )
             return
 
-        await message.reply(f"🔍 Scanning {len(symbols)} symbol(s): {', '.join(symbols)}...")
+        status_msg = await message.reply(f"🔍 เริ่มสแกน {len(symbols)} หุ้น: {', '.join(symbols)}\n`[░░░░░░░░░░░░] 0%`\n👉 กำลังดึงข้อมูลตลาด...")
+        
+        def make_pb(pct: int, length: int = 12):
+            f = int((pct / 100.0) * length)
+            return "█" * f + "░" * (length - f)
 
         loop = asyncio.get_running_loop()
-        snapshots = await loop.run_in_executor(None, self.fetcher.fetch, symbols)
+        snapshots = {}
+        for i, sym in enumerate(symbols):
+            pct = int(((i + 1) / len(symbols)) * 50)
+            try:
+                await status_msg.edit_text(f"🔍 กำลังสแกน...\n`[{make_pb(pct)}] {pct}%`\n👉 กำลังเชื่อมต่อ: {sym}", parse_mode="Markdown")
+            except Exception:
+                pass
+            # Fetch one by one to show progress
+            res = await loop.run_in_executor(None, self.fetcher.fetch, [sym])
+            if res:
+                snapshots.update(res)
+
         if not snapshots:
-            await message.reply(f"❌ Failed to fetch market data for: {', '.join(symbols)}")
+            await status_msg.edit_text(f"❌ Failed to fetch market data for: {', '.join(symbols)}")
             return
+            
+        try:
+            await status_msg.edit_text(f"🔍 กำลังสแกน...\n`[{make_pb(70)}] 70%`\n👉 กำลังประมวลผล Technical Indicators...", parse_mode="Markdown")
+        except Exception:
+            pass
 
         enriched_signals = self.transformer.enrich(snapshots)
         
         # Fetch user's risk profile
+        try:
+            await status_msg.edit_text(f"🔍 กำลังสแกน...\n`[{make_pb(90)}] 90%`\n👉 กำลังประเมินร่วมกับ Risk Profile...", parse_mode="Markdown")
+        except Exception:
+            pass
+            
         risk_profile = None
         async with self.db.session() as session:
             stmt = select(User).where(User.telegram_id == message.from_user.id)
@@ -1004,9 +1029,13 @@ class DCABot:
                             photo = BufferedInputFile(chart_bytes, filename=f"{grade_result.symbol}_chart.png")
                             await message.answer_photo(photo=photo, caption=f"📊 **{grade_result.symbol} Target Zones Chart**", parse_mode="Markdown")
                     except Exception as err:
-                        logger.error(f"Error generating/sending chart for {grade_result.symbol}: {err}")
-
+                        logger.error(f"Failed to generate target chart for {grade_result.symbol}: {err}")
             await session.commit()
+            
+        try:
+            await status_msg.delete()
+        except Exception:
+            pass
 
     async def tgt_toggle(self, callback: types.CallbackQuery):
         """Toggle [ ] and [✅] selection on target buttons."""
@@ -1458,11 +1487,19 @@ class DCABot:
             return
 
         text = (
-            f"🎯 สแกนสลิปสำเร็จ!\n"
-            f"คุณทำรายการ **{data['action']} {data['symbol']}** "
-            f"จำนวน **{data['volume']} หุ้น** ที่ราคา **${data['price']}**\n\n"
-            f"ถูกต้องไหมครับ?"
+            f"🎯 **สแกนสลิปสำเร็จ!**\n"
+            f"กรุณาตรวจสอบความถูกต้องก่อนบันทึก:\n\n"
+            f"🛒 **รายการ:** `{data['action']}`\n"
+            f"📌 **หุ้น:** `{data['symbol']}`\n"
+            f"📦 **จำนวน:** `{data['volume']}` หุ้น\n"
+            f"💰 **ราคา:** `${data['price']}`\n"
         )
+        try:
+            total = float(data['price']) * float(data['volume'])
+            text += f"💸 **รวมเป็นเงิน:** `${total:,.2f}`\n\n"
+        except Exception:
+            text += "\n"
+        text += "ถูกต้องไหมครับ? กดปุ่มด้านล่างเพื่อยืนยัน ⬇️"
 
         # Save temp data in state or callback string
         cb_data = f"slip_confirm_{data['symbol']}_{data['action']}_{data['price']}_{data['volume']}"
@@ -1474,7 +1511,7 @@ class DCABot:
                 ]
             ]
         )
-        await status.edit_text(text, reply_markup=markup)
+        await status.edit_text(text, reply_markup=markup, parse_mode="Markdown")
 
     async def handle_slip_confirm(self, cq: types.CallbackQuery):
         _, _, sym, act, prc, vol = cq.data.split("_")
@@ -1519,7 +1556,7 @@ class DCABot:
                 # Simplified sell logic for average cost preservation
 
         # Fetch prices and format
-        lines = ["💼 **สรุปพอร์ต DCA ของคุณ**\n"]
+        lines = ["💼 **สรุปพอร์ต DCA ของคุณ**\n```text", "━━━━━━━━━━━━━━━━━━━━━━━"]
         for sym, data in portfolio.items():
             if data["shares"] <= 0:
                 continue
@@ -1528,8 +1565,13 @@ class DCABot:
             live_price = await self.fetcher.fetch_current_price(sym)
             pnl_pct = ((live_price - avg_cost) / avg_cost) * 100
             emoji = "🟢" if pnl_pct >= 0 else "🔴"
-            lines.append(f"• **{sym}** ({data['shares']} หุ้น)")
-            lines.append(f"  ต้นทุน: ${avg_cost:.2f} | ปัจจุบัน: ${live_price:.2f} {emoji} {pnl_pct:+.2f}%\n")
+            sign = "+" if pnl_pct >= 0 else ""
+            lines.append(f"📌 {sym} | {data['shares']:,.2f} หุ้น")
+            lines.append(f"   ต้นทุน:  ${avg_cost:,.2f}")
+            lines.append(f"   ปัจจุบัน: ${live_price:,.2f}")
+            lines.append(f"   P/L:    {emoji} {sign}{pnl_pct:.2f}%")
+            lines.append("━━━━━━━━━━━━━━━━━━━━━━━")
+        lines.append("```")
 
         if len(lines) == 1:
             await status.edit_text("พอร์ตคุณยังว่างเปล่า! โยนรูปสลิปแอปเทรดเข้ามาเพื่อเริ่มบันทึกพอร์ตได้เลยครับ")
