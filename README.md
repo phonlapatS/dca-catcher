@@ -95,7 +95,7 @@ dca-catcher/
 │   ├── config.py             # จัดการ Environment Variables และการตั้งค่าระบบ
 │   ├── models.py             # Domain Models กลาง (TargetZone Single Source of Truth)
 │   ├── memory.py             # Adaptive AI Memory (2+1 Window & Multi-tenant Snapshots)
-│   ├── database.py           # จัดการฐานข้อมูล SQLite ผ่าน Async SQLAlchemy
+│   ├── database.py           # จัดการฐานข้อมูล (รองรับ PostgreSQL และ SQLite) ผ่าน Async SQLAlchemy
 │   ├── fetcher.py            # ดึงข้อมูลตลาดและงบการเงินผ่าน yfinance
 │   ├── transform.py          # คำนวณ Technical Indicators และ Volume Anomaly
 │   ├── grader.py             # ประเมินคะแนนความน่าลงทุนและคำนวณเป้าหมายเบื้องต้น
@@ -157,13 +157,15 @@ docker-compose up -d --build
 
 ---
 
-## ☁️ การทดลองใช้งานระบบคลาวด์ 24/7 (Cloud Hosting Exploration)
+## ☁️ สถาปัตยกรรมคลาวด์ระดับ Production (Stateless Architecture)
 
-ณ ปัจจุบัน โปรเจกต์กำลังอยู่ในช่วงการทดสอบและเปรียบเทียบการ Deploy บอทบนคลาวด์ 2 แพลตฟอร์มหลัก เพื่อประเมินความเสถียรของเครือข่าย ความคุ้มค่า และความเหมาะสมในการรันงานเฝ้าตลาดหุ้นแบบเรียลไทม์ (24/7 Always-On Worker):
+ปัจจุบันระบบ DCA Catcher ได้ถูกยกระดับขึ้นเป็น **Stateless Architecture** เพื่อความเสถียรและปลอดภัยของข้อมูล 100% สำหรับการรันแบบ 24/7 เรียบร้อยแล้วครับ:
 
-1. **Oracle Cloud Infrastructure (Always Free Tier):**
-   * **จุดเด่น:** สเปกเครื่องสูง (ARM 4 Cores + 24 GB RAM) เหมาะสำหรับรันทั้ง Bot และ Local Database ในเครื่องเดียว
-   * **สถานะการทดสอบ:** ศึกษาการตั้งค่า VCN, Security Lists, และวิเคราะห์ข้อจำกัด Host Capacity ในภูมิภาคต่างๆ
-2. **Fly.io (Region Singapore):**
-   * **จุดเด่น:** ใช้งานง่ายผ่าน `Dockerfile` และ `fly.toml` Latency ต่ำใกล้ประเทศไทย และรองรับระบบ Always-On Worker
-   * **สถานะการทดสอบ:** ทำการ Deploy บอทจริงในโหมด Background Worker และทดสอบการเชื่อมต่อ WebSocket ต่อเนื่อง 24 ชม.
+1. **Compute Layer (Fly.io - Singapore Region):**
+   * **บทบาท:** ทำหน้าที่รันโค้ด Python, จัดการ Telegram Bot, คิวตารางเวลา (Scheduler), และเชื่อมต่อ WebSocket แบบ Always-On
+   * **จุดเด่น:** Latency ต่ำ ใช้งานง่ายผ่าน `Dockerfile` และตั้งค่าการจัดการคอนเทนเนอร์แบบรันเบื้องหลัง (Background Worker)
+2. **Database Layer (Supabase - PostgreSQL):**
+   * **บทบาท:** เป็นศูนย์กลางจัดเก็บข้อมูลทั้งหมด (Users, Watchlists, Memory Snapshots, Signals)
+   * **จุดเด่น:** แก้ปัญหาข้อมูลหายเมื่อเซิร์ฟเวอร์ (Fly.io) รีสตาร์ท รองรับ Connection Pooling (`asyncpg`) อัจฉริยะ ทำให้ระบบสามารถรันหลายสิบ Thread พร้อมกันได้โดยไม่เจอข้อจำกัด `Database is locked` แบบเดิม
+
+*(หมายเหตุ: โค้ดยังคงรองรับ SQLite สำหรับการรันทดสอบบนเครื่อง Local ผ่าน `aiosqlite` เช่นเดิม เพียงแค่เปลี่ยน `DATABASE_URL` ในไฟล์ `.env`)*
