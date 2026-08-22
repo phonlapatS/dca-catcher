@@ -88,7 +88,19 @@ class Database:
     """Manages async SQLAlchemy engine and session lifecycle."""
 
     def __init__(self, url: str):
-        self._engine = create_async_engine(url, echo=False)
+        # Determine if it's postgres or sqlite to apply pool settings
+        if "postgresql" in url:
+            self._engine = create_async_engine(
+                url, 
+                echo=False, 
+                pool_pre_ping=True, 
+                pool_recycle=1800,
+                # Disable prepared statements cache if using PgBouncer
+                connect_args={"server_settings": {"jit": "off"}}
+            )
+        else:
+            self._engine = create_async_engine(url, echo=False)
+            
         self._session_factory = async_sessionmaker(
             self._engine, class_=AsyncSession, expire_on_commit=False
         )
