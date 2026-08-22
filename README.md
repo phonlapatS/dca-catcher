@@ -49,6 +49,8 @@
 *   **Dynamic Reflection:** จำแนกสถานะสมมติฐานอัตโนมัติ (`CONTINUING`, `INVALIDATED`, `NEW_CATALYST`, `RESOLVED`)
 *   **ML Uncertainty Calibration:** คำนวณคะแนนความมั่นใจ (0–100%) ตามมาตรฐานสากล Machine Learning
 
+---
+
 ### 5. ระบบดักจับข่าวและวิเคราะห์ห่วงโซ่อุปทาน (Real-Time Catalyst & Supply Chain Hunter)
 *   **Pre-Market Adaptive Hunter:** ดักจับเหตุการณ์สำคัญของบริษัท (Corporate Catalysts) ในช่วงเวลา Pre-Market (17:00–20:30 น. เวลาไทย) ด้วยระบบ Zero-Token Deduplication & Fact Density Filter กรองข่าวซ้ำและข่าวคลิกเบตทิ้งได้กว่า 95% ก่อนส่งประมวลผล
 *   **Dual-Perspective Evaluation:** ประเมินปัจจัยบวก (Bull Catalysts) และความเสี่ยงซ่อนเร้น (Bear Risks) ควบคู่กับคำแนะนำแนวรับสะสม DCA อย่างเป็นกลาง ไม่สนับสนุนการไล่ราคาเปิดกระโดด
