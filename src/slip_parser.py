@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class GeminiSlipParser:
     def __init__(self, api_key: str):
         self.client = genai.Client(api_key=api_key)
-        self.model = "gemini-2.5-flash"
+        self.model = "gemini-3.6-flash"
 
     async def parse_slip(self, image_bytes: bytes) -> dict | None:
         prompt = (
