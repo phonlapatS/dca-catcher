@@ -18,12 +18,12 @@ class CatalystEvaluator:
         if api_key:
             self._client = genai.Client(api_key=api_key)
 
-    def _call_gemini(self, prompt: str) -> str:
-        """Helper method to invoke Gemini API with temperature=0.0."""
+    async def _call_gemini(self, prompt: str) -> str:
+        """Helper method to invoke Gemini API with temperature=0.0 (async)."""
         if not self._client:
             raise ValueError("Gemini API key is not configured")
 
-        response = self._client.models.generate_content(
+        response = await self._client.aio.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -78,8 +78,9 @@ Return strict JSON adhering to this schema:
 }}
 """
         try:
-            raw_json = self._call_gemini(prompt)
-            data = json.loads(raw_json)
+            raw_json = await self._call_gemini(prompt)
+            from src.utils import extract_json_from_llm
+            data = extract_json_from_llm(raw_json)
             return CatalystVerdict(**data)
         except Exception as e:
             logger.error(f"Error evaluating catalyst for {article.symbol}: {e}")

@@ -3,7 +3,8 @@ import json
 import logging
 import os
 import re
-from datetime import datetime, time
+import time
+from datetime import datetime, time as dt_time
 from typing import Awaitable, Callable, Optional, TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
@@ -58,6 +59,9 @@ class AlpacaSniper:
         self.ws: Optional[websockets.WebSocketClientProtocol] = None
         self.subscribed_symbols: set[str] = set()
         self.targets: dict[str, list[float]] = {}
+        self._watchlist_cache: list = []  # Cached watchlist rows
+        self._cache_timestamp: float = 0
+        self._CACHE_TTL: float = 60.0  # Refresh cache every 60 seconds
 
     def is_operating_hours(self, now: Optional[datetime] = None) -> bool:
         """Check if the current time in Asia/Bangkok is within sniper window."""
@@ -70,8 +74,8 @@ class AlpacaSniper:
             now_bkk = now.astimezone(bkk_tz)
 
         t = now_bkk.time()
-        start = time(self.sniper_start_hour, self.sniper_start_minute)
-        end = time(self.sniper_end_hour, self.sniper_end_minute)
+        start = dt_time(self.sniper_start_hour, self.sniper_start_minute)
+        end = dt_time(self.sniper_end_hour, self.sniper_end_minute)
         return t >= start or t < end
 
     def parse_target_zones(self, target_zones_str: Optional[str]) -> list[float]:
@@ -150,6 +154,24 @@ class AlpacaSniper:
                 pass
         logger.info("AlpacaSniper stopped.")
 
+    async def _refresh_cache_if_needed(self):
+        """Refresh the in-memory watchlist cache if TTL has expired."""
+        if time.time() - self._cache_timestamp < self._CACHE_TTL:
+            return
+        try:
+            async with self.db.session() as session:
+                stmt = (
+                    select(Watchlist, User.telegram_id, User.notify_dm, User.username)
+                    .join(User, Watchlist.user_id == User.id)
+                    .where(Watchlist.market == "US")
+                )
+                res = await session.execute(stmt)
+                self._watchlist_cache = res.all()
+            self._cache_timestamp = time.time()
+            logger.debug(f"Sniper cache refreshed: {len(self._watchlist_cache)} watchlist items")
+        except Exception as e:
+            logger.error(f"Failed to refresh sniper cache: {e}")
+
     async def check_target_triggers(self, symbol: str, price: float):
         """Check database US watchlists for symbol, trigger alert if price <= target price and update DB to prevent spam."""
         if not self.db:
@@ -162,16 +184,16 @@ class AlpacaSniper:
                 return
 
         try:
-            async with self.db.session() as session:
-                stmt = (
-                    select(Watchlist, User.telegram_id, User.notify_dm, User.username)
-                    .join(User, Watchlist.user_id == User.id)
-                    .where(Watchlist.market == "US", func.upper(Watchlist.symbol) == symbol.upper())
-                )
-                res = await session.execute(stmt)
-                rows = res.all()
+            await self._refresh_cache_if_needed()
+            
+            # Filter from cache instead of querying DB
+            matching_rows = [
+                (item, tg_id, notify_dm, uname)
+                for item, tg_id, notify_dm, uname in self._watchlist_cache
+                if item.symbol and item.symbol.upper() == symbol.upper()
+            ]
 
-            for item, telegram_id, notify_dm, username in rows:
+            for item, telegram_id, notify_dm, username in matching_rows:
                 if not item.target_zones_str:
                     continue
 
