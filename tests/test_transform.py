@@ -173,3 +173,27 @@ def test_calculate_indicators_uppercase_columns():
     for col in ["rsi", "ma_50", "volume_20d_avg", "is_volume_anomaly", "bb_lower", "bb_upper"]:
         assert col in result_df.columns
 
+
+def test_score_flow_with_volume_anomaly():
+    """When is_volume_anomaly is True, flow score should be BUY."""
+    snapshot = StockSnapshot(
+        symbol="TEST", current_price=100, volume=1000000,
+        ath_price=150, drawdown_pct=-33.33,
+        is_volume_anomaly=True
+    )
+    transformer = DataTransformer()
+    score = transformer._score_flow(snapshot)
+    assert score.label == "BUY"
+    assert score.score == 80.0
+
+def test_score_flow_without_anomaly():
+    """When is_volume_anomaly is False, flow score should be HOLD."""
+    snapshot = StockSnapshot(
+        symbol="TEST", current_price=100, volume=1000000,
+        ath_price=150, drawdown_pct=-33.33,
+        is_volume_anomaly=False
+    )
+    transformer = DataTransformer()
+    score = transformer._score_flow(snapshot)
+    assert score.label == "HOLD"
+    assert score.score == 40.0
