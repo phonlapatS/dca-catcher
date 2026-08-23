@@ -379,4 +379,34 @@ export DATABASE_URL="sqlite+aiosqlite:///dca_catcher.db"
 - [ ] **Personalized Daily Broadcast:** Update the Morning/Evening broadcasts to tag users based on their watchlist and provide individualized buy targets according to their risk profiles.
 - [ ] **Deployment:** Host on Railway/Render for 24/7 uptime.
 
-## Final Reviewr.
+## 🚀 Phase 9: Optimization & Bug Fixes (Current)
+
+> **Date:** 2026-08-23 | **Design Spec:** `docs/superpowers/specs/2026-08-23-phase-9-optimization-bugfix-design.md`
+> **Plan:** `docs/superpowers/plans/2026-08-23-phase-9-optimization-bugfix-plan.md`
+
+### Tier 1 — ความเสี่ยงสูงมาก (แก้ก่อนเลย)
+- [ ] **1.1 Portfolio SELL Cost Calculation:** ต้นทุนเฉลี่ยพุ่งผิดปกติเมื่อขายหุ้น → แก้ให้หักลบ `total_cost` ตามสัดส่วน
+- [ ] **1.2 Indicators → AI Pipeline:** RSI/MA50/Volume Anomaly คำนวณแล้วแต่ไม่ map กลับ Snapshot → AI ได้ข้อมูลไม่ครบ
+- [ ] **1.3 User ID Callback:** กดปุ่ม Insight แล้ว Memory ไม่บันทึก → ใช้ `callback.from_user` แทน
+- [ ] **1.4 Robust JSON Extraction:** สร้าง `extract_json_from_llm()` utility + `response_mime_type="application/json"`
+- [ ] **1.5 Async yfinance (Fetcher):** ครอบด้วย `asyncio.to_thread()` แก้ Event Loop Blocking
+- [ ] **1.6 Async Gemini (Evaluator):** เปลี่ยน Catalyst Evaluator เป็น Async
+- [ ] **1.7 Sniper Memory Cache:** ใช้ RAM Cache + Batch DB Update แทน DB-per-tick
+
+### Tier 2 — ความเสี่ยงสูง (แก้ถัดมา)
+- [ ] **2.1 Insight Pipeline Parallel:** รัน Agent 1 & 2 พร้อมกันด้วย `asyncio.gather()`
+- [ ] **2.2 Async Charting & Sentiment:** ครอบ Blocking Calls + ดึงข้อมูล 1 ครั้ง
+- [ ] **2.3 Throttle Progress Bar:** จำกัด `edit_text` ทุก 2 วินาที
+- [ ] **2.4 User Rate Limit:** Cooldown 30 วินาทีสำหรับ Heavy Commands
+- [ ] **2.5 N+1 Query Fix:** `cmd_remove` ใช้ `WHERE IN` แทนลูป
+- [ ] **2.6 DST Handling:** ใช้ `America/New_York` timezone แทน Hardcode
+- [ ] **2.7 Pin Dependencies:** ใส่ Version Ranges ใน `requirements.txt`
+
+### Tier 3 — ความเสี่ยงปานกลาง (วางแผนแก้)
+- [ ] **3.1:** Race Condition `get_user` → Upsert
+- [ ] **3.2:** แทนที่ `except Exception: pass` ด้วย `logger.error()`
+- [ ] **3.3:** `memory.py` Full Table Scan → ใช้ `== symbol.upper()` ตรงๆ
+- [ ] **3.4-3.10:** Catalyst hardcode, DI, Timestamps, Config, Button parsing, IndexError guard
+
+### Tier 4 — ความเสี่ยงต่ำ (ทำเมื่อมีเวลา)
+- [ ] **4.1-4.7:** Dead Code cleanup, Dockerfile, Tests, pytest.ini, fly.toml RAM
