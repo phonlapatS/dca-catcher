@@ -384,14 +384,15 @@ export DATABASE_URL="sqlite+aiosqlite:///dca_catcher.db"
 > **Date:** 2026-08-23 | **Design Spec:** `docs/superpowers/specs/2026-08-23-phase-9-optimization-bugfix-design.md`
 > **Plan:** `docs/superpowers/plans/2026-08-23-phase-9-optimization-bugfix-plan.md`
 
-### Tier 1 — ความเสี่ยงสูงมาก (แก้ก่อนเลย)
-- [ ] **1.1 Portfolio SELL Cost Calculation:** ต้นทุนเฉลี่ยพุ่งผิดปกติเมื่อขายหุ้น → แก้ให้หักลบ `total_cost` ตามสัดส่วน
-- [ ] **1.2 Indicators → AI Pipeline:** RSI/MA50/Volume Anomaly คำนวณแล้วแต่ไม่ map กลับ Snapshot → AI ได้ข้อมูลไม่ครบ
-- [ ] **1.3 User ID Callback:** กดปุ่ม Insight แล้ว Memory ไม่บันทึก → ใช้ `callback.from_user` แทน
-- [ ] **1.4 Robust JSON Extraction:** สร้าง `extract_json_from_llm()` utility + `response_mime_type="application/json"`
-- [ ] **1.5 Async yfinance (Fetcher):** ครอบด้วย `asyncio.to_thread()` แก้ Event Loop Blocking
-- [ ] **1.6 Async Gemini (Evaluator):** เปลี่ยน Catalyst Evaluator เป็น Async
-- [ ] **1.7 Sniper Memory Cache:** ใช้ RAM Cache + Batch DB Update แทน DB-per-tick
+### Tier 1 — ความเสี่ยงสูงมาก (แก้ก่อนเลย) ✅ COMPLETE
+- [x] **1.1 Portfolio SELL Cost Calculation:** แก้ให้หักลบ `total_cost` ตามสัดส่วนก่อนลดจำนวนหุ้น
+- [x] **1.2 Indicators → AI Pipeline:** Map RSI/MA50/Volume Anomaly กลับเข้า StockSnapshot ใน fetcher.py
+- [x] **1.3 User ID Callback:** ใช้ `callback.from_user` แทน `callback.message.from_user` ใน insight_btn
+- [x] **1.4 Robust JSON Extraction:** สร้าง `src/utils.py` + ปรับ slip_parser, insight_pipeline, evaluator ใช้ `extract_json_from_llm()`
+- [x] **1.5 Async yfinance (Fetcher):** เพิ่ม `fetch_async()` ด้วย `asyncio.to_thread()` + `asyncio.gather()`
+- [x] **1.6 Async Gemini (Evaluator):** เปลี่ยน `_call_gemini` เป็น Async ด้วย `client.aio.models.generate_content`
+- [x] **1.7 Sniper Memory Cache:** เพิ่ม `_watchlist_cache` + `_refresh_cache_if_needed()` + Batch DB update
+- [x] **HOTFIX: Signal.created_at Timezone Crash:** เปลี่ยน `DateTime` → `DateTime(timezone=True)` แก้ asyncpg crash
 
 ### Tier 2 — ความเสี่ยงสูง (แก้ถัดมา)
 - [ ] **2.1 Insight Pipeline Parallel:** รัน Agent 1 & 2 พร้อมกันด้วย `asyncio.gather()`
