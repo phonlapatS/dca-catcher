@@ -35,15 +35,8 @@ class GeminiSlipParser:
                     ],
                 )
                 raw_text = response.text.strip()
-                if raw_text.startswith("```json"):
-                    raw_text = raw_text[7:]
-                elif raw_text.startswith("```"):
-                    raw_text = raw_text[3:]
-                if raw_text.endswith("```"):
-                    raw_text = raw_text[:-3]
-                raw_text = raw_text.strip()
-
-                data = json.loads(raw_text)
+                from src.utils import extract_json_from_llm
+                data = extract_json_from_llm(raw_text)
                 if not data.get("symbol"):
                     return None
                 return data

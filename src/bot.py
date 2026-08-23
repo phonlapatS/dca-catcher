@@ -1317,7 +1317,11 @@ class DCABot:
         """Handle insight inline button click."""
         await callback.answer("กำลังเจาะลึกข้อมูลวิเคราะห์...")
         symbol = callback.data.split("_")[1]
-        await self._generate_and_send_insight(callback.message, symbol)
+        # Fix: callback.message.from_user points to the bot, not the user.
+        # Override from_user so _generate_and_send_insight sees the real user.
+        msg = callback.message
+        msg.from_user = callback.from_user
+        await self._generate_and_send_insight(msg, symbol)
 
     async def _generate_and_send_insight(self, message: types.Message, symbol: str):
         """Generate deep-dive insight report using Multi-Agent Pipeline.
@@ -1554,6 +1558,9 @@ class DCABot:
                 portfolio[t.symbol]["shares"] += t.shares
                 portfolio[t.symbol]["total_cost"] += t.price * t.shares
             elif t.action == "SELL":
+                if portfolio[t.symbol]["shares"] > 0:
+                    avg_cost = portfolio[t.symbol]["total_cost"] / portfolio[t.symbol]["shares"]
+                    portfolio[t.symbol]["total_cost"] -= avg_cost * min(t.shares, portfolio[t.symbol]["shares"])
                 portfolio[t.symbol]["shares"] -= t.shares
                 # Simplified sell logic for average cost preservation
 

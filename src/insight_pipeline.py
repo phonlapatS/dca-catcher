@@ -153,12 +153,8 @@ class LLMCaller:
     def call_json(self, prompt: str) -> dict:
         """Call LLM and parse the response as JSON, with cleanup."""
         raw = self.call(prompt)
-        cleaned = raw.strip()
-        # Strip markdown code fences
-        if cleaned.startswith("```"):
-            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
-            cleaned = re.sub(r"\s*```$", "", cleaned)
-        return json.loads(cleaned)
+        from src.utils import extract_json_from_llm
+        return extract_json_from_llm(raw)
 
 
 # ---------------------------------------------------------------------------
