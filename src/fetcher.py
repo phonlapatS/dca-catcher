@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from dataclasses import dataclass
 import yfinance as yf
@@ -27,6 +28,29 @@ class StockSnapshot:
 
 class MarketDataFetcher:
     """Fetches market data from yfinance for US and TH (.BK) stocks."""
+
+    async def fetch_async(self, symbols: list[str]) -> dict[str, StockSnapshot]:
+        """Async version of fetch() — runs yfinance calls in thread pool to avoid blocking event loop.
+        
+        Each symbol is fetched in a separate thread via asyncio.to_thread(),
+        allowing parallel network requests without blocking the async event loop.
+        """
+        async def _fetch_one(symbol: str) -> tuple[str, StockSnapshot | None]:
+            try:
+                snapshot = await asyncio.to_thread(self._fetch_one_sync, symbol)
+                return (symbol, snapshot)
+            except Exception as e:
+                logger.warning(f"Async fetch failed for '{symbol}': {e}")
+                return (symbol, None)
+        
+        results = await asyncio.gather(*[_fetch_one(s) for s in symbols])
+        return {sym: snap for sym, snap in results if snap is not None}
+    
+    def _fetch_one_sync(self, symbol: str) -> StockSnapshot | None:
+        """Fetch a single symbol synchronously. Used by fetch_async via asyncio.to_thread."""
+        result = self.fetch([symbol])
+        return result.get(symbol)
+
 
     def fetch(self, symbols: list[str]) -> dict[str, StockSnapshot]:
         """Fetch current price, volume, ATH, and drawdown for each symbol.
@@ -73,6 +97,21 @@ class MarketDataFetcher:
                     profit_margins=info.get("profitMargins"),
                     debt_to_equity=info.get("debtToEquity")
                 )
+                
+                # After creating the StockSnapshot, compute indicators from the DataFrame
+                try:
+                    import pandas as pd
+                    from src.transform import DataTransformer
+                    transformer = DataTransformer()
+                    df_indicators = transformer.calculate_indicators(df_clean)
+                    if not df_indicators.empty:
+                        last_row = df_indicators.iloc[-1]
+                        snapshots[symbol].rsi = float(last_row["rsi"]) if pd.notna(last_row.get("rsi")) else None
+                        snapshots[symbol].ma_50 = float(last_row["ma_50"]) if pd.notna(last_row.get("ma_50")) else None
+                        snapshots[symbol].volume_20d_avg = float(last_row["volume_20d_avg"]) if pd.notna(last_row.get("volume_20d_avg")) else None
+                        snapshots[symbol].is_volume_anomaly = bool(last_row["is_volume_anomaly"]) if pd.notna(last_row.get("is_volume_anomaly")) else None
+                except Exception as e:
+                    logger.warning(f"Failed to compute indicators for {symbol}: {e}")
             except Exception as e:
                 logger.warning(f"Failed to fetch market data for symbol '{symbol}': {e}")
                 continue
