@@ -18,27 +18,22 @@ class ChartGenerator:
         Returns the chart as raw PNG bytes.
         """
         try:
-            # 1. Fetch data with Adaptive Timeframe to ensure targets overlap real candle history
+            # 1. Fetch 1 year of data upfront (single network call instead of up to 3)
             logger.info(f"Fetching chart data for {symbol}")
             ticker = yf.Ticker(symbol)
-            df = ticker.history(period="3mo")
+            df_full = ticker.history(period="1y")
             
-            if df.empty:
+            if df_full.empty:
                 logger.warning(f"No chart data found for {symbol}")
                 return None
 
-            # If lowest target is below the 3mo lowest price, expand timeframe to 6mo or 1y
-            # so the chart displays the historical support candles instead of floating in empty space
+            # Start with 3 months, expand only if targets extend below visible range
+            df = df_full.tail(63)  # ~3 months of trading days
+            
             if targets and min(targets) < df['Low'].min():
-                logger.info(f"Lowest target is below 3M low. Expanding timeframe to 6mo for {symbol}")
-                df_6m = ticker.history(period="6mo")
-                if not df_6m.empty:
-                    df = df_6m
-                    if min(targets) < df['Low'].min():
-                        logger.info(f"Lowest target is below 6M low. Expanding timeframe to 1y for {symbol}")
-                        df_1y = ticker.history(period="1y")
-                        if not df_1y.empty:
-                            df = df_1y
+                df = df_full.tail(126)  # ~6 months
+                if targets and min(targets) < df['Low'].min():
+                    df = df_full  # Full year
 
             # Drop timezone information if any to avoid warnings in mplfinance
             if isinstance(df.index, pd.DatetimeIndex) and df.index.tz is not None:

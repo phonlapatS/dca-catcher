@@ -9,6 +9,7 @@ Agent 3 reads Agent 1+2 results before producing targets.
 Quality Gate scores 0-100 and can remark specific fixes without full regeneration.
 """
 
+import concurrent.futures
 import json
 import logging
 import re
@@ -572,13 +573,16 @@ class InsightPipeline:
         context = self._collect_data(signal, news_headlines, fear_greed, risk_profile, timeline_history)
 
         # --- Phase 2: Specialist Analysis (3 agents) ---
-        progress("🔵 Agent 1: กำลังวิเคราะห์ข้อมูลพื้นฐาน...", 25)
-        result_1 = self.fundamental_agent._safe_run(context)
+        # Agent 1 and Agent 2 are independent — run them in parallel
+        progress("🔵🟢 Agent 1 & 2: กำลังวิเคราะห์ข้อมูลพื้นฐานและข่าวพร้อมกัน...", 25)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            future_1 = executor.submit(self.fundamental_agent._safe_run, context)
+            future_2 = executor.submit(self.news_agent._safe_run, context)
+            result_1 = future_1.result()
+            result_2 = future_2.result()
+        
         context["agent_1_fundamental"] = result_1.data if result_1.success else {}
         metadata["agent_1"] = {"success": result_1.success, "error": result_1.error}
-
-        progress("🟢 Agent 2: กำลังกรองและวิเคราะห์ข่าว...", 45)
-        result_2 = self.news_agent._safe_run(context)
         context["agent_2_news"] = result_2.data if result_2.success else {}
         metadata["agent_2"] = {"success": result_2.success, "error": result_2.error}
 
