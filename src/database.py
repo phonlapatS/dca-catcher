@@ -48,7 +48,7 @@ class Signal(Base):
     confidence: Mapped[int] = mapped_column(Integer)
     advice: Mapped[str] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), server_default=func.now()
     )
 
 
