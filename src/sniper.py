@@ -35,6 +35,7 @@ class AlpacaSniper:
         poll_interval: float = 60.0,
         bot: Optional["Bot"] = None,
         broadcast_channel_id: Optional[str] = None,
+        # sniper_* parameters are deprecated in favor of auto-DST handling
         sniper_start_hour: int = 20,
         sniper_start_minute: int = 30,
         sniper_end_hour: int = 4,
@@ -64,19 +65,30 @@ class AlpacaSniper:
         self._CACHE_TTL: float = 60.0  # Refresh cache every 60 seconds
 
     def is_operating_hours(self, now: Optional[datetime] = None) -> bool:
-        """Check if the current time in Asia/Bangkok is within sniper window."""
-        bkk_tz = ZoneInfo("Asia/Bangkok")
+        """Check if the current time falls within US market hours.
+        
+        Uses America/New_York timezone to automatically handle DST.
+        US Market: Pre-market starts ~8:00 ET, closes 16:00 ET.
+        We monitor 9:00 ET - 16:30 ET (with buffer for pre/post market).
+        """
+        et_tz = ZoneInfo("America/New_York")
         if now is None:
-            now_bkk = datetime.now(bkk_tz)
+            now_et = datetime.now(et_tz)
         elif now.tzinfo is None:
-            now_bkk = now.replace(tzinfo=bkk_tz)
+            now_et = now.replace(tzinfo=et_tz)
         else:
-            now_bkk = now.astimezone(bkk_tz)
+            now_et = now.astimezone(et_tz)
 
-        t = now_bkk.time()
-        start = dt_time(self.sniper_start_hour, self.sniper_start_minute)
-        end = dt_time(self.sniper_end_hour, self.sniper_end_minute)
-        return t >= start or t < end
+        t = now_et.time()
+        # Monitor from 9:00 ET to 16:30 ET (covers regular trading + some pre/post)
+        market_open = dt_time(9, 0)
+        market_close = dt_time(16, 30)
+        
+        # Also check it's a weekday (Mon=0, Fri=4)
+        if now_et.weekday() > 4:  # Saturday or Sunday
+            return False
+            
+        return market_open <= t <= market_close
 
     def parse_target_zones(self, target_zones_str: Optional[str]) -> list[float]:
         """Parse float target prices from target_zones_str field in descending order."""

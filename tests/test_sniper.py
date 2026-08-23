@@ -23,36 +23,25 @@ async def db(tmp_path):
 
 
 def test_is_operating_hours():
-    bkk_tz = ZoneInfo("Asia/Bangkok")
     sniper = AlpacaSniper(db=None)
+    et_tz = ZoneInfo("America/New_York")
+    
+    # During market hours (10:00 ET on a Monday)
+    market_open = datetime(2026, 8, 24, 10, 0, tzinfo=et_tz)  # Monday
+    assert sniper.is_operating_hours(market_open) is True
+    
+    # After market close (17:00 ET)
+    after_close = datetime(2026, 8, 24, 17, 0, tzinfo=et_tz)
+    assert sniper.is_operating_hours(after_close) is False
+    
+    # Before market open (8:00 ET)
+    before_open = datetime(2026, 8, 24, 8, 0, tzinfo=et_tz)
+    assert sniper.is_operating_hours(before_open) is False
+    
+    # Weekend (Saturday)
+    saturday = datetime(2026, 8, 22, 12, 0, tzinfo=et_tz)
+    assert sniper.is_operating_hours(saturday) is False
 
-    # 20:30 BKK -> inside
-    t1 = datetime(2026, 8, 7, 20, 30, 0, tzinfo=bkk_tz)
-    assert sniper.is_operating_hours(t1) is True
-
-    # 23:59 BKK -> inside
-    t2 = datetime(2026, 8, 7, 23, 59, 59, tzinfo=bkk_tz)
-    assert sniper.is_operating_hours(t2) is True
-
-    # 00:00 BKK -> inside
-    t3 = datetime(2026, 8, 8, 0, 0, 0, tzinfo=bkk_tz)
-    assert sniper.is_operating_hours(t3) is True
-
-    # 03:59 BKK -> inside
-    t4 = datetime(2026, 8, 8, 3, 59, 59, tzinfo=bkk_tz)
-    assert sniper.is_operating_hours(t4) is True
-
-    # 04:00 BKK -> outside
-    t5 = datetime(2026, 8, 8, 4, 0, 0, tzinfo=bkk_tz)
-    assert sniper.is_operating_hours(t5) is False
-
-    # 12:00 BKK -> outside
-    t6 = datetime(2026, 8, 7, 12, 0, 0, tzinfo=bkk_tz)
-    assert sniper.is_operating_hours(t6) is False
-
-    # 20:29 BKK -> outside
-    t7 = datetime(2026, 8, 7, 20, 29, 59, tzinfo=bkk_tz)
-    assert sniper.is_operating_hours(t7) is False
 
 
 def test_parse_target_zones():
