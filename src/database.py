@@ -14,7 +14,7 @@ class User(Base):
     remark: Mapped[str | None] = mapped_column(String(255), nullable=True) # Admin note or alias
     risk_profile: Mapped[str | None] = mapped_column(String(255), nullable=True) # Stores user investment style
     notify_dm: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")  # True = DM, False = group tag
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), server_default=func.now())
     watchlists: Mapped[list["Watchlist"]] = relationship("Watchlist", back_populates="user", cascade="all, delete-orphan")
 
 
@@ -37,7 +37,7 @@ class PortfolioTransaction(Base):
     action: Mapped[str] = mapped_column(String)  # 'BUY' or 'SELL'
     price: Mapped[float] = mapped_column(Float)
     shares: Mapped[float] = mapped_column(Float)
-    transaction_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    transaction_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), server_default=func.now())
 
 
 class Signal(Base):
@@ -61,7 +61,7 @@ class UserAnalysisMemory(Base):
     symbol: Mapped[str] = mapped_column(String, index=True)
     market: Mapped[str] = mapped_column(String, default="US")
     analyzed_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), server_default=func.now()
     )
     price_at_analysis: Mapped[float] = mapped_column(Float)
     target_prices_str: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -79,7 +79,7 @@ class SeenCatalyst(Base):
     headline: Mapped[str] = mapped_column(Text)
     publisher: Mapped[str | None] = mapped_column(String(255), nullable=True)
     seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), server_default=func.now()
     )
 
 
@@ -179,7 +179,7 @@ class Database:
             return result.scalar_one_or_none() is not None
 
     async def get_user(self, telegram_id: int, username: str | None = None) -> User:
-        """Get or create user safely. Handles race conditions."""
+        """Get or create user safely. Handles race conditions with a try/except IntegrityError."""
         from sqlalchemy.exc import IntegrityError
         
         async with self.session() as session:
@@ -197,7 +197,7 @@ class Database:
                 return user
             except IntegrityError:
                 await session.rollback()
-                # Race condition lost, fetch it.
+                # Race condition lost, another request created the user. Fetch it.
                 res = await session.execute(stmt)
                 return res.scalar_one()
 
