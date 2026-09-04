@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+import time
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
@@ -221,8 +222,33 @@ class DCABot:
 
         
         self.dp = Dispatcher()
+        self._user_cooldowns: dict[int, float] = {}
+        self._HEAVY_CMD_COOLDOWN = 30  # seconds
         self._register_handlers()
         self.dp.errors.register(global_error_handler)
+    async def _throttled_edit(self, msg, text: str, min_interval: float = 2.0, parse_mode: str = "Markdown"):
+        """Edit message text with throttling to avoid Telegram rate limits."""
+        now = time.time()
+        last = getattr(msg, '_last_edit_ts', 0)
+        if now - last < min_interval:
+            return
+        try:
+            await msg.edit_text(text, parse_mode=parse_mode)
+            msg._last_edit_ts = now
+        except Exception:
+            pass
+
+    async def _check_cooldown(self, user_id: int, message: types.Message) -> bool:
+        """Check if user is allowed to use a heavy command. Returns True if allowed."""
+        now = time.time()
+        last = self._user_cooldowns.get(user_id, 0)
+        if now - last < self._HEAVY_CMD_COOLDOWN:
+            remaining = int(self._HEAVY_CMD_COOLDOWN - (now - last))
+            await message.reply(f"⏳ กรุณารอ {remaining} วินาทีก่อนใช้คำสั่งนี้อีกครั้งครับ")
+            return False
+        self._user_cooldowns[user_id] = now
+        return True
+
     def _register_handlers(self):
         """Register all Telegram command handlers."""
         self.dp.message.register(self.cmd_start, Command("start"))
@@ -815,13 +841,18 @@ class DCABot:
         
         results = []
         async with self.db.session() as session:
+            # Single query to find all matching watchlist items (batch instead of N+1)
+            stmt = (
+                select(Watchlist)
+                .join(User, Watchlist.user_id == User.id)
+                .where(User.telegram_id == telegram_id, Watchlist.symbol.in_(symbols))
+            )
+            res = await session.execute(stmt)
+            found_items = {item.symbol: item for item in res.scalars().all()}
+            
             for symbol in symbols:
-                stmt = select(Watchlist).join(User, Watchlist.user_id == User.id).where(User.telegram_id == telegram_id, Watchlist.symbol == symbol)
-                res = await session.execute(stmt)
-                item = res.scalar_one_or_none()
-
-                if item:
-                    await session.delete(item)
+                if symbol in found_items:
+                    await session.delete(found_items[symbol])
                     results.append(f"🗑️ Removed {symbol} from your watchlist.")
                 else:
                     results.append(f"ℹ️ {symbol} is not in your watchlist.")
@@ -901,35 +932,23 @@ class DCABot:
 
         loop = asyncio.get_running_loop()
         
-        try:
-            await status_msg.edit_text(f"🔍 กำลังสแกน...\n`[{make_pb(10)}] 10%`\n👉 กำลังเชื่อมต่อตลาดดึงข้อมูล {len(symbols)} หุ้นพร้อมกัน...", parse_mode="Markdown")
-        except Exception:
-            pass
+        await self._throttled_edit(status_msg, f"🔍 กำลังสแกน...\n`[{make_pb(10)}] 10%`\n👉 กำลังเชื่อมต่อตลาดดึงข้อมูล {len(symbols)} หุ้นพร้อมกัน...")
 
         # Bulk fetch is 10x faster than sequential fetch!
         snapshots = await loop.run_in_executor(None, self.fetcher.fetch, symbols)
         
-        try:
-            await status_msg.edit_text(f"🔍 กำลังสแกน...\n`[{make_pb(50)}] 50%`\n👉 โหลดข้อมูลเสร็จสิ้น กำลังเตรียมวิเคราะห์...", parse_mode="Markdown")
-        except Exception:
-            pass
+        await self._throttled_edit(status_msg, f"🔍 กำลังสแกน...\n`[{make_pb(50)}] 50%`\n👉 โหลดข้อมูลเสร็จสิ้น กำลังเตรียมวิเคราะห์...")
 
         if not snapshots:
             await status_msg.edit_text(f"❌ Failed to fetch market data for: {', '.join(symbols)}")
             return
             
-        try:
-            await status_msg.edit_text(f"🔍 กำลังสแกน...\n`[{make_pb(70)}] 70%`\n👉 กำลังประมวลผล Technical Indicators...", parse_mode="Markdown")
-        except Exception:
-            pass
+        await self._throttled_edit(status_msg, f"🔍 กำลังสแกน...\n`[{make_pb(70)}] 70%`\n👉 กำลังประมวลผล Technical Indicators...")
 
         enriched_signals = self.transformer.enrich(snapshots)
         
         # Fetch user's risk profile
-        try:
-            await status_msg.edit_text(f"🔍 กำลังสแกน...\n`[{make_pb(90)}] 90%`\n👉 กำลังประเมินร่วมกับ Risk Profile...", parse_mode="Markdown")
-        except Exception:
-            pass
+        await self._throttled_edit(status_msg, f"🔍 กำลังสแกน...\n`[{make_pb(90)}] 90%`\n👉 กำลังประเมินร่วมกับ Risk Profile...")
             
         risk_profile = None
         async with self.db.session() as session:
@@ -1303,7 +1322,9 @@ class DCABot:
     async def cmd_insight(self, message: types.Message):
 
         """Handle /scan-details <symbol> to generate deep dive report."""
-        if not message.text:
+        if not message.text or not message.from_user:
+            return
+        if not await self._check_cooldown(message.from_user.id, message):
             return
         parts = message.text.strip().split()
         if len(parts) < 2:
