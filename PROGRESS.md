@@ -394,14 +394,14 @@ export DATABASE_URL="sqlite+aiosqlite:///dca_catcher.db"
 - [x] **1.7 Sniper Memory Cache:** เพิ่ม `_watchlist_cache` + `_refresh_cache_if_needed()` + Batch DB update
 - [x] **HOTFIX: Signal.created_at Timezone Crash:** เปลี่ยน `DateTime` → `DateTime(timezone=True)` แก้ asyncpg crash
 
-### Tier 2 — ความเสี่ยงสูง (แก้ถัดมา)
-- [ ] **2.1 Insight Pipeline Parallel:** รัน Agent 1 & 2 พร้อมกันด้วย `asyncio.gather()`
-- [ ] **2.2 Async Charting & Sentiment:** ครอบ Blocking Calls + ดึงข้อมูล 1 ครั้ง
-- [ ] **2.3 Throttle Progress Bar:** จำกัด `edit_text` ทุก 2 วินาที
-- [ ] **2.4 User Rate Limit:** Cooldown 30 วินาทีสำหรับ Heavy Commands
-- [ ] **2.5 N+1 Query Fix:** `cmd_remove` ใช้ `WHERE IN` แทนลูป
-- [ ] **2.6 DST Handling:** ใช้ `America/New_York` timezone แทน Hardcode
-- [ ] **2.7 Pin Dependencies:** ใส่ Version Ranges ใน `requirements.txt`
+### Tier 2 — ความเสี่ยงสูง (แก้ถัดมา) ✅ COMPLETE
+- [x] **2.1 Insight Pipeline Parallel:** รัน Agent 1 & 2 พร้อมกันด้วย `concurrent.futures.ThreadPoolExecutor`
+- [x] **2.2 Async Charting:** ดึงข้อมูล 1y ครั้งเดียวแล้ว slice (ลดจาก 3 network calls เหลือ 1)
+- [x] **2.3 Throttle Progress Bar:** เพิ่ม `_throttled_edit()` จำกัด `edit_text` ทุก 2 วินาที
+- [x] **2.4 User Rate Limit:** เพิ่ม `_check_cooldown()` Cooldown 30 วินาทีสำหรับ `/scan-details`
+- [x] **2.5 N+1 Query Fix:** `cmd_remove` ใช้ `Watchlist.symbol.in_(symbols)` แทนลูป
+- [x] **2.6 DST Handling:** ใช้ `America/New_York` timezone + weekend check แทน Hardcode BKK times
+- [x] **2.7 Pin Dependencies:** ใส่ Version Ranges (>=min,<max) ใน `requirements.txt`
 
 ### Tier 3 — ความเสี่ยงปานกลาง (วางแผนแก้)
 - [ ] **3.1:** Race Condition `get_user` → Upsert
