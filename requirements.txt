@@ -11,6 +11,6 @@ aiogram>=3.30,<4.0
 requests>=2.34,<3.0
 feedparser>=6.0,<7.0
 apscheduler>=3.11,<4.0
-mplfinance>=0.12,<1.0
+mplfinance
 aiohttp>=3.14,<4.0
 websockets>=16.1,<17.0
