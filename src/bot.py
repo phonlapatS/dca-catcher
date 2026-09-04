@@ -1348,12 +1348,10 @@ class DCABot:
         symbol = parts[1]
         await callback.answer("กำลังเจาะลึกข้อมูลวิเคราะห์...")
         
-        # Override from_user so _generate_and_send_insight sees the real user.
-        msg = callback.message
-        msg.from_user = callback.from_user
-        await self._generate_and_send_insight(msg, symbol)
+        # Pass the callback.from_user explicitly to avoid mutating the frozen message
+        await self._generate_and_send_insight(callback.message, symbol, explicit_user=callback.from_user)
 
-    async def _generate_and_send_insight(self, message: types.Message, symbol: str):
+    async def _generate_and_send_insight(self, message: types.Message, symbol: str, explicit_user: types.User | None = None):
         """Generate deep-dive insight report using Multi-Agent Pipeline.
 
         Pipeline: Data Collection → 3 Specialist Agents → Composer → Quality Gate.
@@ -1392,9 +1390,11 @@ class DCABot:
         risk_profile = None
         user_db_id = None
         timeline_str = "ไม่มีประวัติการสแกนเดิมในระบบ (First-time / Cold Start Scan)"
-        if message.from_user:
+        
+        active_user = explicit_user or message.from_user
+        if active_user:
             async with self.db.session() as session:
-                stmt = select(User).where(User.telegram_id == message.from_user.id)
+                stmt = select(User).where(User.telegram_id == active_user.id)
                 user = (await session.execute(stmt)).scalar_one_or_none()
                 if user:
                     user_db_id = user.id
