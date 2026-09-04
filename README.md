@@ -19,19 +19,20 @@ Phase 10 ยกระดับบอทให้มีความฉลาด�
 
 ---
 
-## 🕒 ย้อนรอย Phase 7 (Real-Time Catalyst Hunter)
 
-ใน Phase 6 ระบบได้พัฒนา **Adaptive AI Memory** และ **Multi-Agent Pipeline** เพื่อให้บอทมีความจำและวิเคราะห์เชิงลึกได้สมบูรณ์แบบ 
-สำหรับ **Phase 7** เราได้ต่อยอดระบบให้กลายเป็น **"ผู้ล่าข่าวด่วน (Catalyst Hunter)"** แบบ Real-time ที่สามารถเฝ้าตลาดได้ 24/7 โดยมีฟีเจอร์เด่นดังนี้:
+## 📜 Development History (ประวัติการพัฒนา)
 
-1. **Stateless Production Architecture:** ย้ายฐานข้อมูลจากเครื่อง Local (SQLite) ขึ้นสู่ **Supabase (PostgreSQL)** เต็มรูปแบบ ป้องกันปัญหา Database is locked และรองรับการดึงข้อมูลคู่ขนาน
-2. **Pre-Market Adaptive Hunter:** ดักจับเหตุการณ์สำคัญ (Corporate Catalysts) ในช่วงเวลา Pre-Market (17:00–20:30 น. เวลาไทย) 
-3. **Zero-Token Fact Density Gate:** สกัดข่าวขยะและ Deduplicate ข่าวซ้ำก่อนส่งให้ AI เพื่อประหยัด Token สูงสุดกว่า 95%
-4. **Supply Chain Spillovers:** วิเคราะห์ผลกระทบทางอ้อมไปยังบริษัทคู่ค้า ซัพพลายเออร์ และกลุ่มอุตสาหกรรมที่เชื่อมโยงกัน 
-5. **3-Tier Smart Alert Routing:**
-    * 🚨 **Tier S (ข่าวด่วนระดับสูง):** ยิงแจ้งเตือนด่วนทันทีพร้อมปุ่ม Action บน Telegram
-    * 📰 **Tier A (ข่าวน่าติดตาม):** รวบยอดส่งเป็น **Pre-Market Daily Digest เวลา 19:00 น.**
-    * 🔕 **Tier B:** จัดเก็บเป็นประวัติเงียบๆ สำหรับดึงมาวิเคราะห์เมื่อผู้ใช้กดสั่งสแกน
+ระบบถูกพัฒนาและยกระดับอย่างต่อเนื่องผ่าน 10 เฟสหลัก ดังนี้:
+
+- **Phase 1-5 (Core Foundation):** สร้างระบบดึงข้อมูลจาก `yfinance`, คำนวณ DCA Targets ด้วย AI, วาดกราฟแท่งเทียน, และใช้ฐานข้อมูล SQLite
+- **Phase 6 (Multi-Agent & Memory):** อัปเกรด AI เป็น Multi-Agent Pipeline (แบ่งหน้าที่วิเคราะห์กราฟ, ข่าว, งบการเงิน) และเพิ่ม Adaptive Memory ให้บอทจำพอร์ตผู้ใช้ได้
+- **Phase 7 (Catalyst Hunter):** เปลี่ยนสถาปัตยกรรมสู่ Cloud (Fly.io + Supabase PostgreSQL) เพื่อรองรับดึงข้อมูลคู่ขนาน พร้อมเพิ่มบอทดักจับข่าวด่วน Pre-Market (Tier S/A/B)
+- **Phase 8 (Slip & Portfolio):** เพิ่มระบบ AI อ่านสลิปโอนเงิน (Slip Parser) เพื่อบันทึกต้นทุน DCA ในพอร์ตแบบอัตโนมัติ 
+- **Phase 9 (System Hardening):** ย้ายการทำงานกราฟไปเป็นแบบ `asyncio.to_thread()` ป้องกันบอทค้าง, เพิ่ม Cooldown กันสแปม, จัดการ Rate Limit ของ Telegram
+- **Phase 10 (News Engine & Modular):**
+  - **Multi-Source News:** เพิ่ม `DuckDuckGo News` เป็นระบบสำรองเพื่อป้องกัน Error 429 จาก Yahoo
+  - **Modular Architecture:** รื้อระบบ `bot.py` (1,600+ บรรทัด) ออกเป็น 5 Router/Mixins (Common, Watchlist, Scanning, Portfolio, Survey) เพื่อความสะอาดของโค้ด
+  - **Smart Error Handling:** เพิ่มระบบ Auto-Retry เมื่อ Gemini เซิร์ฟเวอร์ล่ม (503) และฟีเจอร์ดักจับ Error แสดงผลให้ Admin ดูบน Telegram อัตโนมัติ
 
 ---
 
