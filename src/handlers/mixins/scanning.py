@@ -484,9 +484,22 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             report_text = await self.news_service.get_news_radar(symbol)
             await status_msg.edit_text(report_text, parse_mode='Markdown')
         except Exception as e:
+            error_type = type(e).__name__
+            error_msg = str(e)[:200]
+            
+            source = "Unknown"
+            if "503" in error_msg or "429" in error_msg or "google" in str(type(e)).lower() or "llmcaller" in error_msg.lower():
+                source = "Google Gemini API (AI)"
+            elif "asyncpg" in str(type(e)).lower() or "sqlalchemy" in str(type(e)).lower():
+                source = "Supabase PostgreSQL (Database)"
+            elif "fly" in error_msg.lower():
+                source = "Fly.io (Server)"
+                
+            admin_debug = f"\n\n🚨 **[System Error: {source}]**\n`{error_type}: {error_msg}`"
+            
             logger.error(f'Error in /news command for {symbol}: {e}')
             await status_msg.edit_text(
-                f'❌ เกิดข้อผิดพลาดในการดึงข้อมูลข่าวของ {symbol}')
+                f'❌ เกิดข้อผิดพลาดในการดึงข้อมูลข่าวของ {symbol}{admin_debug}', parse_mode='Markdown')
 
     async def cmd_insight(self, message: types.Message):
         """Handle /scan-details <symbol> to generate deep dive report."""
@@ -596,13 +609,24 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
                 risk_profile=risk_profile, timeline_history=timeline_str,
                 on_progress=sync_progress))
         except Exception as e:
-            logger.error(f'InsightPipeline failed for {symbol}: {e}',
-                exc_info=True)
+            error_type = type(e).__name__
+            error_msg = str(e)[:200]
+            
+            source = "Unknown"
+            if "503" in error_msg or "429" in error_msg or "google" in str(type(e)).lower() or "llmcaller" in error_msg.lower():
+                source = "Google Gemini API (AI)"
+            elif "asyncpg" in str(type(e)).lower() or "sqlalchemy" in str(type(e)).lower():
+                source = "Supabase PostgreSQL (Database)"
+            elif "fly" in error_msg.lower():
+                source = "Fly.io (Server)"
+                
+            admin_debug = f"\n\n🚨 **[System Error: {source}]**\n`{error_type}: {error_msg}`"
+            
+            logger.error(f'InsightPipeline failed for {symbol}: {e}', exc_info=True)
             await status_msg.edit_text(
-                f"""❌ Multi-Agent Pipeline ล้มเหลว: {e}
-
-ลองใช้ /scan {symbol} แทนได้ครับ"""
-                )
+                f"❌ Multi-Agent Pipeline ล้มเหลว:\nลองใช้ `/scan {symbol}` แทนได้ครับ{admin_debug}",
+                parse_mode='Markdown'
+            )
             return
         targets = metadata.get('targets', [])
         price = metadata.get('price', snapshots[symbol].current_price)
