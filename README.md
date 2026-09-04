@@ -1,13 +1,24 @@
-# DCA Catcher 📈 (Phase 7: Real-Time Catalyst Hunter)
+# DCA Catcher 📈 (Phase 9: Optimization & Bug Fixes)
 
 **DCA Catcher** คือระบบ Telegram Bot สำหรับช่วยวิเคราะห์หุ้นและแจ้งเตือนราคาเป้าหมายสำหรับการลงทุนแบบ DCA (Dollar-Cost Averaging) 
 
 ---
 
-## 🚀 What's New in Phase 7 (พัฒนาต่อยอดจาก Phase 6 อย่างไร?)
+## 🚀 What's New in Phase 9 (Optimization & Bug Fixes)
+
+Phase 9 มุ่งเน้นไปที่การ **ปรับจูนประสิทธิภาพ, ล่าบัคระดับวิกฤต, และเสริมความเสถียร (Code Hardening)** เพื่อให้ระบบพร้อมสำหรับการใช้งานบน Production (Fly.io + Supabase) อย่างสมบูรณ์:
+
+1. **Async & Parallel Processing:** ย้าย Blocking Calls ทั้งหมด (yfinance, Gemini) เข้าสู่ `asyncio.to_thread()` และรัน AI Pipeline แบบขนานด้วย `ThreadPoolExecutor` ทำให้ระบบตอบสนองเร็วขึ้น 2 เท่า
+2. **Robust JSON Parser:** เพิ่มระบบสกัด JSON แบบครอบจักรวาล ป้องกันปัญหา AI ตอบกลับมาติด Markdown fences
+3. **Database & Memory Optimization:** แก้ไข Race Condition, ปรับแต่ง Memory Index Query, และเพิ่มระบบ Cleanup ข้อมูลเก่าอัตโนมัติ
+4. **Resilience & Rate Limiting:** จัดการ Telegram Rate Limit แบบนุ่มนวลด้วยการ Throttle Progress Bar ทุก 2 วินาที และมี Cooldown ป้องกัน User Spam
+
+---
+
+## 🕒 ย้อนรอย Phase 7 (Real-Time Catalyst Hunter)
 
 ใน Phase 6 ระบบได้พัฒนา **Adaptive AI Memory** และ **Multi-Agent Pipeline** เพื่อให้บอทมีความจำและวิเคราะห์เชิงลึกได้สมบูรณ์แบบ 
-สำหรับ **Phase 7** นี้ เราได้ต่อยอดระบบให้กลายเป็น **"ผู้ล่าข่าวด่วน (Catalyst Hunter)"** แบบ Real-time ที่สามารถเฝ้าตลาดได้ 24/7 โดยมีฟีเจอร์เด่นดังนี้:
+สำหรับ **Phase 7** เราได้ต่อยอดระบบให้กลายเป็น **"ผู้ล่าข่าวด่วน (Catalyst Hunter)"** แบบ Real-time ที่สามารถเฝ้าตลาดได้ 24/7 โดยมีฟีเจอร์เด่นดังนี้:
 
 1. **Stateless Production Architecture:** ย้ายฐานข้อมูลจากเครื่อง Local (SQLite) ขึ้นสู่ **Supabase (PostgreSQL)** เต็มรูปแบบ ป้องกันปัญหา Database is locked และรองรับการดึงข้อมูลคู่ขนาน
 2. **Pre-Market Adaptive Hunter:** ดักจับเหตุการณ์สำคัญ (Corporate Catalysts) ในช่วงเวลา Pre-Market (17:00–20:30 น. เวลาไทย) 
