@@ -179,19 +179,27 @@ class Database:
             return result.scalar_one_or_none() is not None
 
     async def get_user(self, telegram_id: int, username: str | None = None) -> User:
-        """Fetch user by telegram_id or create if not found."""
+        """Get or create user safely. Handles race conditions."""
+        from sqlalchemy.exc import IntegrityError
+        
         async with self.session() as session:
             stmt = select(User).where(User.telegram_id == telegram_id)
             res = await session.execute(stmt)
             user = res.scalar_one_or_none()
-            if not user:
+            
+            if user:
+                return user
+                
+            try:
                 user = User(telegram_id=telegram_id, username=username)
                 session.add(user)
                 await session.commit()
-                await session.refresh(user)
-            return user
-
-
+                return user
+            except IntegrityError:
+                await session.rollback()
+                # Race condition lost, fetch it.
+                res = await session.execute(stmt)
+                return res.scalar_one()
 
 
 def get_engine(url: str):

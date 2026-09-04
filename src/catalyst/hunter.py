@@ -40,7 +40,8 @@ class CatalystHunter:
         if symbols is None:
             symbols = await self.db.get_unique_watchlist_symbols(market="US")
             if not symbols:
-                symbols = ["NVDA", "MRNA", "TSLA", "AAPL", "AMD", "PLTR", "CRWD"]
+                logger.info("No symbols provided and master watchlist is empty. Skipping catalyst scan.")
+                return 0
 
         processed_count = 0
         total_symbols = len(symbols)

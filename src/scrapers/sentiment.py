@@ -10,7 +10,7 @@ def get_fear_greed_index() -> str:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
-        return data['fear_and_greed']['rating']
+        return data.get('fear_and_greed', {}).get('rating', 'Unknown')
     except Exception as e:
         return "Unknown"
 
@@ -25,9 +25,13 @@ def get_recent_news(ticker: str) -> list[str]:
     url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
     try:
         feed = feedparser.parse(url)
-        for entry in feed.entries[:7]:
-            news_titles.add(entry.title)
-    except Exception:
+        entries = getattr(feed, 'entries', [])
+        for entry in entries[:7]:
+            if hasattr(entry, 'title'):
+                news_titles.add(entry.title)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Error fetching Google News for {ticker}: {e}")
         pass
 
     # 2. Yahoo Finance News (Good coverage, sometimes has unique articles)

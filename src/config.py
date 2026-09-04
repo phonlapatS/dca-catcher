@@ -44,8 +44,15 @@ class Config:
     def from_env(cls) -> "Config":
         keys_str = os.environ.get("GEMINI_API_KEYS", os.environ.get("GEMINI_API_KEY", ""))
         keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+        if not keys:
+            raise ValueError("Missing critical environment variable: GEMINI_API_KEYS or GEMINI_API_KEY")
+            
+        telegram_token = os.environ.get("TELEGRAM_TOKEN", "").strip()
+        if not telegram_token:
+            raise ValueError("Missing critical environment variable: TELEGRAM_TOKEN")
+            
         return cls(
-            telegram_token=os.environ.get("TELEGRAM_TOKEN", ""),
+            telegram_token=telegram_token,
             gemini_api_keys=keys,
             database_url=os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///dca_catcher.db"),
             broadcast_channel_id=os.environ.get("BROADCAST_CHANNEL_ID", ""),

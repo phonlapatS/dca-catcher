@@ -58,7 +58,7 @@ class MemoryManager:
                 select(UserAnalysisMemory)
                 .where(
                     UserAnalysisMemory.user_id == user_id,
-                    func.upper(UserAnalysisMemory.symbol) == symbol.upper()
+                    UserAnalysisMemory.symbol == symbol.upper()
                 )
                 .order_by(desc(UserAnalysisMemory.analyzed_at))
                 .limit(limit)

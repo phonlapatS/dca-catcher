@@ -1336,9 +1336,18 @@ class DCABot:
         
     async def insight_btn(self, callback: types.CallbackQuery):
         """Handle insight inline button click."""
+        if not callback.data or "_" not in callback.data:
+            await callback.answer("ข้อมูลปุ่มไม่ถูกต้อง", show_alert=True)
+            return
+            
+        parts = callback.data.split("_")
+        if len(parts) < 2:
+            await callback.answer("ไม่พบชื่อหุ้น", show_alert=True)
+            return
+            
+        symbol = parts[1]
         await callback.answer("กำลังเจาะลึกข้อมูลวิเคราะห์...")
-        symbol = callback.data.split("_")[1]
-        # Fix: callback.message.from_user points to the bot, not the user.
+        
         # Override from_user so _generate_and_send_insight sees the real user.
         msg = callback.message
         msg.from_user = callback.from_user
