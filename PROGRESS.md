@@ -1,8 +1,21 @@
 # DCA Catcher — Development Progress
 
-> Last updated: 2026-08-07 10:37 (ICT)
-> Branch: `feat/oop-implementation`
+> Last updated: 2026-09-05 03:55 (ICT)
+> Branch: `refactor/bot-routers`
 > Python: 3.10+ | Venv: `./venv`
+
+
+## 🚀 Latest Updates (Phase 10 & Tier 2 Completed)
+- **Phase 10: Context-Aware News System** is fully deployed.
+  - Added Multi-Source Fetching (`Google News`, `Yahoo Finance`, and newly integrated `DuckDuckGo News API`).
+  - Implemented `JunkFilter` to reduce API waste and LLM hallucination.
+- **Tier 2 Stability & Performance Optimizations** are complete:
+  - Fixed charting pipeline to be fully async (`asyncio.to_thread`) eliminating Event Loop blocking.
+  - Implemented 60-second cooldown limits for heavy commands to protect Gemini free-tier quotas.
+  - Confirmed DST support in `sniper.py` (`ZoneInfo("America/New_York")`).
+  - Confirmed bulk deletion to avoid N+1 queries.
+  - Handled race condition (`IntegrityError`) in User creation.
+- **Tier 4 Refactoring:** Successfully split the monolithic `bot.py` (1600+ lines) into modular Class Mixins (`src/handlers/mixins/`).
 
 ## 🎯 Project Overview
 

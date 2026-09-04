@@ -24,6 +24,10 @@ SAMPLE_VERDICT_TIER_S = CatalystVerdict(
     bear_risks="รอ FDA อนุมัติ",
     dca_guidance="รอรับไม้ 1 ที่แนวรับ $61.50",
     thai_summary="Moderna แถลงผลการทดลองเฟส 3 วัคซีนมะเร็งผิวหนังผ่านเป้าหมายหลัก",
+    confidence_score=90,
+    scope="MICRO",
+    impact_summary="TEST",
+    sentiment="POSITIVE",
     connected_stocks=[
         ConnectedAsset(
             symbol="MRK",
