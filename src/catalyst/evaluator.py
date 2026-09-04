@@ -19,19 +19,36 @@ class CatalystEvaluator:
             self._client = genai.Client(api_key=api_key)
 
     async def _call_gemini(self, prompt: str) -> str:
-        """Helper method to invoke Gemini API with temperature=0.0 (async)."""
+        """Helper method to invoke Gemini API with temperature=0.0 (async), with fallbacks."""
         if not self._client:
             raise ValueError("Gemini API key is not configured")
 
-        response = await self._client.aio.models.generate_content(
-            model="gemini-3.6-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.0,
-                response_mime_type="application/json",
-            ),
-        )
-        return response.text or "{}"
+        models = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview"]
+        last_error = None
+
+        import asyncio
+        for model_name in models:
+            for attempt in range(2):
+                try:
+                    response = await self._client.aio.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            temperature=0.0,
+                            response_mime_type="application/json",
+                        ),
+                    )
+                    return response.text or "{}"
+                except Exception as e:
+                    last_error = e
+                    if "503" in str(e) or "429" in str(e):
+                        logger.warning(f"CatalystEvaluator: {model_name} rate limited (attempt {attempt+1}). Retrying in 2s...")
+                        await asyncio.sleep(2)
+                    else:
+                        logger.warning(f"CatalystEvaluator: {model_name} failed with {e}")
+                        break  # Try next model if hard error
+        
+        raise RuntimeError(f"All models failed in CatalystEvaluator. Last error: {last_error}")
 
     async def evaluate_catalyst(
         self, article: CatalystArticle, timeline_context: str = ""
