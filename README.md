@@ -35,16 +35,57 @@ Phase 9 มุ่งเน้นไปที่การ **ปรับจูน
 
 ระบบแบ่งออกเป็น 4 ส่วนหลัก:
 
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│ 1. Data Ingestion│ ──> │ 2. Analysis & AI │ ──> │ 3. Chart & Delivery │
-│ yfinance / News │     │ Indicators / LLM │     │  Telegram & Buttons │
-└─────────────────┘     └──────────────────┘     └─────────────────────┘
-                               ▲
-                               │
-┌──────────────────────────────┴───────────────────────────┐
-│ 4. Real-time Monitoring & Webhooks (Alpaca / TradingView) │
-└──────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    %% Styling (Professional High Contrast)
+    classDef actor fill:#f9f9f9,stroke:#333,stroke-width:2px,color:#000
+    classDef app fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#000
+    classDef ai fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#000
+    classDef db fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#000
+    classDef external fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
+
+    User((👤 Telegram User)):::actor
+
+    subgraph FlyIO [☁️ Application Tier - Hosted on Fly.io]
+        Bot[🤖 Bot Controller\n(aiogram)]:::app
+        Pipeline[⚙️ Insight Pipeline\n(ThreadPoolExecutor)]:::app
+        Scheduler[⏱️ APScheduler\n(Cron Tasks)]:::app
+        Sniper[🎯 Alpaca Sniper\n(Memory Cache + TTL)]:::app
+        Hunter[🕵️ Catalyst Hunter\n(Pre-market Scanner)]:::app
+    end
+
+    subgraph Persistence [🗄️ Data Tier - Supabase PostgreSQL]
+        DB[(Users, Watchlists,\nSignals, Memory,\nSeen Catalysts)]:::db
+    end
+
+    subgraph AI_Layer [🧠 AI & Intelligence Layer]
+        Gemini[Google Gemini API\n(Flash/Pro Models)]:::ai
+    end
+
+    subgraph External_Sources [🌐 External Providers]
+        Market[yfinance\n(Market Data)]:::external
+        News[Google / Yahoo / CNN\n(News & Sentiment)]:::external
+        Alpaca[Alpaca API\n(Websockets / Trading)]:::external
+    end
+
+    %% Connections
+    User <-->|Commands & Callbacks| Bot
+    Bot -->|Fetch| Pipeline
+    Pipeline <-->|Async HTTP| Market
+    Pipeline <-->|Prompt Execution| Gemini
+    
+    Scheduler -.->|Trigger Scan| Hunter
+    Hunter -->|Fetch Articles| News
+    Hunter <-->|Zero-Token Deduplication| DB
+    Hunter -->|Evaluate Materiality| Gemini
+    Hunter -->|Alerts (Tier S/A)| User
+    
+    Scheduler -.->|Trigger Connection| Sniper
+    Sniper <-->|WSS Live Stream| Alpaca
+    Sniper <-->|Lazy Load / Batch Write| DB
+    Sniper -->|Target Hit Alert| User
+
+    Bot <-->|SQLAlchemy ORM| DB
 ```
 
 ---
