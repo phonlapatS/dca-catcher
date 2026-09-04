@@ -14,3 +14,4 @@ apscheduler>=3.11,<4.0
 mplfinance
 aiohttp>=3.14,<4.0
 websockets>=16.1,<17.0
+ddgs>=9.16.0

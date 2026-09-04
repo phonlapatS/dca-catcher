@@ -24,7 +24,7 @@ class CatalystEvaluator:
             raise ValueError("Gemini API key is not configured")
 
         response = await self._client.aio.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.6-flash",
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.0,
@@ -37,7 +37,7 @@ class CatalystEvaluator:
         self, article: CatalystArticle, timeline_context: str = ""
     ) -> CatalystVerdict:
         """Evaluates fundamental materiality, dual perspective (Bull/Bear), and supply chain links."""
-        prompt = f"""You are an institutional financial analyst specialized in event-driven catalysts, supply chain spillovers (Cohen & Frazzini economic links), and disciplined Dollar-Cost Averaging (DCA).
+        prompt = f"""You are an institutional financial analyst specialized in event-driven catalysts, supply chain spillovers, and disciplined Dollar-Cost Averaging (DCA).
 
 Analyze this breaking corporate news:
 - Symbol: ${article.symbol}
@@ -48,21 +48,29 @@ Analyze this breaking corporate news:
 {timeline_context}
 
 Instructions:
-1. Is this a material event that fundamentally alters business value or long-term revenue? (is_material: boolean, materiality_score: 1.0 to 10.0)
-2. Classify event_category into: CLINICAL_TRIAL, EARNINGS, M_AND_A, REGULATORY, CONTRACT, RISK_EVENT.
-3. Dual-Perspective Analysis in Thai:
+1. Is this a material event that fundamentally alters business value or long-term revenue? (is_material: boolean, materiality_score: 1.0 to 10.0. Reject clickbait/Zacks/MotleyFool junk with is_material=False and low score).
+2. Classify scope into: MACRO, SECTOR, or MICRO.
+3. Classify event_category into: CLINICAL_TRIAL, EARNINGS, M_AND_A, REGULATORY, CONTRACT, RISK_EVENT, MACRO_EVENT.
+4. Assess confidence_score (0-100) based on source reliability (Rumor vs Official).
+5. Provide impact_summary in Thai (1-2 sentences explaining causality: how/why this affects the price).
+6. Determine sentiment (POSITIVE, NEGATIVE, or NEUTRAL).
+7. Dual-Perspective Analysis in Thai:
    - bull_catalysts: Growth opportunity and strategic value.
    - bear_risks: Latent risks, execution hurdles, or gap-up overreaction risks.
-   - dca_guidance: Prudent DCA entry levels and accumulation advice (never advise chasing gap-ups).
+   - dca_guidance: Prudent DCA entry levels and accumulation advice.
    - thai_summary: 1-2 sentence factual Thai news summary.
-4. Supply Chain & Economic Links:
+8. Supply Chain & Economic Links:
    - connected_stocks: List of related companies (Suppliers, Customers, Competitors, Sympathy Peers) that will experience spillover effects.
 
 Return strict JSON adhering to this schema:
 {{
   "is_material": true,
   "materiality_score": 9.0,
-  "event_category": "CLINICAL_TRIAL",
+  "confidence_score": 90.0,
+  "scope": "MICRO",
+  "sentiment": "POSITIVE",
+  "event_category": "EARNINGS",
+  "impact_summary": "...",
   "bull_catalysts": "...",
   "bear_risks": "...",
   "dca_guidance": "...",
@@ -87,7 +95,11 @@ Return strict JSON adhering to this schema:
             return CatalystVerdict(
                 is_material=False,
                 materiality_score=1.0,
+                confidence_score=0.0,
+                scope="MICRO",
+                sentiment="NEUTRAL",
                 event_category="RISK_EVENT",
+                impact_summary="เกิดข้อผิดพลาดในการประมวลผลข้อมูล",
                 bull_catalysts="ไม่สามารถประเมินได้",
                 bear_risks="เกิดข้อผิดพลาดในการประมวลผลข้อมูล",
                 dca_guidance="ระงับการดำเนินการชั่วคราว",

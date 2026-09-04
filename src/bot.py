@@ -220,10 +220,16 @@ class DCABot:
             gemini_api_key=config.gemini_api_keys[0] if config.gemini_api_keys else None
         )
 
-        
+        from src.news_service import NewsService
+        self.news_service = NewsService(
+            db=self.db,
+            evaluator=self.catalyst_hunter.evaluator,
+            providers=self.catalyst_hunter.providers
+        )
+
         self.dp = Dispatcher()
         self._user_cooldowns: dict[int, float] = {}
-        self._HEAVY_CMD_COOLDOWN = 30  # seconds
+        self._HEAVY_CMD_COOLDOWN = 60  # seconds (Free-tier API protection)
         self._register_handlers()
         self.dp.errors.register(global_error_handler)
     async def _throttled_edit(self, msg, text: str, min_interval: float = 2.0, parse_mode: str = "Markdown"):
@@ -318,10 +324,18 @@ class DCABot:
             user = res.scalar_one_or_none()
 
             if not user:
-                user = User(telegram_id=telegram_id, username=username)
-                session.add(user)
-                await session.commit()
-                await session.refresh(user)
+                try:
+                    user = User(telegram_id=telegram_id, username=username)
+                    session.add(user)
+                    await session.commit()
+                    await session.refresh(user)
+                except Exception as e:
+                    # Catch IntegrityError in case of race condition (another request created user first)
+                    await session.rollback()
+                    res = await session.execute(stmt)
+                    user = res.scalar_one_or_none()
+                    if not user:
+                        raise e  # If still not found, it's a real database error
 
             stmt_w = select(Watchlist).where(
                 Watchlist.user_id == user.id, Watchlist.symbol == symbol
@@ -958,11 +972,11 @@ class DCABot:
             if user:
                 risk_profile = user.risk_profile
 
-        async with self.db.session() as session:
-            for symbol, enriched in enriched_signals.items():
-                grade_result = self.grader.grade(enriched, risk_profile=risk_profile)
+        for symbol, enriched in enriched_signals.items():
+            grade_result = self.grader.grade(enriched, risk_profile=risk_profile)
 
-                # Save signal to database (using grade field to store score for backwards compatibility)
+            # Save signal to database within a short-lived session
+            async with self.db.session() as session:
                 signal_entry = Signal(
                     symbol=grade_result.symbol,
                     grade=grade_result.score,
@@ -970,84 +984,95 @@ class DCABot:
                     advice=grade_result.advice,
                 )
                 session.add(signal_entry)
+                await session.commit()
 
-                snapshot = enriched.snapshot
+            snapshot = enriched.snapshot
 
-                reasons_str = (
-                    "\n".join(f"  • {r}" for r in grade_result.reasons)
-                    if grade_result.reasons
-                    else "  • N/A"
-                )
+            reasons_str = (
+                "\n".join(f"  • {r}" for r in grade_result.reasons)
+                if grade_result.reasons
+                else "  • N/A"
+            )
 
-                targets_str = (
-                    "\n".join(f"  • ${t}" for t in grade_result.buy_targets)
-                    if getattr(grade_result, "buy_targets", None)
-                    else "  • N/A"
-                )
+            targets_str = (
+                "\n".join(f"  • ${t}" for t in grade_result.buy_targets)
+                if getattr(grade_result, "buy_targets", None)
+                else "  • N/A"
+            )
 
-                # Create a visual progress bar for confidence
-                conf = grade_result.confidence
-                filled = int(conf / 10)
-                empty = 10 - filled
-                bar = "█" * filled + "░" * empty
-                
-                # Create a score visual (bar)
-                score_val = max(1, min(10, grade_result.score))
-                score_bar = "█" * score_val + "░" * (10 - score_val)
-                
-                # Create mention
-                username = message.from_user.username
-                mention = f"@{username}" if username else f"[{message.from_user.full_name}](tg://user?id={message.from_user.id})"
+            # Create a visual progress bar for confidence
+            conf = grade_result.confidence
+            filled = int(conf / 10)
+            empty = 10 - filled
+            bar = "█" * filled + "░" * empty
+            
+            # Create a score visual (bar)
+            score_val = max(1, min(10, grade_result.score))
+            score_bar = "█" * score_val + "░" * (10 - score_val)
+            
+            # Fetch Context-Aware News Teaser
+            try:
+                news_teaser = await self.news_service.get_scan_teaser(grade_result.symbol)
+                news_teaser_text = f"\n\n{news_teaser}" if news_teaser else ""
+            except Exception as e:
+                logger.error(f"Failed to fetch news teaser for {grade_result.symbol}: {e}")
+                news_teaser_text = ""
 
-                report_text = (
-                    f"🗣️ **สำหรับ {mention}**\n"
-                    f"📊 **{grade_result.symbol} Analysis**\n\n"
-                    f"🏷️ **Current Price:** ${snapshot.current_price:,.2f}\n"
-                    f"📉 **ATH Drawdown:** {snapshot.drawdown_pct}%\n\n"
-                    f"🤖 **AI Score (ความน่าลงทุน):** {score_val}/10\n"
-                    f"[{score_bar}]\n"
-                    f"🎯 **Confidence:** {conf}% [{bar}]\n\n"
-                    f"💡 **คำแนะนำจาก AI:**\n"
-                    f"{grade_result.advice}\n\n"
-                    f"📌 **จุดสังเกต:**\n"
-                    f"{reasons_str}\n\n"
-                    f"🛒 **ราคาเป้าหมาย (Buy Targets):**\n"
-                    f"{targets_str}"
-                )
-                # Create interactive target approval keyboard
-                buttons = []
-                if getattr(grade_result, "buy_targets", None):
-                    for idx, t in enumerate(grade_result.buy_targets):
-                        buttons.append([InlineKeyboardButton(text=f"[ ] ${t:,.2f}", callback_data=f"tgt_toggle_{grade_result.symbol}_{idx}")])
-                    buttons.append([
-                        InlineKeyboardButton(text="🎯 ยืนยันเป้าหมาย", callback_data=f"tgt_confirm_{grade_result.symbol}"),
-                        InlineKeyboardButton(text="❌ ยังไม่สนใจ / ข้าม", callback_data=f"tgt_dismiss_{grade_result.symbol}")
-                    ])
-                
-                # Add Insight button
-                buttons.append([InlineKeyboardButton(text="📖 เจาะลึกบทวิเคราะห์ (Deep Dive)", callback_data=f"insight_{grade_result.symbol}")])
+            # Create mention
+            username = message.from_user.username
+            mention = f"@{username}" if username else f"[{message.from_user.full_name}](tg://user?id={message.from_user.id})"
 
-                keyboard = InlineKeyboardMarkup(inline_keyboard=buttons) if buttons else None
+            report_text = (
+                f"🗣️ **สำหรับ {mention}**\n"
+                f"📊 **{grade_result.symbol} Analysis**\n\n"
+                f"🏷️ **Current Price:** ${snapshot.current_price:,.2f}\n"
+                f"📉 **ATH Drawdown:** {snapshot.drawdown_pct}%\n\n"
+                f"🤖 **AI Score (ความน่าลงทุน):** {score_val}/10\n"
+                f"[{score_bar}]\n"
+                f"🎯 **Confidence:** {conf}% [{bar}]\n\n"
+                f"💡 **คำแนะนำจาก AI:**\n"
+                f"{grade_result.advice}\n\n"
+                f"📌 **จุดสังเกต:**\n"
+                f"{reasons_str}\n\n"
+                f"🛒 **ราคาเป้าหมาย (Buy Targets):**\n"
+                f"{targets_str}"
+                f"{news_teaser_text}"
+            )
+            # Create interactive target approval keyboard
+            buttons = []
+            if getattr(grade_result, "buy_targets", None):
+                for idx, t in enumerate(grade_result.buy_targets):
+                    buttons.append([InlineKeyboardButton(text=f"[ ] ${t:,.2f}", callback_data=f"tgt_toggle_{grade_result.symbol}_{idx}")])
+                buttons.append([
+                    InlineKeyboardButton(text="🎯 ยืนยันเป้าหมาย", callback_data=f"tgt_confirm_{grade_result.symbol}"),
+                    InlineKeyboardButton(text="❌ ยังไม่สนใจ / ข้าม", callback_data=f"tgt_dismiss_{grade_result.symbol}")
+                ])
+            
+            # Add Insight button
+            buttons.append([InlineKeyboardButton(text="📖 เจาะลึกบทวิเคราะห์ (Deep Dive)", callback_data=f"insight_{grade_result.symbol}")])
 
-                # 1. Send text analysis first
+            keyboard = InlineKeyboardMarkup(inline_keyboard=buttons) if buttons else None
+
+            # 1. Send text analysis first
+            try:
+                await message.reply(report_text, parse_mode="Markdown", reply_markup=keyboard)
+            except Exception as e:
+                logger.error(f"Markdown parse error in scan: {e}. Falling back to plain text.")
+                await message.reply(report_text, reply_markup=keyboard)
+
+            # 2. Send in-memory target zones chart right after text
+            if getattr(grade_result, "buy_targets", None) and getattr(snapshot, "current_price", None):
                 try:
-                    await message.reply(report_text, parse_mode="Markdown", reply_markup=keyboard)
-                except Exception as e:
-                    logger.error(f"Markdown parse error in scan: {e}. Falling back to plain text.")
-                    await message.reply(report_text, reply_markup=keyboard)
-
-                # 2. Send in-memory target zones chart right after text
-                if getattr(grade_result, "buy_targets", None) and getattr(snapshot, "current_price", None):
-                    try:
-                        from src.charting import ChartGenerator
-                        from aiogram.types import BufferedInputFile
-                        chart_bytes = ChartGenerator.generate_target_chart(
-                            symbol=grade_result.symbol,
-                            current_price=snapshot.current_price,
-                            targets=grade_result.buy_targets
-                        )
-                        if chart_bytes:
-                            photo = BufferedInputFile(chart_bytes, filename=f"{grade_result.symbol}_chart.png")
+                    from src.charting import ChartGenerator
+                    from aiogram.types import BufferedInputFile
+                    chart_bytes = await asyncio.to_thread(
+                        ChartGenerator.generate_target_chart,
+                        grade_result.symbol,
+                        snapshot.current_price,
+                        grade_result.buy_targets
+                    )
+                    if chart_bytes:
+                        photo = BufferedInputFile(chart_bytes, filename=f"{grade_result.symbol}_chart.png")
                             await message.answer_photo(photo=photo, caption=f"📊 **{grade_result.symbol} Target Zones Chart**", parse_mode="Markdown")
                     except Exception as err:
                         logger.error(f"Failed to generate target chart for {grade_result.symbol}: {err}")
@@ -1298,26 +1323,23 @@ class DCABot:
 
 
     async def cmd_news(self, message: types.Message):
-        """Force a catalyst scan immediately."""
-        status_msg = await message.reply("🔄 เปิดเรดาร์เช็คข่าวด่วนล่าสุด (Real-time Catalyst)... กรุณารอสักครู่")
+        """Handle /news [symbol] — full news radar."""
+        if not message.text: return
+        parts = message.text.strip().split()
         
-        def make_progress_bar(percent: int, length: int = 12) -> str:
-            filled = int((percent / 100.0) * length)
-            empty = length - filled
-            return "█" * filled + "░" * empty
-
-        async def update_progress(stage: str, percent: int = 0):
-            try:
-                bar = make_progress_bar(percent)
-                await status_msg.edit_text(f"⏳ **Catalyst Hunter**\n`[{bar}] {percent}%`\n\n👉 {stage}", parse_mode="Markdown")
-            except Exception:
-                pass
-
+        if len(parts) < 2:
+            await message.reply("⚠️ โปรดระบุชื่อหุ้น เช่น `/news NVDA`", parse_mode="Markdown")
+            return
+            
+        symbol = parts[1].upper().replace(",", "")
+        status_msg = await message.reply(f"📰 กำลังค้นหาและประมวลผลข่าวทั้งหมดของ {symbol}...")
+        
         try:
-            count = await self.catalyst_hunter.run_scan_cycle(["NVDA", "TSLA", "AAPL"], on_progress=update_progress)
-            await status_msg.edit_text(f"✅ ประมวลผลและคัดกรองข่าวสารเสร็จสิ้น! พบข่าวด่วน (Tier S/A) จำนวน {count} รายการ")
+            report_text = await self.news_service.get_news_radar(symbol)
+            await status_msg.edit_text(report_text, parse_mode="Markdown")
         except Exception as e:
-            await status_msg.edit_text(f"❌ เกิดข้อผิดพลาด: {e}")
+            logger.error(f"Error in /news command for {symbol}: {e}")
+            await status_msg.edit_text(f"❌ เกิดข้อผิดพลาดในการดึงข้อมูลข่าวของ {symbol}")
 
     async def cmd_insight(self, message: types.Message):
 
@@ -1352,12 +1374,7 @@ class DCABot:
         await self._generate_and_send_insight(callback.message, symbol, explicit_user=callback.from_user)
 
     async def _generate_and_send_insight(self, message: types.Message, symbol: str, explicit_user: types.User | None = None):
-        """Generate deep-dive insight report using Multi-Agent Pipeline.
-
-        Pipeline: Data Collection → 3 Specialist Agents → Composer → Quality Gate.
-        Shows live progress updates to the user during each phase.
-        Falls back to old single-prompt method if pipeline is unavailable.
-        """
+        """Generate deep-dive insight report using Multi-Agent Pipeline."""
         status_msg = await message.reply(f"⏳ กำลังเริ่ม Multi-Agent Analysis ของ {symbol}...")
 
         # --- Check pipeline availability ---
@@ -1382,9 +1399,16 @@ class DCABot:
 
         # Fetch news in executor to prevent blocking the event loop
         loop = asyncio.get_running_loop()
-        from src.scrapers.sentiment import get_recent_news, get_fear_greed_index
-        news_headlines = await loop.run_in_executor(None, get_recent_news, symbol)
+        from src.scrapers.sentiment import get_fear_greed_index
         fear_greed = await loop.run_in_executor(None, get_fear_greed_index)
+
+        # Inject pre-scored Context-Aware News (S, A, B, C) directly into the pipeline
+        try:
+            radar_text = await self.news_service.get_news_radar(symbol)
+            news_headlines = [f"Pre-Scored News Context:\n{radar_text}"]
+        except Exception as e:
+            logger.error(f"Failed to fetch news radar for Insight: {e}")
+            news_headlines = ["(ไม่พบข่าวจากเรดาร์)"]
 
         # Fetch user risk profile
         risk_profile = None
@@ -1492,7 +1516,12 @@ class DCABot:
             try:
                 from src.charting import ChartGenerator
                 from aiogram.types import BufferedInputFile
-                chart_bytes = ChartGenerator.generate_target_chart(symbol, price, targets)
+                chart_bytes = await asyncio.to_thread(
+                    ChartGenerator.generate_target_chart,
+                    symbol, 
+                    price, 
+                    targets
+                )
                 if chart_bytes:
                     photo = BufferedInputFile(chart_bytes, filename=f"{symbol}_chart.png")
                     await message.answer_photo(photo=photo, caption=f"📊 **{symbol} Target Zones Deep Dive Chart**", parse_mode="Markdown")

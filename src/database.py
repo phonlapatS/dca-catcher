@@ -81,6 +81,7 @@ class SeenCatalyst(Base):
     seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), server_default=func.now()
     )
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Database:
@@ -136,6 +137,13 @@ class Database:
                     await conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {typ} DEFAULT {default}"))
                 except Exception:
                     pass
+            for col, typ, default in [
+                ("metadata_json", "TEXT", "NULL"),
+            ]:
+                try:
+                    await conn.execute(text(f"ALTER TABLE seen_catalysts ADD COLUMN {col} {typ} DEFAULT {default}"))
+                except Exception:
+                    pass
 
     def session(self) -> AsyncSession:
         return self._session_factory()
@@ -152,7 +160,7 @@ class Database:
             return [row[0] for row in result.all()]
 
     async def record_seen_catalyst(
-        self, headline_hash: str, symbol: str, headline: str, publisher: str | None = None
+        self, headline_hash: str, symbol: str, headline: str, publisher: str | None = None, metadata_json: str | None = None
     ) -> bool:
         """Records a catalyst headline hash. Returns True if recorded, False if already exists."""
         import logging
@@ -164,6 +172,7 @@ class Database:
                     symbol=symbol.upper(),
                     headline=headline,
                     publisher=publisher,
+                    metadata_json=metadata_json
                 )
                 session.add(catalyst)
                 await session.commit()

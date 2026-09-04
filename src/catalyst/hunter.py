@@ -8,6 +8,7 @@ from src.database import Database
 from src.catalyst.models import CatalystArticle, CatalystVerdict
 from src.catalyst.providers.google_news import GoogleNewsProvider
 from src.catalyst.providers.yahoo_finance import YahooFinanceProvider
+from src.catalyst.providers.ddgs_provider import DDGSNewsProvider
 from src.catalyst.verifiers.density_filter import DensityFilter
 from src.catalyst.verifiers.market_check import MarketMicrostructureChecker
 from src.catalyst.evaluator import CatalystEvaluator
@@ -29,7 +30,7 @@ class CatalystHunter:
         self.db = db
         self.bot = bot
         self.channel_id = channel_id
-        self.providers = providers or [GoogleNewsProvider(), YahooFinanceProvider()]
+        self.providers = providers or [GoogleNewsProvider(), YahooFinanceProvider(), DDGSNewsProvider()]
         self.density_filter = DensityFilter()
         self.microstructure_checker = MarketMicrostructureChecker()
         self.evaluator = CatalystEvaluator(api_key=gemini_api_key)
@@ -62,6 +63,18 @@ class CatalystHunter:
                     # 1. Deduplication Gate (0-Token DB lookup)
                     if await self.db.is_catalyst_seen(article.headline_hash):
                         continue
+                        
+                    # 1.5 Heuristic Junk Filter (0-Token)
+                    from src.news_service import JunkFilter
+                    if not hasattr(self, 'junk_filter'):
+                        self.junk_filter = JunkFilter()
+                        
+                    if self.junk_filter.is_junk(article.headline):
+                        await self.db.record_seen_catalyst(
+                            headline_hash=article.headline_hash, symbol=article.symbol,
+                            headline=article.headline, publisher=article.publisher
+                        )
+                        continue
 
                     # 2. Fact Density Gate (0-Token Filter)
                     if not self.density_filter.is_high_density(article.headline, article.raw_snippet):
@@ -90,12 +103,13 @@ class CatalystHunter:
                         self.digest_queue.append((article, verdict))
                         processed_count += 1
 
-                    # 5. Record Hash in Database
+                    # 5. Record Hash & Metadata in Database
                     await self.db.record_seen_catalyst(
                         headline_hash=article.headline_hash,
                         symbol=article.symbol,
                         headline=article.headline,
                         publisher=article.publisher,
+                        metadata_json=verdict.model_dump_json()
                     )
 
         return processed_count
