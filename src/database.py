@@ -155,6 +155,8 @@ class Database:
         self, headline_hash: str, symbol: str, headline: str, publisher: str | None = None
     ) -> bool:
         """Records a catalyst headline hash. Returns True if recorded, False if already exists."""
+        import logging
+        logger = logging.getLogger(__name__)
         async with self.session() as session:
             try:
                 catalyst = SeenCatalyst(
@@ -166,7 +168,8 @@ class Database:
                 session.add(catalyst)
                 await session.commit()
                 return True
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Catalyst already seen or DB error for {symbol}: {e}")
                 await session.rollback()
                 return False
 
@@ -177,6 +180,22 @@ class Database:
                 select(SeenCatalyst.id).where(SeenCatalyst.headline_hash == headline_hash)
             )
             return result.scalar_one_or_none() is not None
+
+    async def cleanup_old_catalysts(self, retention_days: int = 30) -> int:
+        """Delete seen_catalysts entries older than retention_days to prevent unbounded table growth."""
+        import logging
+        from datetime import timedelta
+        from sqlalchemy import delete
+        logger = logging.getLogger(__name__)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        async with self.session() as session:
+            stmt = delete(SeenCatalyst).where(SeenCatalyst.seen_at < cutoff)
+            result = await session.execute(stmt)
+            await session.commit()
+            deleted = result.rowcount
+            if deleted:
+                logger.info(f"Cleaned up {deleted} old catalyst entries (>{retention_days} days)")
+            return deleted
 
     async def get_user(self, telegram_id: int, username: str | None = None) -> User:
         """Get or create user safely. Handles race conditions with a try/except IntegrityError."""

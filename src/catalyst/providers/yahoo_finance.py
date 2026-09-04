@@ -51,8 +51,8 @@ class YahooFinanceProvider(BaseNewsProvider):
                 if hasattr(entry, "published"):
                     try:
                         published_at = parsedate_to_datetime(entry.published)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Could not parse date for {symbol}: {e}")
 
                 raw_snippet = getattr(entry, "summary", "") or getattr(entry, "description", "")
                 headline_hash = self.compute_hash(headline)
