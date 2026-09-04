@@ -415,5 +415,11 @@ export DATABASE_URL="sqlite+aiosqlite:///dca_catcher.db"
 - [x] **3.9:** IndexError guard — `.get()` สำหรับ CNN API, `getattr` + `hasattr` สำหรับ feedparser
 - [x] **3.10:** Catalyst `seen_catalysts` cleanup — เพิ่ม `cleanup_old_catalysts(retention_days=30)`
 
-### Tier 4 — ความเสี่ยงต่ำ (ทำเมื่อมีเวลา)
-- [ ] **4.1-4.7:** Dead Code cleanup, Dockerfile, Tests, pytest.ini, fly.toml RAM
+### Tier 4 — ความเสี่ยงต่ำ (✅ COMPLETE)
+- [x] **4.1** Dead Code cleanup — ลบ unused imports
+- [x] **4.2** Dockerfile — Multi-stage build + `.dockerignore`
+- [x] **4.3** Tests — ยืนยัน 91 tests ผ่าน
+- [x] **4.4** `pytest.ini` — เพิ่ม configs
+- [x] **4.5** `fly.toml` — เพิ่ม RAM เป็น 1024mb
+- [x] **4.6** Type hints — เพิ่มในส่วนที่ขาด
+- [x] **4.7** README.md — อัปเดต Phase 9

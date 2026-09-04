@@ -51,8 +51,14 @@
 - ✅ 3.9 IndexError guard → `.get()` สำหรับ CNN API, `getattr`/`hasattr` สำหรับ feedparser
 - ✅ 3.10 Catalyst cleanup → เพิ่ม `cleanup_old_catalysts(retention_days=30)`
 
-### Tier 4 — ความเสี่ยงต่ำ (7 รายการ) ⬅️ กำลังทำ
-- Dead Code cleanup, Dockerfile, Tests, pytest.ini, fly.toml RAM, Type hints, README
+### Tier 4 — ความเสี่ยงต่ำ (✅ COMPLETE)
+- [x] **4.1** Dead Code cleanup — ลบ unused imports ใน `memory.py`
+- [x] **4.2** Dockerfile — Multi-stage build + `.dockerignore`
+- [x] **4.3** Tests — เพิ่มและรัน 91 tests ผ่าน 100%
+- [x] **4.4** `pytest.ini` — เพิ่ม `asyncio_mode = auto` และ `testpaths = tests`
+- [x] **4.5** `fly.toml` — เพิ่ม RAM จาก 512MB เป็น 1GB สำหรับ AI concurrency
+- [x] **4.6** Type hints — เพิ่มใน module สำคัญ
+- [x] **4.7** README.md — อัปเดตเนื้อหาครอบคลุม Phase 9
 
 ## 📁 Phase 9 Documentation
 - **Design Spec:** `docs/superpowers/specs/2026-08-23-phase-9-optimization-bugfix-design.md`
