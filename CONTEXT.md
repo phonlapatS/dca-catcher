@@ -20,25 +20,26 @@
 - **Code Audit Complete:** ตรวจสอบโค้ดทั้งโปรเจกต์ พบปัญหา 32 รายการ
 - **Implementing fixes in priority order:**
 
-### Tier 1 — ความเสี่ยงสูงมาก (7 รายการ) ⬅️ ทำก่อน
-1. ❌ Portfolio SELL คำนวณต้นทุนผิด (`bot.py`)
-2. ❌ Technical Indicators ไม่ถูก map กลับ Snapshot (`transform.py`)
-3. ❌ User ID หายตอนกดปุ่ม Insight (`bot.py`)
-4. ❌ JSON Parse จาก LLM ไม่ Robust (3 ไฟล์)
-5. ❌ Event Loop Blocking จาก yfinance (`fetcher.py`)
-6. ❌ Blocking Gemini Call (`catalyst/evaluator.py`)
-7. ❌ DB Spam จาก Sniper Trade Ticks (`sniper.py`)
+### Tier 1 — ความเสี่ยงสูงมาก (7 รายการ + 1 Hotfix) ✅ เสร็จสมบูรณ์
+1. ❌ Portfolio SELL คำนวณต้นทุนผิด (`bot.py`) - แก้ไขแล้ว
+2. ❌ Technical Indicators ไม่ถูก map กลับ Snapshot (`transform.py`) - แก้ไขแล้ว
+3. ❌ User ID หายตอนกดปุ่ม Insight (`bot.py`) - แก้ไขแล้ว
+4. ❌ JSON Parse จาก LLM ไม่ Robust (3 ไฟล์) - แก้ไขแล้ว
+5. ❌ Event Loop Blocking จาก yfinance (`fetcher.py`) - แก้ไขแล้ว
+6. ❌ Blocking Gemini Call (`catalyst/evaluator.py`) - แก้ไขแล้ว
+7. ❌ DB Spam จาก Sniper Trade Ticks (`sniper.py`) - แก้ไขแล้ว
+8. ❌ Hotfix: แก้ไข Signal.created_at timezone crash
 
-### Tier 2 — ความเสี่ยงสูง (8 รายการ)
-- Insight Pipeline Sequential → Parallel
-- Telegram Rate Limit (Progress Bar)
-- User-level Command Rate Limit
-- Charting ดึงข้อมูลซ้ำ 3 รอบ
-- DST Hardcode ใน Sniper
-- requirements.txt ไม่มี Version Pinning
-- และอื่นๆ
+### Tier 2 — ความเสี่ยงสูง (7 รายการ) ✅ เสร็จสมบูรณ์
+- Insight Pipeline Sequential → Parallel (แก้ไขแล้ว)
+- Telegram Rate Limit (Progress Bar) (แก้ไขแล้ว)
+- User-level Command Rate Limit (แก้ไขแล้ว)
+- Charting ดึงข้อมูลซ้ำ 3 รอบ (แก้ไขแล้ว)
+- DST Hardcode ใน Sniper (แก้ไขแล้ว)
+- requirements.txt ไม่มี Version Pinning (แก้ไขแล้ว)
+- N+1 Query Fix ใน `cmd_remove` (แก้ไขแล้ว)
 
-### Tier 3-4 — ปานกลาง/ต่ำ (17 รายการ)
+### Tier 3-4 — ปานกลาง/ต่ำ (17 รายการ) ⬅️ กำลังทำ
 - Race Condition, Error Handling, Code Quality, Refactoring, Tests
 
 ## 📁 Phase 9 Documentation

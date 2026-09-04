@@ -13,20 +13,24 @@ Phase 9 เป็น Hardening Phase ที่เน้นแก้ไข Critic
 | 🟡 ปานกลาง (Tier 3) | 10 | Race Condition, Error ถูกซ่อน, Memory Queue หาย |
 | 🟢 ต่ำ (Tier 4) | 7 | Refactoring, Dead Code, Docker Best Practice |
 
-## ✨ Key Fixes
+## ✨ Key Fixes (Completed)
 
-### Critical Bugs (Tier 1)
+### Critical Bugs (Tier 1) ✅
 1. **Portfolio SELL Cost** — ต้นทุนเฉลี่ยพุ่งผิดปกติเมื่อขายหุ้น → แก้ให้หักลบ `total_cost` ตามสัดส่วน
 2. **Indicators → AI Pipeline** — RSI/MA50/Volume Anomaly คำนวณแล้วแต่ไม่ map กลับ Snapshot → AI ได้ข้อมูลไม่ครบ
 3. **User ID Callback** — กดปุ่ม Insight แล้ว Memory ไม่ถูกบันทึก เพราะ `from_user` ชี้ไปที่บอท
 4. **JSON Parse** — LLM ตอบกลับมาพร้อม Markdown fences → Crash → สร้าง `extract_json_from_llm()` utility
 5. **Event Loop Blocking** — yfinance/Gemini เป็น Sync → ครอบด้วย `asyncio.to_thread()`
 6. **DB Spam (Sniper)** — Query ทุก Trade Tick → ใช้ Memory Cache + Batch Update
+7. **Signal Timezone Crash** — แก้ปัญหา timezone mismatch ของคอลัมน์ `created_at` ในตาราง `signals`
 
-### Performance (Tier 2)
-- Insight Pipeline: Agent 1 & 2 รันพร้อมกันด้วย `asyncio.gather()`
-- Charting: ดึงข้อมูล 1 ครั้ง + slice แทนดึง 3 ครั้ง
-- Rate Limiting: Throttle Progress Bar + User Cooldown
+### Performance (Tier 2) ✅
+- **Insight Pipeline Parallel:** Agent 1 & 2 รันพร้อมกันด้วย `ThreadPoolExecutor` (ลดเวลา 2x)
+- **Async Charting:** ดึงข้อมูล 1 ครั้ง + slice แทนดึง 3 ครั้ง
+- **Rate Limiting:** เพิ่ม `_throttled_edit()` (ลด Telegram 429 Error) และ `_check_cooldown()` 30 วินาที
+- **N+1 Query Fix:** `cmd_remove` ใช้ `WHERE IN` แทนการ query วนลูป
+- **DST Handling:** ใช้ timezone `America/New_York` จัดการ Daylight Saving Time อัตโนมัติ
+- **Dependencies Pinning:** เพิ่ม version ranges ใน `requirements.txt` ป้องกันแพ็คเกจอัปเดตแล้วพัง
 
 ## 🛠️ Architecture Changes
 - **Async Wrapper Pattern:** ครอบ Blocking Calls ทั้งหมดด้วย `asyncio.to_thread()`
@@ -37,6 +41,7 @@ Phase 9 เป็น Hardening Phase ที่เน้นแก้ไข Critic
 - **Design Spec:** `docs/superpowers/specs/2026-08-23-phase-9-optimization-bugfix-design.md`
 - **Implementation Plan:** `docs/superpowers/plans/2026-08-23-phase-9-optimization-bugfix-plan.md`
 
-## 🚧 Known Limitations
-- Tier 3-4 (Code Hardening + Quality/Infra) อาจทำในอนาคตตามความจำเป็น
+## 🚧 Upcoming (Tier 3-4)
+- **Tier 3 (Medium Risk):** Race conditions, Error handling, Database performance (`memory.py`), Dependency injection, Configuration.
+- **Tier 4 (Low Risk):** Dead code cleanup, Dockerfile optimization, Tests, Type hints.
 - ไม่ได้ Refactor `bot.py` ออกเป็น Router ย่อยใน Phase นี้ (เก็บไว้ Phase ถัดไป)
