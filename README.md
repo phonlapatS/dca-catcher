@@ -52,10 +52,10 @@ flowchart TB
 
     User(("👤 Telegram User")):::actor
 
-    subgraph FlyIO [☁️ Application Tier - Hosted on Fly.io]
+    subgraph FlyIO ["☁️ Application Tier - Hosted on Fly.io"]
         Bot["🤖 DCABot Entrypoint"]:::app
         
-        subgraph Handlers [Modular Bot Handlers (Mixins)]
+        subgraph Handlers ["Modular Bot Handlers (Mixins)"]
             Common["Common"]:::handler
             Watchlist["Watchlist"]:::handler
             Scanning["Scanning"]:::handler
@@ -69,15 +69,15 @@ flowchart TB
         Sniper["🎯 Alpaca Sniper<br/>(DST-Aware)"]:::app
     end
 
-    subgraph Persistence [🗄️ Data Tier - Supabase PostgreSQL]
+    subgraph Persistence ["🗄️ Data Tier - Supabase PostgreSQL"]
         DB[("Users, Watchlists,<br/>Signals, Memory,<br/>Seen Catalysts")]:::db
     end
 
-    subgraph AI_Layer [🧠 AI & Intelligence Layer]
+    subgraph AI_Layer ["🧠 AI & Intelligence Layer"]
         Gemini["Google Gemini API<br/>(Flash 3.6 & Pro)"]:::ai
     end
 
-    subgraph External_Sources [🌐 External Providers]
+    subgraph External_Sources ["🌐 External Providers"]
         Market["yfinance<br/>(Market Data)"]:::external
         News["Google / Yahoo / DuckDuckGo<br/>(News APIs)"]:::external
         Alpaca["Alpaca API<br/>(WSS Trading)"]:::external
