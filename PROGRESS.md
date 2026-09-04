@@ -403,11 +403,17 @@ export DATABASE_URL="sqlite+aiosqlite:///dca_catcher.db"
 - [x] **2.6 DST Handling:** ใช้ `America/New_York` timezone + weekend check แทน Hardcode BKK times
 - [x] **2.7 Pin Dependencies:** ใส่ Version Ranges (>=min,<max) ใน `requirements.txt`
 
-### Tier 3 — ความเสี่ยงปานกลาง (วางแผนแก้)
-- [ ] **3.1:** Race Condition `get_user` → Upsert
-- [ ] **3.2:** แทนที่ `except Exception: pass` ด้วย `logger.error()`
-- [ ] **3.3:** `memory.py` Full Table Scan → ใช้ `== symbol.upper()` ตรงๆ
-- [ ] **3.4-3.10:** Catalyst hardcode, DI, Timestamps, Config, Button parsing, IndexError guard
+### Tier 3 — ความเสี่ยงปานกลาง (วางแผนแก้) ✅ COMPLETE (8/10, 2 deferred)
+- [x] **3.1:** Race Condition `get_user` → try/except IntegrityError upsert
+- [x] **3.2:** แทนที่ `except Exception: pass` ด้วย `logger.debug/warning` (catalyst providers, sentiment)
+- [x] **3.3:** `memory.py` Full Table Scan → ใช้ `== symbol.upper()` ตรงๆ (ลบ `func.upper`)
+- [x] **3.4:** Catalyst hardcode symbols → ใช้จาก watchlist, return 0 ถ้าว่าง
+- [ ] ~~**3.5:** Dependency Injection สำหรับ LLM clients~~ (deferred — refactor ใหญ่เกินสำหรับ bugfix phase)
+- [x] **3.6:** Timestamp consistency — ทุก model ใช้ `DateTime(timezone=True)` + `default` + `server_default`
+- [x] **3.7:** Config validation — raise ValueError ถ้า TELEGRAM_TOKEN หรือ GEMINI_API_KEY หายไป
+- [x] **3.8:** Button parsing — safe split + guard ก่อน `callback.data.split("_")[1]`
+- [x] **3.9:** IndexError guard — `.get()` สำหรับ CNN API, `getattr` + `hasattr` สำหรับ feedparser
+- [x] **3.10:** Catalyst `seen_catalysts` cleanup — เพิ่ม `cleanup_old_catalysts(retention_days=30)`
 
 ### Tier 4 — ความเสี่ยงต่ำ (ทำเมื่อมีเวลา)
 - [ ] **4.1-4.7:** Dead Code cleanup, Dockerfile, Tests, pytest.ini, fly.toml RAM
