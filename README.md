@@ -44,48 +44,48 @@ flowchart TB
     classDef db fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#000
     classDef external fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
 
-    User((👤 Telegram User)):::actor
+    User(("👤 Telegram User")):::actor
 
     subgraph FlyIO [☁️ Application Tier - Hosted on Fly.io]
-        Bot[🤖 Bot Controller\n(aiogram)]:::app
-        Pipeline[⚙️ Insight Pipeline\n(ThreadPoolExecutor)]:::app
-        Scheduler[⏱️ APScheduler\n(Cron Tasks)]:::app
-        Sniper[🎯 Alpaca Sniper\n(Memory Cache + TTL)]:::app
-        Hunter[🕵️ Catalyst Hunter\n(Pre-market Scanner)]:::app
+        Bot["🤖 Bot Controller<br/>(aiogram)"]:::app
+        Pipeline["⚙️ Insight Pipeline<br/>(ThreadPoolExecutor)"]:::app
+        Scheduler["⏱️ APScheduler<br/>(Cron Tasks)"]:::app
+        Sniper["🎯 Alpaca Sniper<br/>(Memory Cache + TTL)"]:::app
+        Hunter["🕵️ Catalyst Hunter<br/>(Pre-market Scanner)"]:::app
     end
 
     subgraph Persistence [🗄️ Data Tier - Supabase PostgreSQL]
-        DB[(Users, Watchlists,\nSignals, Memory,\nSeen Catalysts)]:::db
+        DB[("Users, Watchlists,<br/>Signals, Memory,<br/>Seen Catalysts")]:::db
     end
 
     subgraph AI_Layer [🧠 AI & Intelligence Layer]
-        Gemini[Google Gemini API\n(Flash/Pro Models)]:::ai
+        Gemini["Google Gemini API<br/>(Flash/Pro Models)"]:::ai
     end
 
     subgraph External_Sources [🌐 External Providers]
-        Market[yfinance\n(Market Data)]:::external
-        News[Google / Yahoo / CNN\n(News & Sentiment)]:::external
-        Alpaca[Alpaca API\n(Websockets / Trading)]:::external
+        Market["yfinance<br/>(Market Data)"]:::external
+        News["Google / Yahoo / CNN<br/>(News & Sentiment)"]:::external
+        Alpaca["Alpaca API<br/>(Websockets / Trading)"]:::external
     end
 
     %% Connections
-    User <-->|Commands & Callbacks| Bot
-    Bot -->|Fetch| Pipeline
-    Pipeline <-->|Async HTTP| Market
-    Pipeline <-->|Prompt Execution| Gemini
+    User <-->|"Commands & Callbacks"| Bot
+    Bot -->|"Fetch"| Pipeline
+    Pipeline <-->|"Async HTTP"| Market
+    Pipeline <-->|"Prompt Execution"| Gemini
     
-    Scheduler -.->|Trigger Scan| Hunter
-    Hunter -->|Fetch Articles| News
-    Hunter <-->|Zero-Token Deduplication| DB
-    Hunter -->|Evaluate Materiality| Gemini
-    Hunter -->|Alerts (Tier S/A)| User
+    Scheduler -.->|"Trigger Scan"| Hunter
+    Hunter -->|"Fetch Articles"| News
+    Hunter <-->|"Zero-Token Deduplication"| DB
+    Hunter -->|"Evaluate Materiality"| Gemini
+    Hunter -->|"Alerts (Tier S/A)"| User
     
-    Scheduler -.->|Trigger Connection| Sniper
-    Sniper <-->|WSS Live Stream| Alpaca
-    Sniper <-->|Lazy Load / Batch Write| DB
-    Sniper -->|Target Hit Alert| User
+    Scheduler -.->|"Trigger Connection"| Sniper
+    Sniper <-->|"WSS Live Stream"| Alpaca
+    Sniper <-->|"Lazy Load / Batch Write"| DB
+    Sniper -->|"Target Hit Alert"| User
 
-    Bot <-->|SQLAlchemy ORM| DB
+    Bot <-->|"SQLAlchemy ORM"| DB
 ```
 
 ---
