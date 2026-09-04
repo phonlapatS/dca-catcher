@@ -39,8 +39,20 @@
 - requirements.txt ไม่มี Version Pinning (แก้ไขแล้ว)
 - N+1 Query Fix ใน `cmd_remove` (แก้ไขแล้ว)
 
-### Tier 3-4 — ปานกลาง/ต่ำ (17 รายการ) ⬅️ กำลังทำ
-- Race Condition, Error Handling, Code Quality, Refactoring, Tests
+### Tier 3 — ความเสี่ยงปานกลาง (10 รายการ) ✅ 8/10 เสร็จ, 2 deferred
+- ✅ 3.1 Race Condition `get_user` → IntegrityError upsert
+- ✅ 3.2 Silent `except: pass` → `logger.debug/warning`
+- ✅ 3.3 `memory.py` Full Table Scan → ลบ `func.upper()` ใช้ index ได้
+- ✅ 3.4 Catalyst hardcode symbols → ดึงจาก watchlist, return 0 ถ้าว่าง
+- ⏭️ 3.5 DI สำหรับ LLM clients → **deferred** (refactor ใหญ่เกินสำหรับ bugfix phase, ควรทำแยก phase)
+- ✅ 3.6 Timestamp consistency → ทุก model: `DateTime(timezone=True)` + `default` + `server_default`
+- ✅ 3.7 Config validation → raise ValueError ถ้า TELEGRAM_TOKEN/GEMINI_API_KEY หายไป
+- ✅ 3.8 Button parsing → safe split + guard ก่อน index access
+- ✅ 3.9 IndexError guard → `.get()` สำหรับ CNN API, `getattr`/`hasattr` สำหรับ feedparser
+- ✅ 3.10 Catalyst cleanup → เพิ่ม `cleanup_old_catalysts(retention_days=30)`
+
+### Tier 4 — ความเสี่ยงต่ำ (7 รายการ) ⬅️ กำลังทำ
+- Dead Code cleanup, Dockerfile, Tests, pytest.ini, fly.toml RAM, Type hints, README
 
 ## 📁 Phase 9 Documentation
 - **Design Spec:** `docs/superpowers/specs/2026-08-23-phase-9-optimization-bugfix-design.md`

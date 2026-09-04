@@ -32,6 +32,20 @@ Phase 9 เป็น Hardening Phase ที่เน้นแก้ไข Critic
 - **DST Handling:** ใช้ timezone `America/New_York` จัดการ Daylight Saving Time อัตโนมัติ
 - **Dependencies Pinning:** เพิ่ม version ranges ใน `requirements.txt` ป้องกันแพ็คเกจอัปเดตแล้วพัง
 
+### Code Hardening (Tier 3) ✅ 8/10
+- **Race Condition Fix:** `get_user` ใช้ IntegrityError upsert ป้องกัน duplicate user
+- **Silent Error Logging:** เปลี่ยน `except: pass` → `logger.debug/warning` ในทุก provider
+- **Memory Query Index:** ลบ `func.upper()` ใน `memory.py` — ใช้ index ได้ตรงๆ
+- **Catalyst Dynamic Symbols:** ลบ hardcode symbols — ดึงจาก watchlist แทน
+- **Timestamp Consistency:** ทุก model ใช้ `DateTime(timezone=True)` + `default` + `server_default`
+- **Config Fail-Fast:** `Config.from_env()` raise ValueError ทันทีถ้า API keys หายไป
+- **Safe Button Parsing:** guard `callback.data.split("_")` ป้องกัน IndexError
+- **Defensive Access:** `.get()` สำหรับ CNN API, `getattr`/`hasattr` สำหรับ feedparser
+- **Catalyst Retention:** เพิ่ม `cleanup_old_catalysts(30 days)` ป้องกัน table โตไม่จำกัด
+
+#### Deferred Items (2 รายการ)
+- **3.5 DI สำหรับ LLM clients** — เป็น refactor ระดับ architecture ที่ต้องแยก pipeline, bot, evaluator ออกจาก client instantiation → ควรทำเป็น phase แยกต่างหาก ไม่เหมาะกับ bugfix phase
+
 ## 🛠️ Architecture Changes
 - **Async Wrapper Pattern:** ครอบ Blocking Calls ทั้งหมดด้วย `asyncio.to_thread()`
 - **Robust JSON Extraction:** สร้าง `src/utils.py` สำหรับ parse LLM output อย่างปลอดภัย
@@ -41,7 +55,6 @@ Phase 9 เป็น Hardening Phase ที่เน้นแก้ไข Critic
 - **Design Spec:** `docs/superpowers/specs/2026-08-23-phase-9-optimization-bugfix-design.md`
 - **Implementation Plan:** `docs/superpowers/plans/2026-08-23-phase-9-optimization-bugfix-plan.md`
 
-## 🚧 Upcoming (Tier 3-4)
-- **Tier 3 (Medium Risk):** Race conditions, Error handling, Database performance (`memory.py`), Dependency injection, Configuration.
-- **Tier 4 (Low Risk):** Dead code cleanup, Dockerfile optimization, Tests, Type hints.
+## 🚧 Upcoming (Tier 4)
+- Dead code cleanup, Dockerfile optimization, Tests, pytest.ini, fly.toml RAM, Type hints, README update
 - ไม่ได้ Refactor `bot.py` ออกเป็น Router ย่อยใน Phase นี้ (เก็บไว้ Phase ถัดไป)
