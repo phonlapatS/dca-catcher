@@ -1,17 +1,21 @@
-# DCA Catcher 📈 (Phase 9: Optimization & Bug Fixes)
+# DCA Catcher 📈 (Phase 10: Context-Aware News & Modular Architecture)
 
 **DCA Catcher** คือระบบ Telegram Bot สำหรับช่วยวิเคราะห์หุ้นและแจ้งเตือนราคาเป้าหมายสำหรับการลงทุนแบบ DCA (Dollar-Cost Averaging) 
 
 ---
 
-## 🚀 What's New in Phase 9 (Optimization & Bug Fixes)
 
-Phase 9 มุ่งเน้นไปที่การ **ปรับจูนประสิทธิภาพ, ล่าบัคระดับวิกฤต, และเสริมความเสถียร (Code Hardening)** เพื่อให้ระบบพร้อมสำหรับการใช้งานบน Production (Fly.io + Supabase) อย่างสมบูรณ์:
+## 🚀 What's New in Phase 10 (Context-Aware News & Refactoring)
 
-1. **Async & Parallel Processing:** ย้าย Blocking Calls ทั้งหมด (yfinance, Gemini) เข้าสู่ `asyncio.to_thread()` และรัน AI Pipeline แบบขนานด้วย `ThreadPoolExecutor` ทำให้ระบบตอบสนองเร็วขึ้น 2 เท่า
-2. **Robust JSON Parser:** เพิ่มระบบสกัด JSON แบบครอบจักรวาล ป้องกันปัญหา AI ตอบกลับมาติด Markdown fences
-3. **Database & Memory Optimization:** แก้ไข Race Condition, ปรับแต่ง Memory Index Query, และเพิ่มระบบ Cleanup ข้อมูลเก่าอัตโนมัติ
-4. **Resilience & Rate Limiting:** จัดการ Telegram Rate Limit แบบนุ่มนวลด้วยการ Throttle Progress Bar ทุก 2 วินาที และมี Cooldown ป้องกัน User Spam
+Phase 10 ยกระดับบอทให้มีความฉลาดด้านข่าวสารมากขึ้น และปรับปรุงโครงสร้างโค้ดระดับลึกเพื่อให้ทำงานได้เสถียรบน Free-Tier Cloud:
+
+1. **Multi-Source News Fetching:** เพิ่มเครื่องมือดูดข่าวจาก `DuckDuckGo News API (DDGS)` เข้ามาทำงานคู่กับ Google News และ Yahoo Finance เพื่ออุดรอยรั่วเวลาถูกจำกัดการเข้าถึง (Error 429)
+2. **AI Division of Labor:** แบ่งงานชัดเจน ใช้ระบบ Heuristic (JunkFilter) กรองข่าวขยะออกก่อนส่งให้ **Gemini 1.5 Flash** สรุปอารมณ์ข่าว (Sentiment) จากนั้นค่อยป้อนเข้า **Gemini Pro** เพื่อทำ Deep Dive
+3. **Modular Bot Architecture (Tier 4 Completed):** รื้อโครงสร้างไฟล์ `bot.py` ที่ยาวกว่า 1,600 บรรทัด แตกออกเป็น 5 Class Mixins (`common`, `watchlist`, `scanning`, `portfolio`, `survey`) เพื่อให้โค้ดดูแลรักษาง่ายขึ้น
+4. **Free-Tier API Protection:** 
+   - ปรับการทำงานของ AI Pipeline ให้รันแบบ Sequential แทน Parallel เพื่อป้องกันการชน Rate Limit ของ Google (15 RPM)
+   - วางระบบ Async Threading ให้ระบบวาดกราฟ (`asyncio.to_thread`) บอทจึงไม่ค้างระหว่างโหลดข้อมูล
+   - เพิ่ม Cooldown 60 วินาที สำหรับคำสั่งที่กินโควต้าหนักๆ
 
 ---
 
@@ -31,15 +35,17 @@ Phase 9 มุ่งเน้นไปที่การ **ปรับจูน
 
 ---
 
-## ⚙️ ภาพรวมการทำงานของระบบ (System Overview)
 
-ระบบแบ่งออกเป็น 4 ส่วนหลัก:
+## ⚙️ ภาพรวมการทำงานของระบบ (System Overview - Phase 10)
+
+ระบบออกแบบโครงสร้างใหม่โดยยึดหลัก Clean Architecture และ Free-Tier Optimization:
 
 ```mermaid
 flowchart TB
     %% Styling (Professional High Contrast)
     classDef actor fill:#f9f9f9,stroke:#333,stroke-width:2px,color:#000
     classDef app fill:#e1f5fe,stroke:#0288d1,stroke-width:2px,color:#000
+    classDef handler fill:#b3e5fc,stroke:#01579b,stroke-width:2px,color:#000
     classDef ai fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#000
     classDef db fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#000
     classDef external fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
@@ -47,11 +53,20 @@ flowchart TB
     User(("👤 Telegram User")):::actor
 
     subgraph FlyIO [☁️ Application Tier - Hosted on Fly.io]
-        Bot["🤖 Bot Controller<br/>(aiogram)"]:::app
-        Pipeline["⚙️ Insight Pipeline<br/>(ThreadPoolExecutor)"]:::app
-        Scheduler["⏱️ APScheduler<br/>(Cron Tasks)"]:::app
-        Sniper["🎯 Alpaca Sniper<br/>(Memory Cache + TTL)"]:::app
-        Hunter["🕵️ Catalyst Hunter<br/>(Pre-market Scanner)"]:::app
+        Bot["🤖 DCABot Entrypoint"]:::app
+        
+        subgraph Handlers [Modular Bot Handlers (Mixins)]
+            Common["Common"]:::handler
+            Watchlist["Watchlist"]:::handler
+            Scanning["Scanning"]:::handler
+            Portfolio["Portfolio"]:::handler
+            Survey["Survey"]:::handler
+        end
+        Bot --> Handlers
+
+        Pipeline["⚙️ Insight Pipeline<br/>(Throttled Async)"]:::app
+        NewsService["📰 News Service<br/>(Multi-Source Fetcher & JunkFilter)"]:::app
+        Sniper["🎯 Alpaca Sniper<br/>(DST-Aware)"]:::app
     end
 
     subgraph Persistence [🗄️ Data Tier - Supabase PostgreSQL]
@@ -59,30 +74,30 @@ flowchart TB
     end
 
     subgraph AI_Layer [🧠 AI & Intelligence Layer]
-        Gemini["Google Gemini API<br/>(Flash/Pro Models)"]:::ai
+        Gemini["Google Gemini API<br/>(Flash 3.6 & Pro)"]:::ai
     end
 
     subgraph External_Sources [🌐 External Providers]
         Market["yfinance<br/>(Market Data)"]:::external
-        News["Google / Yahoo / CNN<br/>(News & Sentiment)"]:::external
-        Alpaca["Alpaca API<br/>(Websockets / Trading)"]:::external
+        News["Google / Yahoo / DuckDuckGo<br/>(News APIs)"]:::external
+        Alpaca["Alpaca API<br/>(WSS Trading)"]:::external
     end
 
     %% Connections
-    User <-->|"Commands & Callbacks"| Bot
-    Bot -->|"Fetch"| Pipeline
+    User <-->|"Commands & Callbacks"| Handlers
+    Handlers -->|"Trigger Deep Dive"| Pipeline
+    Handlers -->|"Fetch Radar"| NewsService
+    Pipeline -->|"Get Cleaned Context"| NewsService
+    
     Pipeline <-->|"Async HTTP"| Market
-    Pipeline <-->|"Prompt Execution"| Gemini
+    Pipeline <-->|"Deep Dive Reasoning"| Gemini
     
-    Scheduler -.->|"Trigger Scan"| Hunter
-    Hunter -->|"Fetch Articles"| News
-    Hunter <-->|"Zero-Token Deduplication"| DB
-    Hunter -->|"Evaluate Materiality"| Gemini
-    Hunter -->|"Alerts (Tier S/A)"| User
+    NewsService -->|"Fetch Raw Articles"| News
+    NewsService <-->|"Deduplication"| DB
+    NewsService -->|"Filter & Tag Sentiment"| Gemini
     
-    Scheduler -.->|"Trigger Connection"| Sniper
-    Sniper <-->|"WSS Live Stream"| Alpaca
-    Sniper <-->|"Lazy Load / Batch Write"| DB
+    Sniper <-->|"Live Ticks"| Alpaca
+    Sniper <-->|"Operating Hours"| DB
     Sniper -->|"Target Hit Alert"| User
 
     Bot <-->|"SQLAlchemy ORM"| DB
