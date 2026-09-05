@@ -176,8 +176,8 @@ class DCABot(CommonMixin, SurveyMixin, WatchlistMixin, ScanningMixin,
                 tb_str = "".join(traceback.format_exception(type(event.exception), event.exception, event.exception.__traceback__))
                 
                 # LLM Analysis
-                from src.grader import LLMCaller
-                llm = LLMCaller(api_key=self.config.gemini_api_key)
+                from google import genai
+                client = genai.Client(api_key=self.config.gemini_api_key)
                 prompt = f"""
 You are an expert Python Backend Developer. Analyze the following traceback from our Telegram DCA Trading Bot.
 Explain exactly what went wrong and how to fix it in 2-3 short, clear sentences in Thai language. 
@@ -188,7 +188,8 @@ Traceback:
 """
                 ai_analysis = "ไม่สามารถวิเคราะห์ได้ในขณะนี้"
                 try:
-                    ai_analysis = llm.call(prompt)
+                    response = await asyncio.to_thread(client.models.generate_content, model='gemini-3.5-flash', contents=prompt)
+                    ai_analysis = response.text
                 except Exception as e:
                     logger.error(f"Failed to analyze error with LLM: {e}")
 
