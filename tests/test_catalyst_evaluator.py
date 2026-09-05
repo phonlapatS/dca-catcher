@@ -16,6 +16,10 @@ SAMPLE_ARTICLE = CatalystArticle(
 SAMPLE_LLM_JSON = """{
   "is_material": true,
   "materiality_score": 9.5,
+  "confidence_score": 95.0,
+  "scope": "MICRO",
+  "sentiment": "POSITIVE",
+  "impact_summary": "ผลกระทบเชิงบวกต่อรายได้ในอนาคต",
   "event_category": "CLINICAL_TRIAL",
   "bull_catalysts": "ปลดล็อก New S-Curve รายได้ประจำ 3-5 ปีข้างหน้า",
   "bear_risks": "ต้องรอการยื่นขออนุมัติจาก FDA และระวังราคาเปิดกระโดด",

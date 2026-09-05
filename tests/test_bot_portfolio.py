@@ -43,7 +43,7 @@ async def test_handle_photo_slip_success(test_config):
         "price": 125.50,
         "volume": 10.0,
     }
-    with patch("src.bot.GeminiSlipParser") as MockParser:
+    with patch("src.handlers.mixins.portfolio.GeminiSlipParser") as MockParser:
         mock_parser_instance = AsyncMock()
         mock_parser_instance.parse_slip.return_value = parsed_data
         MockParser.return_value = mock_parser_instance

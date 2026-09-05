@@ -50,8 +50,10 @@ async def test_catalyst_hunter_pipeline_flow(db):
     bot_mock = AsyncMock()
     hunter = CatalystHunter(db=db, bot=bot_mock, channel_id="@test_channel", gemini_api_key="mock_key")
 
-    # Mock provider returning SAMPLE_ARTICLE
-    hunter.providers[0].fetch_articles_for_symbol = AsyncMock(return_value=[SAMPLE_ARTICLE])
+    mock_provider = AsyncMock()
+    mock_provider.fetch_articles_for_symbol.return_value = [SAMPLE_ARTICLE]
+    hunter.providers = [mock_provider]
+    
     # Mock evaluator returning Tier S verdict
     hunter.evaluator.evaluate_catalyst = AsyncMock(return_value=SAMPLE_VERDICT_TIER_S)
 
@@ -82,7 +84,10 @@ async def test_catalyst_hunter_skips_seen_article(db):
         headline=SAMPLE_ARTICLE.headline
     )
 
-    hunter.providers[0].fetch_articles_for_symbol = AsyncMock(return_value=[SAMPLE_ARTICLE])
+    mock_provider = AsyncMock()
+    mock_provider.fetch_articles_for_symbol.return_value = [SAMPLE_ARTICLE]
+    hunter.providers = [mock_provider]
+    
     hunter.evaluator.evaluate_catalyst = AsyncMock()
 
     processed_count = await hunter.run_scan_cycle(symbols=["MRNA"])
@@ -108,7 +113,11 @@ async def test_catalyst_hunter_tier_a_batching_and_digest(db):
     verdict_tier_a = CatalystVerdict(
         is_material=True,
         materiality_score=7.8, # Tier A (7.5 - 8.9) -> Batched to 19:00 Digest
+        confidence_score=85.0,
+        scope="MICRO",
+        sentiment="POSITIVE",
         event_category="CONTRACT",
+        impact_summary="สัญญาจัดซื้อขนาดย่อม",
         bull_catalysts="ขยายห่วงโซ่อุปทาน",
         bear_risks="มาร์จิ้นต่ำ",
         dca_guidance="สะสมตามรอบปกติ",
@@ -116,7 +125,10 @@ async def test_catalyst_hunter_tier_a_batching_and_digest(db):
         connected_stocks=[]
     )
 
-    hunter.providers[0].fetch_articles_for_symbol = AsyncMock(return_value=[article_tier_a])
+    mock_provider = AsyncMock()
+    mock_provider.fetch_articles_for_symbol.return_value = [article_tier_a]
+    hunter.providers = [mock_provider]
+    
     hunter.evaluator.evaluate_catalyst = AsyncMock(return_value=verdict_tier_a)
 
     # 1. Scan cycle: should not send instant message, but put into digest queue

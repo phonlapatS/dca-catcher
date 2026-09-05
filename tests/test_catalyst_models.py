@@ -47,7 +47,11 @@ def test_catalyst_verdict_valid():
     verdict = CatalystVerdict(
         is_material=True,
         materiality_score=9.5,
+        confidence_score=90.0,
+        scope="MICRO",
+        sentiment="POSITIVE",
         event_category="CLINICAL_TRIAL",
+        impact_summary="ผลการทดลองทางคลินิกเป็นบวก",
         bull_catalysts="ปลดล็อก New S-Curve",
         bear_risks="รอ FDA อนุมัติ",
         dca_guidance="รอรับไม้ 1 ที่แนวรับ $61.50",
@@ -62,6 +66,7 @@ def test_catalyst_verdict_valid():
         ]
     )
     assert verdict.is_material is True
+    assert verdict.confidence_score == 90.0
     assert verdict.materiality_score == 9.5
     assert len(verdict.connected_stocks) == 1
     assert verdict.connected_stocks[0].symbol == "MRK"
