@@ -169,6 +169,79 @@ class PortfolioMixin:
     async def handle_slip_cancel(self, cq: types.CallbackQuery):
         await cq.message.edit_text('❌ ยกเลิกการบันทึกสลิปครับ')
 
+
+    async def cmd_paper_portfolio(self, message: types.Message):
+        """Handle /paper_portfolio - View paper trading simulated positions."""
+        from src.database import PaperTradeOrder, User
+        from sqlalchemy import select
+        
+        async with self.db.session() as session:
+            stmt = select(User).where(User.telegram_id == message.from_user.id)
+            res = await session.execute(stmt)
+            user = res.scalar_one_or_none()
+            
+            if not user:
+                await message.reply("ไม่พบข้อมูลผู้ใช้")
+                return
+                
+            stmt = select(PaperTradeOrder).where(PaperTradeOrder.user_id == user.id, PaperTradeOrder.status == "accepted")
+            res = await session.execute(stmt)
+            orders = res.scalars().all()
+            
+        if not orders:
+            await message.reply("📝 ยังไม่มีประวัติการเทรดจำลอง (Paper Trade) ผ่านบอทครับ\n\n(บอทจะยิงออเดอร์จำลองให้อัตโนมัติเมื่อราคาชนแนวรับ Sniper ของคุณ)")
+            return
+            
+        # Group by symbol
+        positions = {}
+        for o in orders:
+            if o.symbol not in positions:
+                positions[o.symbol] = {"qty": 0.0, "total_cost": 0.0}
+            if o.side == "buy":
+                positions[o.symbol]["qty"] += o.qty
+                positions[o.symbol]["total_cost"] += o.qty * (o.filled_price or 0.0)
+                
+        msg = "💼 **พอร์ตเทรดจำลอง (Paper Trading)**\n\n"
+        
+        # Fetch current prices
+        unique_symbols = list(positions.keys())
+        loop = asyncio.get_running_loop()
+        snapshots = await loop.run_in_executor(None, self.fetcher.fetch, unique_symbols)
+        
+        total_value = 0.0
+        total_cost_all = 0.0
+        
+        for sym, pos in positions.items():
+            if pos["qty"] <= 0:
+                continue
+                
+            avg_price = pos["total_cost"] / pos["qty"]
+            curr_price = snapshots[sym].current_price if snapshots and sym in snapshots else avg_price
+            val = pos["qty"] * curr_price
+            
+            total_value += val
+            total_cost_all += pos["total_cost"]
+            
+            pnl = val - pos["total_cost"]
+            pnl_pct = (pnl / pos["total_cost"]) * 100 if pos["total_cost"] > 0 else 0
+            
+            icon = "🟢" if pnl >= 0 else "🔴"
+            msg += f"🔹 **{sym}**\n"
+            msg += f"   • จำนวน: {pos['qty']} หุ้น (ต้นทุนเฉลี่ย ${avg_price:,.2f})\n"
+            msg += f"   • มูลค่าปัจจุบัน: ${val:,.2f} ({icon} {pnl_pct:+.2f}%)\n\n"
+            
+        total_pnl = total_value - total_cost_all
+        total_pnl_pct = (total_pnl / total_cost_all) * 100 if total_cost_all > 0 else 0
+        main_icon = "🟩" if total_pnl >= 0 else "🟥"
+        
+        msg += f"**=== สรุปภาพรวม ===**\n"
+        msg += f"💰 **Total Cost:** ${total_cost_all:,.2f}\n"
+        msg += f"💵 **Total Value:** ${total_value:,.2f}\n"
+        msg += f"📈 **Total P/L:** {main_icon} **${total_pnl:,.2f} ({total_pnl_pct:+.2f}%)**"
+        
+        await message.reply(msg, parse_mode='Markdown')
+
+
     async def cmd_portfolio(self, message: types.Message):
         user = await self.db.get_user(message.from_user.id)
         status = await message.reply(

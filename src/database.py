@@ -87,6 +87,20 @@ class SeenCatalyst(Base):
 
 
 
+
+class PaperTradeOrder(Base):
+    """Logs paper trading execution orders sent to Alpaca."""
+    __tablename__ = 'paper_trade_orders'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    symbol: Mapped[str] = mapped_column(String, index=True)
+    side: Mapped[str] = mapped_column(String) # 'buy' or 'sell'
+    qty: Mapped[float] = mapped_column(Float)
+    filled_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    status: Mapped[str] = mapped_column(String) # 'accepted', 'filled', 'failed'
+    alpaca_order_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
 class FundamentalHealth(Base):
     """Stores historical fundamental health data (P/E, EPS, Margins) to track growth trends."""
     __tablename__ = 'fundamental_health'

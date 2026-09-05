@@ -220,8 +220,18 @@ class AlpacaSniper:
                         logger.info(
                             f"SNIPER TRIGGER: {symbol} at ${price} <= target zone for user {telegram_id}: {msg}"
                         )
+                        
+                        # Trigger Paper Trade (Phase 13)
+                        trade_msg = ""
+                        try:
+                            # Use item.user_id for DB foreign key
+                            trade_msg = await self._submit_paper_order(item.user_id, telegram_id, symbol, "buy", 1.0, price)
+                        except Exception as e:
+                            logger.error(f"Paper trade submission crashed: {e}")
+                            
                         # Send actual Telegram notification
                         await self._send_notification(
+                            msg_suffix=trade_msg,
                             telegram_id=telegram_id,
                             username=username,
                             notify_dm=notify_dm,
@@ -261,6 +271,65 @@ class AlpacaSniper:
         except Exception as e:
             logger.error(f"Error checking target triggers for {symbol}: {e}", exc_info=True)
 
+
+    async def _submit_paper_order(self, user_db_id: int, telegram_id: int, symbol: str, side: str, qty: float, price: float) -> str:
+        """Submit a paper trade to Alpaca and log to database."""
+        if not self.api_key or not self.secret_key:
+            return "" # Skip if not configured
+            
+        import aiohttp
+        from src.database import PaperTradeOrder
+        
+        url = "https://paper-api.alpaca.markets/v2/orders"
+        headers = {
+            "APCA-API-KEY-ID": self.api_key,
+            "APCA-API-SECRET-KEY": self.secret_key,
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "symbol": symbol.upper(),
+            "qty": str(qty),
+            "side": side.lower(),
+            "type": "market", # Use market for immediate fill simulation, or 'limit'
+            "time_in_force": "gtc"
+        }
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload) as resp:
+                    resp_data = await resp.json()
+                    
+                    status = "failed"
+                    order_id = None
+                    if resp.status in (200, 201):
+                        status = "accepted"
+                        order_id = resp_data.get("id")
+                    
+                    # Log to DB
+                    async with self.db.session() as db_session:
+                        order = PaperTradeOrder(
+                            user_id=user_db_id,
+                            symbol=symbol,
+                            side=side,
+                            qty=qty,
+                            filled_price=price, # Simulated filled price
+                            status=status,
+                            alpaca_order_id=order_id
+                        )
+                        db_session.add(order)
+                        await db_session.commit()
+                        
+                    if status == "accepted":
+                        return f"\n\n🤖 **[Auto-Execution]** ยิงออเดอร์จำลอง (Paper Trade) ซื้อ {symbol} จำนวน {qty} หุ้น สำเร็จ! (Order ID: {order_id[:8]}...)"
+                    else:
+                        logger.error(f"Paper trade failed: {resp_data}")
+                        return f"\n\n⚠️ **[Auto-Execution]** ส่งออเดอร์ไม่สำเร็จ: {resp_data.get('message', 'Unknown Error')}"
+        except Exception as e:
+            logger.error(f"Error submitting paper order: {e}")
+            return ""
+
+
     async def _send_notification(
         self,
         telegram_id: int,
@@ -269,6 +338,7 @@ class AlpacaSniper:
         symbol: str,
         price: float,
         msg: str,
+        msg_suffix: str = ""
     ):
         """Send notification to user via DM or broadcast channel."""
         if not self.bot:
@@ -278,7 +348,7 @@ class AlpacaSniper:
         notification_text = (
             f"🔔 **แจ้งเตือนราคาเป้าหมาย!**\n\n"
             f"📊 **{symbol}** — ราคาปัจจุบัน: **${price:,.2f}**\n\n"
-            f"{msg}"
+            f"{msg}{msg_suffix}"
         )
 
         try:
