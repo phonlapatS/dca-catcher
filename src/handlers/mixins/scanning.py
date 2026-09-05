@@ -613,7 +613,13 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
         # 1. Check Cache (valid for 1 hour)
         cached = await self.db.get_cached_scan(symbol, "NEWS")
         if cached:
-            await status_msg.edit_text(f"*(Cached)*\n{cached['response_text']}", parse_mode='Markdown')
+            try:
+                await status_msg.edit_text(f"*(Cached)*\n{cached['response_text']}", parse_mode='Markdown')
+            except Exception as parse_err:
+                if "parse entities" in str(parse_err).lower():
+                    await status_msg.edit_text(f"⚠️ [Markdown Error Fallback]\n\n{cached['response_text']}", parse_mode=None)
+                else:
+                    raise parse_err
             return
             
         try:
@@ -634,7 +640,13 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
                 steps=steps
             )
             
-            await status_msg.edit_text(report_text, parse_mode='Markdown')
+            try:
+                await status_msg.edit_text(report_text, parse_mode='Markdown')
+            except Exception as parse_err:
+                if "parse entities" in str(parse_err).lower():
+                    await status_msg.edit_text(f"⚠️ [Markdown Error Fallback]\n\n{report_text}", parse_mode=None)
+                else:
+                    raise parse_err
             
             # Save to Cache
             await self.db.set_cached_scan(symbol, "NEWS", report_text, expires_in_hours=1.0)
@@ -693,7 +705,13 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
         cached = await self.db.get_cached_scan(symbol, "DEEP_DIVE")
         if cached:
             try:
-                await status_msg.edit_text(f"*(Cached)*\n{cached['response_text']}", parse_mode='Markdown')
+                try:
+                    await status_msg.edit_text(f"*(Cached)*\n{cached['response_text']}", parse_mode='Markdown')
+                except Exception as parse_err:
+                    if "parse entities" in str(parse_err).lower():
+                        await status_msg.edit_text(f"⚠️ [Markdown Error Fallback]\n\n{cached['response_text']}", parse_mode=None)
+                    else:
+                        raise parse_err
             except Exception as e:
                 logger.warning(f"Markdown parse error for cached insight: {e}")
                 await status_msg.edit_text(f"(Cached)\n{cached['response_text']}")
