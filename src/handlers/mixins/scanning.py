@@ -183,40 +183,47 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             if user:
                 risk_profile = user.risk_profile
         for symbol, enriched in enriched_signals.items():
-            grade_result = self.grader.grade(enriched, risk_profile=
-                risk_profile)
-            async with self.db.session() as session:
-                signal_entry = Signal(symbol=grade_result.symbol, grade=
-                    grade_result.score, confidence=grade_result.confidence,
-                    advice=grade_result.advice)
-                session.add(signal_entry)
-                await session.commit()
             snapshot = enriched.snapshot
-            reasons_str = '\n'.join(f'  • {r}' for r in grade_result.reasons
-                ) if grade_result.reasons else '  • N/A'
-            targets_str = '\n'.join(f'  • ${t}' for t in grade_result.
-                buy_targets) if getattr(grade_result, 'buy_targets', None
-                ) else '  • N/A'
-            conf = grade_result.confidence
-            filled = int(conf / 10)
-            empty = 10 - filled
-            bar = '█' * filled + '░' * empty
-            score_val = max(1, min(10, grade_result.score))
-            score_bar = '█' * score_val + '░' * (10 - score_val)
-            try:
-                news_teaser = await self.news_service.get_scan_teaser(
-                    grade_result.symbol)
-                news_teaser_text = f'\n\n{news_teaser}' if news_teaser else ''
-            except Exception as e:
-                logger.error(
-                    f'Failed to fetch news teaser for {grade_result.symbol}: {e}'
-                    )
-                news_teaser_text = ''
             username = message.from_user.username
             mention = (f'@{username}' if username else
                 f'[{message.from_user.full_name}](tg://user?id={message.from_user.id})'
                 )
-            report_text = f"""🗣️ **สำหรับ {mention}**
+                
+            cached = await self.db.get_cached_scan(symbol, "BASIC")
+            
+            if cached:
+                report_text = f"*(Cached)*\n{cached['response_text']}"
+                grade_result = type('obj', (object,), {
+                    'symbol': symbol,
+                    'buy_targets': cached.get('metadata', {}).get('targets', [])
+                })
+            else:
+                grade_result = self.grader.grade(enriched, risk_profile=risk_profile)
+                async with self.db.session() as session:
+                    signal_entry = Signal(symbol=grade_result.symbol, grade=
+                        grade_result.score, confidence=grade_result.confidence,
+                        advice=grade_result.advice)
+                    session.add(signal_entry)
+                    await session.commit()
+                reasons_str = '\n'.join(f'  • {r}' for r in grade_result.reasons
+                    ) if grade_result.reasons else '  • N/A'
+                targets_str = '\n'.join(f'  • ${t}' for t in grade_result.
+                    buy_targets) if getattr(grade_result, 'buy_targets', None
+                    ) else '  • N/A'
+                conf = grade_result.confidence
+                filled = int(conf / 10)
+                empty = 10 - filled
+                bar = '█' * filled + '░' * empty
+                score_val = max(1, min(10, grade_result.score))
+                score_bar = '█' * score_val + '░' * (10 - score_val)
+                try:
+                    news_teaser = await self.news_service.get_scan_teaser(grade_result.symbol)
+                    news_teaser_text = f'\n\n{news_teaser}' if news_teaser else ''
+                except Exception as e:
+                    logger.error(f'Failed to fetch news teaser for {grade_result.symbol}: {e}')
+                    news_teaser_text = ''
+                
+                report_text = f"""🗣️ **สำหรับ {mention}**
 📊 **{grade_result.symbol} Analysis**
 
 🏷️ **Current Price:** ${snapshot.current_price:,.2f}
@@ -229,11 +236,19 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
 💡 **คำแนะนำจาก AI:**
 {grade_result.advice}
 
-📌 **จุดสังเกต:**
-{reasons_str}
+🛒 **แนวรับสะสม (DCA Targets):**
+{targets_str}
 
-🛒 **ราคาเป้าหมาย (Buy Targets):**
-{targets_str}{news_teaser_text}"""
+📋 **เหตุผลวิเคราะห์ (Pros/Cons):**
+{reasons_str}{news_teaser_text}"""
+                
+                # Save to cache
+                try:
+                    cache_meta = {"targets": getattr(grade_result, 'buy_targets', [])}
+                    await self.db.set_cached_scan(symbol, "BASIC", report_text, expires_in_hours=1.0, metadata=cache_meta)
+                except Exception as e:
+                    logger.error(f"Failed to cache scan for {symbol}: {e}")
+
             buttons = []
             if getattr(grade_result, 'buy_targets', None):
                 for idx, t in enumerate(grade_result.buy_targets):
@@ -480,9 +495,19 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
         symbol = parts[1].upper().replace(',', '')
         status_msg = await message.reply(
             f'📰 กำลังค้นหาและประมวลผลข่าวทั้งหมดของ {symbol}...')
+            
+        # 1. Check Cache (valid for 1 hour)
+        cached = await self.db.get_cached_scan(symbol, "NEWS")
+        if cached:
+            await status_msg.edit_text(f"*(Cached)*\n{cached['response_text']}", parse_mode='Markdown')
+            return
+            
         try:
             report_text = await self.news_service.get_news_radar(symbol)
             await status_msg.edit_text(report_text, parse_mode='Markdown')
+            
+            # Save to Cache
+            await self.db.set_cached_scan(symbol, "NEWS", report_text, expires_in_hours=1.0)
         except Exception as e:
             error_type = type(e).__name__
             error_msg = str(e)[:200]
@@ -533,6 +558,31 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
         """Generate deep-dive insight report using Multi-Agent Pipeline."""
         status_msg = await message.reply(
             f'⏳ กำลังเริ่ม Multi-Agent Analysis ของ {symbol}...')
+            
+        # 1. Check Cache (valid for 2 hours)
+        cached = await self.db.get_cached_scan(symbol, "DEEP_DIVE")
+        if cached:
+            try:
+                await status_msg.edit_text(f"*(Cached)*\n{cached['response_text']}", parse_mode='Markdown')
+            except Exception as e:
+                logger.warning(f"Markdown parse error for cached insight: {e}")
+                await status_msg.edit_text(f"(Cached)\n{cached['response_text']}")
+                
+            # Render chart if targets exist in cache metadata
+            metadata = cached.get('metadata')
+            if metadata and metadata.get('targets') and metadata.get('price'):
+                try:
+                    from src.charting import ChartGenerator
+                    from aiogram.types import BufferedInputFile
+                    chart_bytes = await asyncio.to_thread(ChartGenerator.
+                        generate_target_chart, symbol, metadata['price'], metadata['targets'])
+                    if chart_bytes:
+                        photo = BufferedInputFile(chart_bytes, filename=f'{symbol}_chart.png')
+                        await message.answer_photo(photo=photo, caption=f'📊 **{symbol} Target Zones Deep Dive Chart**', parse_mode='Markdown')
+                except Exception as err:
+                    logger.error(f"Error sending cached insight chart: {err}")
+            return
+            
         if not self.insight_pipeline:
             await status_msg.edit_text(
                 '❌ ระบบ Multi-Agent Pipeline ยังไม่พร้อม (ไม่มี API Key)')
@@ -663,6 +713,14 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
                 logger.warning(
                     f'Markdown parse error: {e}. Sending as plain text.')
                 await status_msg.edit_text(report)
+
+        # Save to Cache
+        try:
+            cache_meta = {"price": price, "targets": targets} if price and targets else None
+            await self.db.set_cached_scan(symbol, "DEEP_DIVE", report, expires_in_hours=2.0, metadata=cache_meta)
+        except Exception as e:
+            logger.error(f"Failed to cache insight for {symbol}: {e}")
+
         if targets and price:
             try:
                 from src.charting import ChartGenerator

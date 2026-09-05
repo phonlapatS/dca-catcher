@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Optional
 from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
@@ -83,6 +84,17 @@ class SeenCatalyst(Base):
     )
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+
+
+class ScanCache(Base):
+    __tablename__ = 'scan_cache'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    scan_type: Mapped[str] = mapped_column(String, index=True, nullable=False)  # 'BASIC', 'DEEP_DIVE', 'NEWS'
+    response_text: Mapped[str] = mapped_column(String, nullable=False)
+    metadata_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 class Database:
 
@@ -181,6 +193,53 @@ class Database:
                 logger.debug(f"Catalyst already seen or DB error for {symbol}: {e}")
                 await session.rollback()
                 return False
+
+    
+    async def get_cached_scan(self, symbol: str, scan_type: str) -> Optional[dict]:
+        async with self.session() as session:
+            now = datetime.now(timezone.utc)
+            stmt = select(ScanCache).where(
+                ScanCache.symbol == symbol,
+                ScanCache.scan_type == scan_type,
+                ScanCache.expires_at > now
+            )
+            result = (await session.execute(stmt)).scalar_one_or_none()
+            if result:
+                import json
+                meta = json.loads(result.metadata_json) if result.metadata_json else None
+                return {"response_text": result.response_text, "metadata": meta}
+            return None
+
+    async def set_cached_scan(self, symbol: str, scan_type: str, response_text: str, expires_in_hours: float = 2.0, metadata: dict = None):
+        async with self.session() as session:
+            import json
+            from datetime import timedelta
+            now = datetime.now(timezone.utc)
+            expires = now + timedelta(hours=expires_in_hours)
+            meta_str = json.dumps(metadata) if metadata else None
+
+            # Upsert or replace old cache
+            stmt = select(ScanCache).where(
+                ScanCache.symbol == symbol,
+                ScanCache.scan_type == scan_type
+            )
+            existing = (await session.execute(stmt)).scalar_one_or_none()
+
+            if existing:
+                existing.response_text = response_text
+                existing.metadata_json = meta_str
+                existing.expires_at = expires
+                existing.created_at = now
+            else:
+                new_cache = ScanCache(
+                    symbol=symbol,
+                    scan_type=scan_type,
+                    response_text=response_text,
+                    metadata_json=meta_str,
+                    expires_at=expires
+                )
+                session.add(new_cache)
+            await session.commit()
 
     async def is_catalyst_seen(self, headline_hash: str) -> bool:
         """Checks whether a catalyst hash has already been processed."""
