@@ -108,7 +108,21 @@ Return strict JSON adhering to this schema:
             data = extract_json_from_llm(raw_json)
             return CatalystVerdict(**data)
         except Exception as e:
+            error_type = type(e).__name__
+            error_msg = str(e)[:200]
+            
+            # Source detection for Admin
+            source = "Unknown"
+            if "503" in error_msg or "429" in error_msg or "google" in str(type(e)).lower():
+                source = "Google Gemini API (AI)"
+            elif "asyncpg" in str(type(e)).lower() or "sqlalchemy" in str(type(e)).lower():
+                source = "Supabase PostgreSQL (Database)"
+            elif "fly" in error_msg.lower():
+                source = "Fly.io (Server)"
+                
+            admin_debug_info = f"🚨 [System Error: {source}]\nType: {error_type}\nDetails: {error_msg}"
             logger.error(f"Error evaluating catalyst for {article.symbol}: {e}")
+            
             return CatalystVerdict(
                 is_material=False,
                 materiality_score=1.0,
@@ -116,10 +130,10 @@ Return strict JSON adhering to this schema:
                 scope="MICRO",
                 sentiment="NEUTRAL",
                 event_category="RISK_EVENT",
-                impact_summary="เกิดข้อผิดพลาดในการประมวลผลข้อมูล",
+                impact_summary=f"เกิดข้อผิดพลาดในการประมวลผลข้อมูล\n\n{admin_debug_info}",
                 bull_catalysts="ไม่สามารถประเมินได้",
-                bear_risks="เกิดข้อผิดพลาดในการประมวลผลข้อมูล",
-                dca_guidance="ระงับการดำเนินการชั่วคราว",
-                thai_summary="เกิดข้อผิดพลาดในการวิเคราะห์ข่าว",
+                bear_risks=admin_debug_info,
+                dca_guidance="ระงับการดำเนินการชั่วคราว จนกว่าระบบจะกลับมาเป็นปกติ",
+                thai_summary=f"เกิดข้อผิดพลาดในการวิเคราะห์ข่าว: {source}",
                 connected_stocks=[]
             )
