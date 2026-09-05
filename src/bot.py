@@ -314,6 +314,7 @@ Traceback:
             hour='8-16', minute='*/30')
         self.scheduler.add_job(self.catalyst_hunter.send_daily_digest,
             'cron', hour=19, minute=0)
+        self.scheduler.add_job(self.send_premarket_watchlist_digest, 'cron', hour=19, minute=30)
         self.scheduler.start()
         await self.on_startup()
         logger.info('Starting Telegram bot polling...')

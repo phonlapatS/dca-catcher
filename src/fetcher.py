@@ -23,6 +23,10 @@ class StockSnapshot:
     peg_ratio: float | None = None
     revenue_growth: float | None = None
     profit_margins: float | None = None
+    forward_pe: float | None = None
+    eps_ttm: float | None = None
+    free_cash_flow: float | None = None
+    debt_to_equity: float | None = None
     debt_to_equity: float | None = None
 
 

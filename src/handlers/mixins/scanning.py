@@ -388,6 +388,102 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
 ต่อไปเมื่อหุ้นถึงเป้าหมาย บอทจะแจ้งเตือนคุณผ่านทาง **{mode_text}** ครับ"""
             , reply_markup=None)
 
+
+    async def send_premarket_watchlist_digest(self):
+        """Send a personalized daily digest to each user based on their watchlist 1 hour before US market opens."""
+        logger.info("Starting Pre-Market Watchlist Digest...")
+        async with self.db.session() as session:
+            stmt = select(User).where(User.notify_dm == True)
+            res = await session.execute(stmt)
+            users = res.scalars().all()
+            
+        if not users:
+            logger.info("No users with notify_dm=True found for digest.")
+            return
+            
+        loop = asyncio.get_running_loop()
+        
+        for user in users:
+            try:
+                # Get user's US watchlist
+                async with self.db.session() as session:
+                    stmt = select(Watchlist.symbol).where(Watchlist.user_id == user.id, Watchlist.market == 'US')
+                    res = await session.execute(stmt)
+                    us_symbols = res.scalars().all()
+                    
+                if not us_symbols:
+                    continue
+                    
+                # Fetch snapshots
+                snapshots = await loop.run_in_executor(None, self.fetcher.fetch, us_symbols)
+                if not snapshots:
+                    continue
+                    
+                enriched = self.transformer.enrich(snapshots)
+                
+                digest_msg = "🔔 **Pre-Market Watchlist Digest (19:30 น.)**\n"
+                digest_msg += f"อัปเดตสถานการณ์หุ้น US ใน Watchlist ของคุณก่อนตลาดเปิด:\n\n"
+                
+                for symbol in us_symbols:
+                    if symbol not in enriched:
+                        continue
+                        
+                    # Check cache for grading
+                    cached = await self.db.get_cached_scan(symbol, "BASIC")
+                    score_val = "?"
+                    advice = "ไม่มีคำแนะนำ"
+                    
+                    if cached:
+                        # Extract score and advice from cached text if possible, or just use a generic format
+                        score_val = "✓ (Cached)"
+                    else:
+                        rp = user.risk_profile or 'ทั่วไป (ไม่ได้ตั้งค่า)'
+                        grade_result = self.grader.grade(enriched[symbol], risk_profile=rp)
+                        score_val = f"{grade_result.score}/10"
+                        
+                        # Cache it for other users
+                        try:
+                            cache_meta = {"targets": getattr(grade_result, 'buy_targets', [])}
+                            await self.db.set_cached_scan(symbol, "BASIC", f"Score: {score_val}\n{grade_result.advice}", expires_in_hours=1.0, metadata=cache_meta)
+                        except Exception:
+                            pass
+                            
+                    # Get news teaser
+                    news_teaser = await self.news_service.get_scan_teaser(symbol)
+                    news_str = f"\n{news_teaser}" if news_teaser else ""
+                    
+                    snap = snapshots[symbol]
+                    digest_msg += f"🔹 **{symbol}** (${snap.current_price:,.2f} | 📉 {snap.drawdown_pct}%)\n"
+                    digest_msg += f"🤖 AI Score: {score_val}{news_str}\n\n"
+                    
+                    # Log Fundamental Health
+                    try:
+                        from src.database import FundamentalHealth
+                        async with self.db.session() as h_session:
+                            health = FundamentalHealth(
+                                symbol=symbol,
+                                trailing_pe=snap.trailing_pe,
+                                forward_pe=snap.forward_pe,
+                                eps_ttm=snap.eps_ttm,
+                                revenue_growth=snap.revenue_growth,
+                                profit_margin=snap.profit_margins,
+                                free_cash_flow=snap.free_cash_flow,
+                                debt_to_equity=snap.debt_to_equity
+                            )
+                            h_session.add(health)
+                            await h_session.commit()
+                    except Exception as e:
+                        logger.error(f"Failed to log FundamentalHealth for {symbol}: {e}")
+                    
+                # Send to user
+                await self.bot.send_message(chat_id=user.telegram_id, text=digest_msg, parse_mode='Markdown')
+                await asyncio.sleep(1) # Throttling
+                
+            except Exception as e:
+                logger.error(f"Failed to send pre-market digest to user {user.telegram_id}: {e}")
+                
+        logger.info("Pre-Market Watchlist Digest completed.")
+
     async def broadcast_scan(self, market: str=None):
         """Run broadcast scan and send to configured channel, personalized by risk profile."""
         if not self.config.broadcast_channel_id:

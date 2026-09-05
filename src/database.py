@@ -86,6 +86,21 @@ class SeenCatalyst(Base):
 
 
 
+
+class FundamentalHealth(Base):
+    """Stores historical fundamental health data (P/E, EPS, Margins) to track growth trends."""
+    __tablename__ = 'fundamental_health'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    record_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    trailing_pe: Mapped[float | None] = mapped_column(Float, nullable=True)
+    forward_pe: Mapped[float | None] = mapped_column(Float, nullable=True)
+    eps_ttm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    revenue_growth: Mapped[float | None] = mapped_column(Float, nullable=True)
+    profit_margin: Mapped[float | None] = mapped_column(Float, nullable=True)
+    free_cash_flow: Mapped[float | None] = mapped_column(Float, nullable=True)
+    debt_to_equity: Mapped[float | None] = mapped_column(Float, nullable=True)
+
 class ScanCache(Base):
     __tablename__ = 'scan_cache'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
