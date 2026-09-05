@@ -19,35 +19,6 @@ from src.transform import DataTransformer
 from src.catalyst.hunter import CatalystHunter
 from src.slip_parser import GeminiSlipParser
 logger = logging.getLogger(__name__)
-async def global_error_handler(event: ErrorEvent):
-    logger.error(f'Critical Global Error: {event.exception}', exc_info=True)
-    if event.update.message:
-        try:
-            await event.update.message.reply(
-                f"""⚠️ **ขออภัย เกิดข้อผิดพลาดในระบบหลังบ้าน (System Error)**
-```text
-{type(event.exception).__name__}: {str(event.exception)[:100]}...
-```
-ระบบได้บันทึก Log นี้ไว้แล้ว กรุณาลองใหม่อีกครั้งครับ"""
-                , parse_mode='Markdown')
-        except Exception:
-            pass
-    try:
-        if event.update.bot:
-            admin_id = 8942457900
-            error_msg = f"""🚨 **[ADMIN ALERT] System Crash Detected!** 🚨
-**Error:** `{type(event.exception).__name__}`
-**Details:** `{str(event.exception)}`
-"""
-            if event.update.message:
-                error_msg += (
-                    f'**Triggered by User:** {event.update.message.from_user.id}\n'
-                    )
-                error_msg += f'**Message:** {event.update.message.text}\n'
-            await event.update.bot.send_message(chat_id=admin_id, text=
-                error_msg, parse_mode='Markdown')
-    except Exception as e:
-        logger.error(f'Failed to send alert to admin: {e}')
 GRADE_EMOJIS = {(1): '🔴', (2): '🟡', (3): '🟢', (4): '🌟'}
 GRADE_LABELS = {(1): 'Risky (มีความเสี่ยงสูง)', (2): 'Moderate (ถือ/รอดู)',
     (3): 'Low Risk (เหมาะแก่การ DCA)', (4): 'Strong Buy (สัญญาณซื้อแข็งแกร่ง)'}
@@ -158,11 +129,81 @@ class DCABot(CommonMixin, SurveyMixin, WatchlistMixin, ScanningMixin,
         self.news_service = NewsService(db=self.db, evaluator=self.
             catalyst_hunter.evaluator, providers=self.catalyst_hunter.providers
             )
+        
+        if self.config.sentry_dsn:
+            import sentry_sdk
+            sentry_sdk.init(
+                dsn=self.config.sentry_dsn,
+                traces_sample_rate=1.0,
+                profiles_sample_rate=1.0,
+            )
+            logger.info("Sentry SDK initialized successfully.")
+
         self.dp = Dispatcher()
         self._user_cooldowns: dict[int, float] = {}
         self._HEAVY_CMD_COOLDOWN = 60
         self._register_handlers()
-        self.dp.errors.register(global_error_handler)
+        self.dp.errors.register(self.global_error_handler)
+
+
+    async def global_error_handler(self, event: ErrorEvent):
+        import sentry_sdk
+        import traceback
+        
+        logger.error(f'Critical Global Error: {event.exception}', exc_info=True)
+        
+        # 1. Send to Sentry
+        sentry_sdk.capture_exception(event.exception)
+        
+        # 2. Inform User
+        if event.update.message:
+            try:
+                await event.update.message.reply(
+                    f"⚠️ **ขออภัย เกิดข้อผิดพลาดในระบบหลังบ้าน (System Error)**\n"
+                    f"```text\n"
+                    f"{type(event.exception).__name__}: {str(event.exception)[:100]}...\n"
+                    f"```\n"
+                    f"ระบบได้บันทึก Log และแจ้งเตือนผู้ดูแลแล้ว กรุณาลองใหม่อีกครั้งครับ",
+                    parse_mode='Markdown'
+                )
+            except Exception:
+                pass
+                
+        # 3. Analyze Error with LLM
+        try:
+            if event.update.bot:
+                admin_id = 8942457900
+                tb_str = "".join(traceback.format_exception(type(event.exception), event.exception, event.exception.__traceback__))
+                
+                # LLM Analysis
+                from src.grader import LLMCaller
+                llm = LLMCaller(api_key=self.config.gemini_api_key)
+                prompt = f"""
+You are an expert Python Backend Developer. Analyze the following traceback from our Telegram DCA Trading Bot.
+Explain exactly what went wrong and how to fix it in 2-3 short, clear sentences in Thai language. 
+Be highly technical but concise. Do not use markdown backticks in your response.
+                
+Traceback:
+{tb_str[-2000:]}
+"""
+                ai_analysis = "ไม่สามารถวิเคราะห์ได้ในขณะนี้"
+                try:
+                    ai_analysis = llm.call(prompt)
+                except Exception as e:
+                    logger.error(f"Failed to analyze error with LLM: {e}")
+
+                error_msg = f"🚨 **[ADMIN ALERT] System Crash Detected!** 🚨\n"
+                error_msg += f"**Error:** `{type(event.exception).__name__}`\n"
+                error_msg += f"**Details:** `{str(event.exception)}`\n\n"
+                error_msg += f"🤖 **AI Analysis:**\n_{ai_analysis}_\n\n"
+                
+                if event.update.message:
+                    error_msg += f"**Triggered by User:** {event.update.message.from_user.id}\n"
+                    error_msg += f"**Message:** {event.update.message.text}\n"
+                    
+                await event.update.bot.send_message(chat_id=admin_id, text=error_msg[:4000], parse_mode='Markdown')
+        except Exception as e:
+            logger.error(f'Failed to send alert to admin: {e}')
 
     async def _throttled_edit(self, msg, text: str, min_interval: float=2.0,
         parse_mode: str='Markdown'):
