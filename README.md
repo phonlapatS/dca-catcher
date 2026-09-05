@@ -36,6 +36,12 @@ Phase 10 ยกระดับบอทให้มีความฉลาด�
   - **Global Response Caching:** สร้างระบบจดจำผลลัพธ์ของ `/scan` และ `/news` ด้วยตาราง `scan_cache` บน Supabase (ลด API Quota 100% หากดึงข้อมูลซ้ำภายใน 1-2 ชม. พร้อมฟื้นฟู Interactive Buttons & Charts สมบูรณ์)
   - **Sentry & AI Error Analysis:** ติดตั้ง `sentry-sdk` ดักจับ System Crash ทุกจุด พร้อมระบบวิเคราะห์ Error ด้วย **Gemini AI** เพื่อแจ้งเตือน Telegram Admin โดยตรงด้วยคำอธิบายภาษาไทยและวิธีแก้ปัญหา
   - **Test Suite Repair:** ซ่อมแซมและอัปเดตระบบ Mock Tests ครอบคลุม Mixins ทั้งหมด (91 Tests Passed)
+- **Phase 12 (Pre-Market Calendar & Health Tracker):**
+  - **Pre-Market Daily Digest:** ตั้งเวลา `APScheduler` ส่งสรุปข่าวพร้อมราคาหุ้นแบบ DM ล่วงหน้า 1 ชม. ก่อนตลาด US เปิด (19:30 น.) เฉพาะหุ้นใน Watchlist ของผู้ใช้แต่ละคน
+  - **Fundamental Health Tracker:** ดึงและบันทึกข้อมูลด้านงบการเงิน (P/E, EPS, Profit Margin, Revenue Growth) ลงฐานข้อมูลทุกวันเพื่อใช้ประเมินเทรนด์การเติบโต
+- **Phase 13 (Alpaca Paper Trading):**
+  - **Auto-Execution Sniper:** อัปเกรด Sniper Alert ให้สามารถยิงออเดอร์จำลอง (Paper Trade) ซื้อหุ้นอัตโนมัติผ่าน `Alpaca API` เมื่อราคาชนโซนแนวรับที่ตั้งไว้ (Fail-safe architecture ไม่กระทบระบบแจ้งเตือนหลัก)
+  - **Paper Portfolio Tracker:** เพิ่มคำสั่ง `/paper_portfolio` เช็คประวัติการยิงออเดอร์และสรุปกำไร/ขาดทุน (P/L) จากการเทรดจำลองแบบ Real-time
 
 ---
 
