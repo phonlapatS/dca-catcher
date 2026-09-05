@@ -32,7 +32,10 @@ Phase 10 ยกระดับบอทให้มีความฉลาด�
 - **Phase 10 (News Engine & Modular):**
   - **Multi-Source News:** เพิ่ม `DuckDuckGo News` เป็นระบบสำรองเพื่อป้องกัน Error 429 จาก Yahoo
   - **Modular Architecture:** รื้อระบบ `bot.py` (1,600+ บรรทัด) ออกเป็น 5 Router/Mixins (Common, Watchlist, Scanning, Portfolio, Survey) เพื่อความสะอาดของโค้ด
-  - **Smart Error Handling:** เพิ่มระบบ Auto-Retry เมื่อ Gemini เซิร์ฟเวอร์ล่ม (503) และฟีเจอร์ดักจับ Error แสดงผลให้ Admin ดูบน Telegram อัตโนมัติ
+- **Phase 11 (Stability & Observability):**
+  - **Global Response Caching:** สร้างระบบจดจำผลลัพธ์ของ `/scan` และ `/news` ด้วยตาราง `scan_cache` บน Supabase (ลด API Quota 100% หากดึงข้อมูลซ้ำภายใน 1-2 ชม. พร้อมฟื้นฟู Interactive Buttons & Charts สมบูรณ์)
+  - **Sentry & AI Error Analysis:** ติดตั้ง `sentry-sdk` ดักจับ System Crash ทุกจุด พร้อมระบบวิเคราะห์ Error ด้วย **Gemini AI** เพื่อแจ้งเตือน Telegram Admin โดยตรงด้วยคำอธิบายภาษาไทยและวิธีแก้ปัญหา
+  - **Test Suite Repair:** ซ่อมแซมและอัปเดตระบบ Mock Tests ครอบคลุม Mixins ทั้งหมด (91 Tests Passed)
 
 ---
 
