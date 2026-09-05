@@ -43,7 +43,7 @@ SAMPLE_LLM_JSON = """{
 
 @pytest.mark.asyncio
 async def test_catalyst_evaluator_success():
-    evaluator = CatalystEvaluator(api_key="mock_key")
+    evaluator = CatalystEvaluator(api_keys=["mock_key"])
     with patch.object(evaluator, "_call_gemini", return_value=SAMPLE_LLM_JSON):
         verdict = await evaluator.evaluate_catalyst(SAMPLE_ARTICLE)
         assert verdict.is_material is True
@@ -57,7 +57,7 @@ async def test_catalyst_evaluator_success():
 
 @pytest.mark.asyncio
 async def test_catalyst_evaluator_fallback_on_error():
-    evaluator = CatalystEvaluator(api_key="mock_key")
+    evaluator = CatalystEvaluator(api_keys=["mock_key"])
     with patch.object(evaluator, "_call_gemini", side_effect=Exception("API Error")):
         verdict = await evaluator.evaluate_catalyst(SAMPLE_ARTICLE)
         assert verdict.is_material is False

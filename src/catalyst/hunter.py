@@ -24,6 +24,7 @@ class CatalystHunter:
         db: Database,
         bot=None,
         channel_id: Optional[str] = None,
+        gemini_api_keys: Optional[list[str]] = None,
         gemini_api_key: Optional[str] = None,
         providers=None,
     ):
@@ -33,7 +34,9 @@ class CatalystHunter:
         self.providers = providers or [GoogleNewsProvider(), YahooFinanceProvider(), DDGSNewsProvider()]
         self.density_filter = DensityFilter()
         self.microstructure_checker = MarketMicrostructureChecker()
-        self.evaluator = CatalystEvaluator(api_key=gemini_api_key)
+        
+        keys = gemini_api_keys or ([gemini_api_key] if gemini_api_key else [])
+        self.evaluator = CatalystEvaluator(api_keys=keys)
         self.digest_queue: List[tuple[CatalystArticle, CatalystVerdict]] = []
 
     async def run_scan_cycle(self, symbols: Optional[List[str]] = None, on_progress=None) -> int:
