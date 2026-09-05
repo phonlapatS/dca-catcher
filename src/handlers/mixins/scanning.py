@@ -236,11 +236,11 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
 💡 **คำแนะนำจาก AI:**
 {grade_result.advice}
 
-🛒 **แนวรับสะสม (DCA Targets):**
-{targets_str}
+📌 **จุดสังเกต:**
+{reasons_str}
 
-📋 **เหตุผลวิเคราะห์ (Pros/Cons):**
-{reasons_str}{news_teaser_text}"""
+🛒 **ราคาเป้าหมาย (Buy Targets):**
+{targets_str}{news_teaser_text}"""
                 
                 # Save to cache
                 try:
