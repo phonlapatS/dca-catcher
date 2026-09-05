@@ -46,7 +46,7 @@ Phase 10 ยกระดับบอทให้มีความฉลาด�
 ---
 
 
-## ⚙️ ภาพรวมการทำงานของระบบ (System Overview - Phase 10)
+## ⚙️ ภาพรวมการทำงานของระบบ (System Overview - Phase 13)
 
 ระบบออกแบบโครงสร้างใหม่โดยยึดหลัก Clean Architecture และ Free-Tier Optimization:
 
@@ -59,28 +59,28 @@ flowchart TB
     classDef ai fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#000
     classDef db fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#000
     classDef external fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
+    classDef monitor fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#000
 
-    User(("👤 Telegram User")):::actor
+    User(("👤 Telegram User / Admin")):::actor
 
     subgraph FlyIO ["☁️ Application Tier - Hosted on Fly.io"]
-        Bot["🤖 DCABot Entrypoint"]:::app
+        Bot["🤖 DCABot Entrypoint<br/>(APScheduler)"]:::app
         
         subgraph Handlers ["Modular Bot Handlers (Mixins)"]
             Common["Common"]:::handler
             Watchlist["Watchlist"]:::handler
-            Scanning["Scanning"]:::handler
-            Portfolio["Portfolio"]:::handler
-            Survey["Survey"]:::handler
+            Scanning["Scanning<br/>(Pre-Market Digest)"]:::handler
+            Portfolio["Portfolio<br/>(/paper_portfolio)"]:::handler
         end
         Bot --> Handlers
 
         Pipeline["⚙️ Insight Pipeline<br/>(Throttled Async)"]:::app
-        NewsService["📰 News Service<br/>(Multi-Source Fetcher & JunkFilter)"]:::app
-        Sniper["🎯 Alpaca Sniper<br/>(DST-Aware)"]:::app
+        NewsService["📰 News Service<br/>(JunkFilter)"]:::app
+        Sniper["🎯 Alpaca Sniper<br/>(Auto-Execution)"]:::app
     end
 
     subgraph Persistence ["🗄️ Data Tier - Supabase PostgreSQL"]
-        DB[("Users, Watchlists,<br/>Signals, Memory,<br/>Seen Catalysts")]:::db
+        DB[("Users, Watchlists,<br/>Signals, Memory,<br/>ScanCache, Health,<br/>PaperTradeOrders")]:::db
     end
 
     subgraph AI_Layer ["🧠 AI & Intelligence Layer"]
@@ -89,8 +89,9 @@ flowchart TB
 
     subgraph External_Sources ["🌐 External Providers"]
         Market["yfinance<br/>(Market Data)"]:::external
-        News["Google / Yahoo / DuckDuckGo<br/>(News APIs)"]:::external
-        Alpaca["Alpaca API<br/>(WSS Trading)"]:::external
+        News["DuckDuckGo / Yahoo<br/>(News APIs)"]:::external
+        Alpaca["Alpaca API<br/>(WSS Ticks & REST Orders)"]:::external
+        Sentry["Sentry<br/>(Crash Tracking)"]:::monitor
     end
 
     %% Connections
@@ -103,14 +104,16 @@ flowchart TB
     Pipeline <-->|"Deep Dive Reasoning"| Gemini
     
     NewsService -->|"Fetch Raw Articles"| News
-    NewsService <-->|"Deduplication"| DB
+    NewsService <-->|"Read/Write Cache"| DB
     NewsService -->|"Filter & Tag Sentiment"| Gemini
     
-    Sniper <-->|"Live Ticks"| Alpaca
-    Sniper <-->|"Operating Hours"| DB
-    Sniper -->|"Target Hit Alert"| User
+    Sniper <-->|"Live Ticks & Paper Trades"| Alpaca
+    Sniper <-->|"Operating Hours & Orders"| DB
+    Sniper -->|"Target Hit / Auto-Execution"| User
 
     Bot <-->|"SQLAlchemy ORM"| DB
+    Bot -->|"System Crash Alerts"| Sentry
+    Sentry -.->|"AI Error Diagnostics"| User
 ```
 
 ---
