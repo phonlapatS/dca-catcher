@@ -161,7 +161,7 @@ async def test_sniper_connect_auth_subscribe_loop(db):
 
     with patch("websockets.connect") as mock_connect, patch.object(
         sniper, "is_operating_hours", return_value=True
-    ):
+    ), patch.object(sniper, "_submit_paper_order", return_value="mock_msg"):
         mock_connect.return_value.__aenter__.return_value = mock_ws
 
         await sniper.start()

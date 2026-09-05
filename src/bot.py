@@ -219,6 +219,40 @@ Traceback:
         except Exception:
             pass
 
+
+    async def _simulate_progress(self, msg, task, title: str, steps: list = None):
+        """Displays a simulated progress bar while a heavy async task runs."""
+        import asyncio
+        if not steps:
+            steps = [
+                ("กำลังเชื่อมต่อเซิร์ฟเวอร์...", 10),
+                ("กำลังรวบรวมข้อมูล...", 30),
+                ("กำลังจัดเตรียม Context...", 50),
+                ("กำลังส่งให้ AI ประมวลผลเชิงลึก...", 75),
+                ("กำลังสรุปผลลัพธ์...", 95),
+            ]
+            
+        async def updater():
+            try:
+                for text, percent in steps:
+                    if task.done():
+                        break
+                    filled = int(percent / 10)
+                    empty = 10 - filled
+                    bar = '█' * filled + '░' * empty
+                    
+                    status_text = f"**{title}**\n[{bar}] {percent}%\n⏳ {text}"
+                    await self._throttled_edit(msg, status_text)
+                    await asyncio.sleep(2.5) # Wait to respect API limits
+            except asyncio.CancelledError:
+                pass
+                
+        progress_task = asyncio.create_task(updater())
+        try:
+            return await task
+        finally:
+            progress_task.cancel()
+
     async def _check_cooldown(self, user_id: int, message: types.Message
         ) ->bool:
         """Check if user is allowed to use a heavy command. Returns True if allowed."""

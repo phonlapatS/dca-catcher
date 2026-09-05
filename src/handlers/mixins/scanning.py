@@ -198,7 +198,25 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
                     'buy_targets': cached.get('metadata', {}).get('targets', [])
                 })
             else:
-                grade_result = self.grader.grade(enriched, risk_profile=risk_profile)
+                import asyncio
+                # Use a task wrapper for the sync grader function to let progress update
+                async def run_grade():
+                    return await asyncio.to_thread(self.grader.grade, enriched, risk_profile=risk_profile)
+                
+                grade_task = asyncio.create_task(run_grade())
+                steps = [
+                    ("กำลังรวบรวมข้อมูลราคา (Market Data)...", 20),
+                    ("กำลังคำนวณ Technical Indicators...", 40),
+                    ("กำลังประมวลผลผ่าน AI Grader...", 70),
+                    ("กำลังสร้างคำแนะนำและราคาเป้าหมาย...", 90)
+                ]
+                grade_result = await self._simulate_progress(
+                    status_msg, 
+                    grade_task, 
+                    title=f"🔍 สแกนและวิเคราะห์ {symbol}", 
+                    steps=steps
+                )
+                
                 async with self.db.session() as session:
                     signal_entry = Signal(symbol=grade_result.symbol, grade=
                         grade_result.score, confidence=grade_result.confidence,
@@ -599,7 +617,23 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             return
             
         try:
-            report_text = await self.news_service.get_news_radar(symbol)
+            import asyncio
+            task = asyncio.create_task(self.news_service.get_news_radar(symbol))
+            steps = [
+                ("กำลังเชื่อมต่อเซิร์ฟเวอร์สำนักข่าว...", 15),
+                ("กำลังดาวน์โหลดข่าวย้อนหลัง 3-7 วัน...", 35),
+                ("กำลังคัดกรองเนื้อหาซ้ำซ้อนทิ้ง...", 50),
+                ("กำลังส่งให้ AI ประเมินผลกระทบเชิงลึก...", 75),
+                ("กำลังสรุปและจัดกลุ่มความสำคัญ (S/A/B/C)...", 90)
+            ]
+            
+            report_text = await self._simulate_progress(
+                status_msg, 
+                task, 
+                title=f"📰 อัปเดตเรดาร์ข่าว {symbol}", 
+                steps=steps
+            )
+            
             await status_msg.edit_text(report_text, parse_mode='Markdown')
             
             # Save to Cache
@@ -723,7 +757,7 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
                         recent_memory)
         main_loop = asyncio.get_running_loop()
 
-        def make_progress_bar(percent: int, length: int=12) ->str:
+        def make_progress_bar(percent: int, length: int=10) ->str:
             filled = int(percent / 100.0 * length)
             empty = length - filled
             return '█' * filled + '░' * empty
@@ -731,12 +765,9 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
         async def update_progress(stage: str, percent: int=0):
             try:
                 bar = make_progress_bar(percent)
-                await status_msg.edit_text(
-                    f"""⏳ **Deep Dive Analysis:** {symbol}
-`[{bar}] {percent}%`
-
-👉 {stage}"""
-                    , parse_mode='Markdown')
+                await self._throttled_edit(status_msg,
+                    f"""**🧠 Deep Dive Analysis: {symbol}**\n[{bar}] {percent}%\n⏳ {stage}"""
+                )
             except Exception:
                 pass
 
