@@ -143,3 +143,88 @@ Return strict JSON adhering to this schema:
                 thai_summary=f"เกิดข้อผิดพลาดในการวิเคราะห์ข่าว: {source}",
                 connected_stocks=[]
             )
+
+    async def evaluate_catalysts_batch(
+        self, articles: list[CatalystArticle], timeline_context: str = ""
+    ) -> list[CatalystVerdict]:
+        """Evaluates multiple articles in a single API call to save RPM."""
+        if not articles:
+            return []
+            
+        articles_json = []
+        for i, article in enumerate(articles):
+            articles_json.append({
+                "id": i,
+                "symbol": article.symbol,
+                "publisher": article.publisher,
+                "headline": article.headline,
+                "snippet": article.raw_snippet
+            })
+            
+        import json
+        articles_str = json.dumps(articles_json, ensure_ascii=False, indent=2)
+
+        prompt = f"""You are an institutional financial analyst. Evaluate the following batch of breaking corporate news.
+
+Articles:
+{articles_str}
+{timeline_context}
+
+Instructions for EACH article:
+1. Is this a material event? (is_material: boolean, materiality_score: 1.0 to 10.0). Reject clickbait with is_material=False and low score.
+2. Classify scope: MACRO, SECTOR, or MICRO.
+3. Classify event_category: CLINICAL_TRIAL, EARNINGS, M_AND_A, REGULATORY, CONTRACT, RISK_EVENT, MACRO_EVENT.
+4. Assess confidence_score (0-100).
+5. impact_summary in Thai (1-2 sentences).
+6. sentiment: POSITIVE, NEGATIVE, or NEUTRAL.
+7. Dual-Perspective Analysis in Thai: bull_catalysts, bear_risks, dca_guidance, thai_summary (factual summary).
+8. Supply Chain: connected_stocks (list of dicts with symbol, relationship).
+
+Return a strict JSON ARRAY where each object corresponds to an article ID and adheres exactly to this schema:
+[
+  {{
+    "id": 0,
+    "verdict": {{
+      "is_material": true,
+      "materiality_score": 9.0,
+      "confidence_score": 90.0,
+      "scope": "MICRO",
+      "sentiment": "POSITIVE",
+      "event_category": "EARNINGS",
+      "impact_summary": "...",
+      "bull_catalysts": "...",
+      "bear_risks": "...",
+      "dca_guidance": "...",
+      "thai_summary": "...",
+      "connected_stocks": []
+    }}
+  }}
+]
+"""
+        try:
+            raw_json = await self._call_gemini(prompt)
+            from src.utils import extract_json_from_llm
+            data = extract_json_from_llm(raw_json)
+            
+            # Reconstruct list of verdicts in original order
+            verdicts = []
+            results_dict = {item["id"]: item.get("verdict", {}) for item in data}
+            
+            for i, article in enumerate(articles):
+                v_dict = results_dict.get(i)
+                if v_dict:
+                    try:
+                        verdicts.append(CatalystVerdict(**v_dict))
+                    except Exception as err:
+                        logger.error(f"Failed to parse verdict {i}: {err}")
+                        verdicts.append(CatalystVerdict(is_material=False, materiality_score=0.0, thai_summary=article.headline))
+                else:
+                    verdicts.append(CatalystVerdict(is_material=False, materiality_score=0.0, thai_summary=article.headline))
+                    
+            return verdicts
+            
+        except Exception as e:
+            logger.error(f"Error evaluating batch catalysts: {e}")
+            # Fallback to empty verdicts
+            return [CatalystVerdict(is_material=False, materiality_score=0.0, thai_summary=a.headline) for a in articles]
+

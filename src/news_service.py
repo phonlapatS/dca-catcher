@@ -66,13 +66,16 @@ class NewsService:
         return verdicts
 
     async def _fetch_and_evaluate_live(self, symbol: str, limit: int = 3) -> List[CatalystVerdict]:
-        """Live fallback: Fetches fresh news, applies heuristics, and evaluates via AI."""
+        """Live fallback: Fetches fresh news, applies heuristics, and evaluates via AI (Batched)."""
         live_verdicts = []
+        pending_articles = []
+        
+        # Gather up to 'limit' unseen articles
         for provider in self.providers:
             try:
                 articles = await provider.fetch_articles_for_symbol(symbol)
                 for article in articles:
-                    if len(live_verdicts) >= limit:
+                    if len(pending_articles) >= limit:
                         break
                         
                     if await self.db.is_catalyst_seen(article.headline_hash):
@@ -84,18 +87,36 @@ class NewsService:
                         )
                         continue
 
-                    # Evaluate using Gemini Flash
-                    verdict = await self.evaluator.evaluate_catalyst(article)
-                    
-                    # Cache the result
-                    await self.db.record_seen_catalyst(
-                        article.headline_hash, article.symbol, article.headline, 
-                        article.publisher, metadata_json=verdict.model_dump_json()
-                    )
-                    
-                    live_verdicts.append(verdict)
+                    pending_articles.append(article)
+                
+                if len(pending_articles) >= limit:
+                    break
             except Exception as e:
                 logger.error(f"Error fetching live news from {provider.__class__.__name__}: {e}")
+                
+        # Batch evaluate them all at once to save RPM
+        if pending_articles:
+            try:
+                if hasattr(self.evaluator, 'evaluate_catalysts_batch'):
+                    batch_verdicts = await self.evaluator.evaluate_catalysts_batch(pending_articles)
+                    
+                    for article, verdict in zip(pending_articles, batch_verdicts):
+                        await self.db.record_seen_catalyst(
+                            article.headline_hash, article.symbol, article.headline, 
+                            article.publisher, metadata_json=verdict.model_dump_json()
+                        )
+                        live_verdicts.append(verdict)
+                else:
+                    # Fallback to single if batch method missing
+                    for article in pending_articles:
+                        verdict = await self.evaluator.evaluate_catalyst(article)
+                        await self.db.record_seen_catalyst(
+                            article.headline_hash, article.symbol, article.headline, 
+                            article.publisher, metadata_json=verdict.model_dump_json()
+                        )
+                        live_verdicts.append(verdict)
+            except Exception as e:
+                logger.error(f"Error evaluating batched live news: {e}")
                 
         return live_verdicts
 
