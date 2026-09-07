@@ -177,7 +177,7 @@ class WatchlistMixin:
 Example: /add NVDA AAPL PTT.BK"""
                 )
             return
-        parts = text.replace(',', ' ').split()[1:]
+        parts = text.replace(',', ' ').split()
         if not parts:
             return
         telegram_id = message.from_user.id
