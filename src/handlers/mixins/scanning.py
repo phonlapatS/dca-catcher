@@ -198,7 +198,6 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
                     'buy_targets': cached.get('metadata', {}).get('targets', [])
                 })
             else:
-                import asyncio
                 # Use a task wrapper for the sync grader function to let progress update
                 async def run_grade():
                     return await asyncio.to_thread(self.grader.grade, enriched, risk_profile=risk_profile)
@@ -623,7 +622,6 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             return
             
         try:
-            import asyncio
             task = asyncio.create_task(self.news_service.get_news_radar(symbol))
             steps = [
                 ("กำลังเชื่อมต่อเซิร์ฟเวอร์สำนักข่าว...", 15),
