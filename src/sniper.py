@@ -16,6 +16,7 @@ import websockets
 from sqlalchemy import select, func
 
 from src.alert_manager import AlertManager
+from src.admin_alert import AdminAlertManager
 from src.database import Database, User, Watchlist
 
 logger = logging.getLogger(__name__)
@@ -487,6 +488,13 @@ class AlpacaSniper:
                             break
                         except Exception as inner_e:
                             logger.error(f"Critical inner loop error (possibly SSL disconnect): {inner_e}")
+                            if self.bot:
+                                asyncio.create_task(AdminAlertManager.send_alert(
+                                    bot=self.bot,
+                                    gemini_api_key=getattr(self, 'gemini_api_key', ''),
+                                    error=inner_e,
+                                    context="AlpacaSniper (WebSocket Inner Loop - Stream Disconnect)"
+                                ))
                             break  # Break out to force a complete WebSocket reconnection
 
             except asyncio.CancelledError:
@@ -494,6 +502,13 @@ class AlpacaSniper:
                 break
             except Exception as e:
                 logger.error(f"AlpacaSniper error: {e}", exc_info=True)
+                if self.bot:
+                    asyncio.create_task(AdminAlertManager.send_alert(
+                        bot=self.bot,
+                        gemini_api_key=getattr(self, 'gemini_api_key', ''),
+                        error=e,
+                        context="AlpacaSniper (Outer Reconnect Loop)"
+                    ))
                 if self.running:
                     await asyncio.sleep(5)
             finally:

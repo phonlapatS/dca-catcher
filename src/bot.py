@@ -122,6 +122,7 @@ class DCABot(CommonMixin, SurveyMixin, WatchlistMixin, ScanningMixin,
         self.bot = Bot(token=token)
         self.sniper.bot = self.bot
         self.sniper.broadcast_channel_id = config.broadcast_channel_id
+        self.sniper.gemini_api_key = getattr(self.config, 'gemini_api_key', '')
         self.catalyst_hunter = CatalystHunter(db=self.db, bot=self.bot, channel_id=config.broadcast_channel_id, gemini_api_keys=config.gemini_api_keys)
         from src.news_service import NewsService
         self.news_service = NewsService(db=self.db, evaluator=self.
