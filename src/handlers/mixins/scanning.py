@@ -873,9 +873,13 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
                 if chart_bytes:
                     photo = BufferedInputFile(chart_bytes, filename=
                         f'{symbol}_chart.png')
+                    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+                    markup = InlineKeyboardMarkup(inline_keyboard=[[
+                        InlineKeyboardButton(text="🎯 นำเป้าหมายนี้ไปตั้งแจ้งเตือน (Add Watchlist)", callback_data=f"watch_{symbol}")
+                    ]])
                     await message.answer_photo(photo=photo, caption=
                         f'📊 **{symbol} Target Zones Deep Dive Chart**',
-                        parse_mode='Markdown')
+                        parse_mode='Markdown', reply_markup=markup)
             except Exception as err:
                 logger.error(f'Error sending insight chart for {symbol}: {err}'
                     )

@@ -307,6 +307,7 @@ Traceback:
             ('tgt_dismiss_'))
         self.dp.callback_query.register(self.set_notify_pref, F.data.
             startswith('notify_pref_'))
+        self.dp.callback_query.register(self.add_watch_btn, F.data.startswith('watch_'))
         self.dp.callback_query.register(self.insight_btn, F.data.startswith
             ('insight_'))
         self.dp.callback_query.register(self.cat_watch_btn, F.data.

@@ -270,3 +270,46 @@ Add stocks using: /add <symbol> [market]"""
                         f'• **{item.symbol}** ({item.market}) — *(ไม่มีเป้าหมาย)*'
                         )
             await message.reply('\n'.join(lines), parse_mode='Markdown')
+
+    async def add_watch_btn(self, callback: types.CallbackQuery):
+        """Handle inline button to add AI-generated targets to Watchlist."""
+        if not callback.data or '_' not in callback.data:
+            await callback.answer('ข้อมูลปุ่มไม่ถูกต้อง', show_alert=True)
+            return
+            
+        parts = callback.data.split('_')
+        if len(parts) < 2:
+            await callback.answer('ไม่พบชื่อหุ้น', show_alert=True)
+            return
+            
+        symbol = parts[1]
+        
+        # Pull from scan_cache
+        cached = await self.db.get_cached_scan(symbol, "DEEP_DIVE")
+        if not cached or not cached.get("metadata") or not cached["metadata"].get("targets"):
+            await callback.answer('⚠️ ไม่พบข้อมูลราคาเป้าหมายในแคช กรุณาพิมพ์ /add เพิ่มเองครับ', show_alert=True)
+            return
+            
+        targets = cached["metadata"]["targets"]
+        market = 'TH' if symbol.endswith('.BK') else 'US'
+        
+        res_text = await self._add_to_watchlist(
+            telegram_id=callback.from_user.id,
+            username=callback.from_user.username,
+            symbol=symbol,
+            market=market,
+            target_price=targets
+        )
+        
+        if self.sniper.running:
+            await self.sniper.update_subscriptions()
+            
+        await callback.message.answer(f"✅ เพิ่มเข้า Watchlist สำเร็จ!\n\n{res_text}")
+        await callback.answer('เพิ่มสำเร็จแล้ว!', show_alert=False)
+        
+        # Optional: Edit the inline keyboard to remove the button so they don't click it twice
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except:
+            pass
+
