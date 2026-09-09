@@ -268,15 +268,9 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
 
             buttons = []
             if getattr(grade_result, 'buy_targets', None):
-                for idx, t in enumerate(grade_result.buy_targets):
-                    buttons.append([InlineKeyboardButton(text=
-                        f'[ ] ${t:,.2f}', callback_data=
-                        f'tgt_toggle_{grade_result.symbol}_{idx}')])
                 buttons.append([InlineKeyboardButton(text=
-                    '🎯 ยืนยันเป้าหมาย', callback_data=
-                    f'tgt_confirm_{grade_result.symbol}'),
-                    InlineKeyboardButton(text='❌ ยังไม่สนใจ / ข้าม',
-                    callback_data=f'tgt_dismiss_{grade_result.symbol}')])
+                    '🎯 นำเป้าหมายนี้ไปตั้งแจ้งเตือน (Add Watchlist)', callback_data=
+                    f'watch_{grade_result.symbol}')])
             buttons.append([InlineKeyboardButton(text=
                 '📖 เจาะลึกบทวิเคราะห์ (Deep Dive)', callback_data=
                 f'insight_{grade_result.symbol}')])
@@ -563,7 +557,20 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
 
 🛒 Buy Targets:
 {targets_str}"""
-            kb = create_add_watchlist_keyboard(symbol, bot_user.username)
+            try:
+                cache_meta = {"targets": getattr(result, 'buy_targets', [])}
+                await self.db.set_cached_scan(symbol, "BASIC", f"Broadcast {rp}", expires_in_hours=2.0, metadata=cache_meta)
+            except Exception:
+                pass
+            
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            if getattr(result, 'buy_targets', None):
+                kb = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="🎯 นำเป้าหมายนี้ไปตั้งแจ้งเตือน", callback_data=f"watch_{symbol}")
+                ]])
+            else:
+                kb = create_add_watchlist_keyboard(symbol, bot_user.username)
+                
             try:
                 await self.bot.send_message(self.config.
                     broadcast_channel_id, msg, reply_markup=kb)
