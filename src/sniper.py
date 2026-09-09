@@ -483,8 +483,11 @@ class AlpacaSniper:
                         except asyncio.TimeoutError:
                             continue
                         except websockets.ConnectionClosed:
-                            logger.warning("Alpaca WebSocket connection closed.")
+                            logger.warning("Alpaca WebSocket connection closed normally.")
                             break
+                        except Exception as inner_e:
+                            logger.error(f"Critical inner loop error (possibly SSL disconnect): {inner_e}")
+                            break  # Break out to force a complete WebSocket reconnection
 
             except asyncio.CancelledError:
                 logger.info("AlpacaSniper run loop cancelled.")
