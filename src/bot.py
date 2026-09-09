@@ -134,6 +134,7 @@ class DCABot(CommonMixin, SurveyMixin, WatchlistMixin, ScanningMixin,
                 dsn=self.config.sentry_dsn,
                 traces_sample_rate=1.0,
                 profiles_sample_rate=1.0,
+                send_default_pii=True,
             )
             logger.info("Sentry SDK initialized successfully.")
 
