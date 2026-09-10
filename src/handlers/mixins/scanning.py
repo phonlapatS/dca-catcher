@@ -261,7 +261,11 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
                 
                 # Save to cache
                 try:
-                    cache_meta = {"targets": getattr(grade_result, 'buy_targets', [])}
+                    import dataclasses
+                    cache_meta = {
+                        "targets": getattr(grade_result, 'buy_targets', []),
+                        "grade_dict": dataclasses.asdict(grade_result) if hasattr(grade_result, '__dataclass_fields__') else None
+                    }
                     await self.db.set_cached_scan(symbol, "BASIC", report_text, expires_in_hours=1.0, metadata=cache_meta)
                 except Exception as e:
                     logger.error(f"Failed to cache scan for {symbol}: {e}")
@@ -401,8 +405,8 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
 
 
     async def send_premarket_watchlist_digest(self):
-        """Send a personalized daily digest via DM, analyzing each unique stock only ONCE to save tokens."""
-        logger.info("Starting Pre-Market Watchlist Digest (Optimized DM Mode)...")
+        """Send a personalized daily digest via DM, analyzing each unique stock only ONCE (with memory caching)."""
+        logger.info("Starting Pre-Market Watchlist Digest (Optimized DM Mode with Cache & Grouping)...")
         
         async with self.db.session() as session:
             # Get users who want DMs and their US symbols
@@ -415,7 +419,7 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             return
 
         # 1. Map users to their symbols and find unique symbols
-        user_symbols = {} # {user_obj: [symbol1, symbol2]}
+        user_symbols = {}
         unique_symbols = set()
         
         for user, wl in rows:
@@ -433,27 +437,52 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             
         enriched = self.transformer.enrich(snapshots)
         
-        # 2. Analyze each unique symbol EXACTLY ONCE (saves LLM tokens)
-        analyzed_blocks = {}
+        import dataclasses
+        from src.grader import GradeResult
+        
+        # 2. Analyze each unique symbol EXACTLY ONCE (using DB Cache first to save tokens)
+        analyzed_results = {}
         for symbol in us_symbols:
             if symbol not in enriched:
                 continue
                 
             snap = snapshots[symbol]
+            grade_result = None
             
-            # Grade once generically
-            grade_result = self.grader.grade(enriched[symbol], risk_profile="ทั่วไป (Aggregated)")
-            score_val = f"{grade_result.score}/10"
+            # Check DB Cache first
+            try:
+                cached = await self.db.get_cached_scan(symbol, "BASIC")
+                if cached and cached.get("metadata") and "grade_dict" in cached["metadata"]:
+                    grade_dict = cached["metadata"]["grade_dict"]
+                    grade_result = GradeResult(**grade_dict)
+            except Exception as e:
+                logger.error(f"Cache read error for {symbol}: {e}")
+                
+            if not grade_result:
+                # Cache miss, call AI
+                grade_result = self.grader.grade(enriched[symbol], risk_profile="ทั่วไป (Aggregated)")
+                # Save to cache
+                try:
+                    cache_meta = {
+                        "targets": getattr(grade_result, 'buy_targets', []),
+                        "grade_dict": dataclasses.asdict(grade_result)
+                    }
+                    await self.db.set_cached_scan(symbol, "BASIC", "Premarket Cached", expires_in_hours=2.0, metadata=cache_meta)
+                except Exception:
+                    pass
             
             try:
                 news_teaser = await self.news_service.get_scan_teaser(symbol)
-                news_str = f"\n{news_teaser}" if news_teaser else ""
+                news_str = f"\\n{news_teaser}" if news_teaser else ""
             except:
                 news_str = ""
             
-            # Format the block for this stock
-            block = f"🔹 **{symbol}** (${snap.current_price:,.2f} | 📉 {snap.drawdown_pct}%)\n🤖 AI Score: {score_val}{news_str}\n"
-            analyzed_blocks[symbol] = block
+            # Add to memory map
+            analyzed_results[symbol] = {
+                "score": grade_result.score,
+                "advice": grade_result.advice,
+                "text": f"🔹 **{symbol}** (${snap.current_price:,.2f} | 📉 {snap.drawdown_pct}%)\\n🤖 AI: {grade_result.score}/10 - {grade_result.advice}{news_str}\\n"
+            }
             
             # Log Fundamental Health in background
             try:
@@ -471,25 +500,42 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
                     )
                     h_session.add(health)
                     await h_session.commit()
-            except Exception as e:
-                logger.error(f"Failed to log FundamentalHealth for {symbol}: {e}")
+            except Exception:
+                pass
                 
-        # 3. Distribute personalized DMs to each user
+        # 3. Distribute personalized DMs (grouped by score for great UX)
         for user, symbols in user_symbols.items():
-            digest_msg = "🔔 **Pre-Market Watchlist Digest (19:30 น.)**\nอัปเดตสถานการณ์หุ้น US ก่อนตลาดเปิด:\n\n"
-            has_data = False
+            high = []
+            mid = []
+            low = []
             
             for symbol in symbols:
-                if symbol in analyzed_blocks:
-                    digest_msg += analyzed_blocks[symbol] + "\n"
-                    has_data = True
-                    
-            if has_data:
-                try:
-                    await self.bot.send_message(chat_id=user.telegram_id, text=digest_msg, parse_mode='Markdown')
-                    await asyncio.sleep(0.5) # Throttling for Telegram limits
-                except Exception as e:
-                    logger.error(f"Failed to send DM digest to {user.telegram_id}: {e}")
+                if symbol in analyzed_results:
+                    res = analyzed_results[symbol]
+                    if res["score"] >= 8:
+                        high.append(res["text"])
+                    elif res["score"] >= 5:
+                        mid.append(res["text"])
+                    else:
+                        low.append(res["text"])
+                        
+            if not (high or mid or low):
+                continue
+                
+            digest_msg = "🔔 **Pre-Market Watchlist Digest (19:30 น.)**\\nอัปเดตสถานการณ์หุ้นในพอร์ตคุณ:\\n\\n"
+            
+            if high:
+                digest_msg += "🟢 **น่าสะสม (Score 8-10)**\\n" + "\\n".join(high) + "\\n"
+            if mid:
+                digest_msg += "🟡 **เฝ้าระวัง (Score 5-7)**\\n" + "\\n".join(mid) + "\\n"
+            if low:
+                digest_msg += "🔴 **ชะลอลงทุน (Score < 5)**\\n" + "\\n".join(low) + "\\n"
+                
+            try:
+                await self.bot.send_message(chat_id=user.telegram_id, text=digest_msg, parse_mode='Markdown')
+                await asyncio.sleep(0.5) # Throttling for Telegram limits
+            except Exception as e:
+                logger.error(f"Failed to send DM digest to {user.telegram_id}: {e}")
             
         logger.info("Pre-Market Watchlist Digest completed.")
 
@@ -556,7 +602,11 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
 🛒 Buy Targets:
 {targets_str}"""
             try:
-                cache_meta = {"targets": getattr(result, 'buy_targets', [])}
+                import dataclasses
+                cache_meta = {
+                    "targets": getattr(result, 'buy_targets', []),
+                    "grade_dict": dataclasses.asdict(result) if hasattr(result, '__dataclass_fields__') else None
+                }
                 await self.db.set_cached_scan(symbol, "BASIC", f"Broadcast {rp}", expires_in_hours=2.0, metadata=cache_meta)
             except Exception:
                 pass
