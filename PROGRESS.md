@@ -1,11 +1,28 @@
 # DCA Catcher — Development Progress
 
-> Last updated: 2026-09-05 03:55 (ICT)
-> Branch: `refactor/bot-routers`
+> Last updated: 2026-09-10 22:45 (ICT)
+> Branch: `main`
 > Python: 3.10+ | Venv: `./venv`
 
+## 🚀 Latest Updates (Phase 14 Completed)
+- **Phase 14: Token & Architecture Optimizations** is fully deployed.
+  - **Architecture Resiliency (Critical Fixes):**
+    - Fixed Event Loop Blocking by wrapping synchronous LLM calls (`grader.grade()`) in `asyncio.to_thread()` during broadcast and premarket scans.
+    - Prevented Zombie Processes by gracefully shutting down APScheduler (`self.scheduler.shutdown()`) on bot stop.
+    - Added Error Fingerprinting (hash + TTL) to the global error handler to prevent LLM quota exhaustion from repeating errors.
+    - Prevented Cron Job Overlaps by enforcing `max_instances=1` and `coalesce=True` on all scheduler jobs.
+    - Added Exponential Backoff (2s, 4s, 8s) to `LLMCaller` to gracefully handle Gemini 429 rate limits.
+    - Plugged Memory Leaks by implementing a daily cleanup for unbounded dicts (`_user_cooldowns`, `_error_fingerprints`).
+  - **Token & Speed Optimizations:**
+    - Prevented redundant AI calls in `broadcast_scan` by checking `ScanCache` before grading. Saves ~6,000 tokens/day.
+    - Reduced overhead in `/insight` multi-agent pipeline by changing `json.dumps` to compact format. Saves ~1,500 tokens/day.
+    - Consolidated redundant instructions and schema definitions in `evaluate_catalyst` prompt. Saves ~800 tokens/day.
+    - Removed redundant `_build_prompt` generation from legacy `generate_insight_report`. Saves ~2,000 tokens/day.
+    - Implemented a 3-minute TTL Memory Cache in `fetcher.py` to speed up duplicate API calls by 3-5 seconds and prevent rate limits.
+    - Added daily cleanup for `scan_cache` table to prevent database bloat over time.
+    - Introduced "Analyze Once, Distribute Many" architecture for `/premarket` digest.
 
-## 🚀 Latest Updates (Phase 10 & Tier 2 Completed)
+## 🕰 Previous Updates (Phase 10 & Tier 2)
 - **Phase 10: Context-Aware News System** is fully deployed.
   - Added Multi-Source Fetching (`Google News`, `Yahoo Finance`, and newly integrated `DuckDuckGo News API`).
   - Implemented `JunkFilter` to reduce API waste and LLM hallucination.
