@@ -1,21 +1,25 @@
-# DCA Catcher 📈 (Phase 10: Context-Aware News & Modular Architecture)
+# DCA Catcher 📈 (Phase 14: Token & Architecture Optimizations)
 
 **DCA Catcher** คือระบบ Telegram Bot สำหรับช่วยวิเคราะห์หุ้นและแจ้งเตือนราคาเป้าหมายสำหรับการลงทุนแบบ DCA (Dollar-Cost Averaging) 
 
 ---
 
 
-## 🚀 What's New in Phase 10 (Context-Aware News & Refactoring)
+## 🚀 What's New in Phase 14 (Token & Architecture Optimizations)
 
-Phase 10 ยกระดับบอทให้มีความฉลาดด้านข่าวสารมากขึ้น และปรับปรุงโครงสร้างโค้ดระดับลึกเพื่อให้ทำงานได้เสถียรบน Free-Tier Cloud:
+Phase 14 ยกระดับสถาปัตยกรรมของระบบให้เสถียรและประหยัดทรัพยากรมากที่สุดบนสภาพแวดล้อม Cloud ฟรี:
 
-1. **Multi-Source News Fetching:** เพิ่มเครื่องมือดูดข่าวจาก `DuckDuckGo News API (DDGS)` เข้ามาทำงานคู่กับ Google News และ Yahoo Finance เพื่ออุดรอยรั่วเวลาถูกจำกัดการเข้าถึง (Error 429)
-2. **AI Division of Labor:** แบ่งงานชัดเจน ใช้ระบบ Heuristic (JunkFilter) กรองข่าวขยะออกก่อนส่งให้ **Gemini 1.5 Flash** สรุปอารมณ์ข่าว (Sentiment) จากนั้นค่อยป้อนเข้า **Gemini Pro** เพื่อทำ Deep Dive
-3. **Modular Bot Architecture (Tier 4 Completed):** รื้อโครงสร้างไฟล์ `bot.py` ที่ยาวกว่า 1,600 บรรทัด แตกออกเป็น 5 Class Mixins (`common`, `watchlist`, `scanning`, `portfolio`, `survey`) เพื่อให้โค้ดดูแลรักษาง่ายขึ้น
-4. **Free-Tier API Protection:** 
-   - ปรับการทำงานของ AI Pipeline ให้รันแบบ Sequential แทน Parallel เพื่อป้องกันการชน Rate Limit ของ Google (15 RPM)
-   - วางระบบ Async Threading ให้ระบบวาดกราฟ (`asyncio.to_thread`) บอทจึงไม่ค้างระหว่างโหลดข้อมูล
-   - เพิ่ม Cooldown 60 วินาที สำหรับคำสั่งที่กินโควต้าหนักๆ
+1. **Architecture Resiliency (Critical Fixes):**
+   - **Event Loop Unblocking:** ย้ายการประมวลผล LLM ทั้งหมด (เช่น `grader.grade()`) ไปรันบน `asyncio.to_thread()` ทำให้บอทไม่ค้างระหว่าง Broadcast หรือสร้างรายงาน Pre-market
+   - **Scheduler Graceful Shutdown:** ระบบเคลียร์ cron jobs ของ `APScheduler` สะอาดหมดจดเมื่อปิดบอท ป้องกันปัญหา Zombie Process บน Fly.io
+   - **Error Fingerprinting & LLM Backoff:** เพิ่มระบบคัดกรอง Error ป้องกันการส่ง AI วิเคราะห์ Error ซ้ำซ้อน (ลด Spam) และเพิ่ม Exponential Backoff จัดการปัญหา Gemini Rate Limit (429) แบบนุ่มนวล
+   - **Memory Leak Prevention:** เพิ่ม Daily Cleanup สำหรับล้าง TTL Dictionary (เช่น Cooldowns) คืนหน่วยความจำให้ระบบ
+2. **Token & Performance Optimizations (ประหยัด ~11,500+ Tokens/วัน):**
+   - **Analyze Once, Distribute Many:** เปลี่ยนวิธีการทำงานของ `/premarket` และ `broadcast` เป็นการวิเคราะห์ผล 1 ครั้งแล้วดึงจาก Cache มากระจายให้ทุกคนแทนที่จะให้ AI วิเคราะห์ซ้ำ
+   - **Cross-Command DB Caching:** ระบบสามารถอ่านค่า Cache ข้ามฟีเจอร์ได้สมบูรณ์ (ลด 1 AI call = 6,000 tokens/day)
+   - **Compact JSON Formats:** บีบอัด Payload สื่อสารระหว่าง Multi-Agent Pipeline ลดช่องว่าง Token สิ้นเปลืองได้ ~1,500 tokens/day
+   - **Fetcher Memory Cache (3 mins TTL):** ลดการชน API yfinance ลดเวลาโหลดซ้ำ 3-5 วินาทีต่อครั้ง
+3. **Database Maintenance:** สั่งล้างข้อมูล Cache เก่าออกจากฐานข้อมูล Supabase อัตโนมัติทุกเช้า ป้องกันปัญหาตารางบวม (DB Bloat)
 
 ---
 
@@ -42,11 +46,14 @@ Phase 10 ยกระดับบอทให้มีความฉลาด�
 - **Phase 13 (Alpaca Paper Trading):**
   - **Auto-Execution Sniper:** อัปเกรด Sniper Alert ให้สามารถยิงออเดอร์จำลอง (Paper Trade) ซื้อหุ้นอัตโนมัติผ่าน `Alpaca API` เมื่อราคาชนโซนแนวรับที่ตั้งไว้ (Fail-safe architecture ไม่กระทบระบบแจ้งเตือนหลัก)
   - **Paper Portfolio Tracker:** เพิ่มคำสั่ง `/paper_portfolio` เช็คประวัติการยิงออเดอร์และสรุปกำไร/ขาดทุน (P/L) จากการเทรดจำลองแบบ Real-time
+- **Phase 14 (Architecture Resiliency & Token Optimization):**
+  - **Analyze Once, Distribute Many:** ปรับโครงสร้าง /premarket และ broadcast ให้อ่านจาก Cache ข้ามคำสั่ง เพื่อลดการคำนวณซ้ำซ้อน ประหยัด 11,500+ tokens/day
+  - **Event Loop & Memory Leak Fixes:** ห่อ synchronous AI calls ด้วย `asyncio.to_thread()`, ล้าง TTL memory อัตโนมัติ, และเพิ่ม Exponential Backoff ป้องกัน 429 cascade
 
 ---
 
 
-## ⚙️ ภาพรวมการทำงานของระบบ (System Overview - Phase 13)
+## ⚙️ ภาพรวมการทำงานของระบบ (System Overview - Phase 14)
 
 ระบบออกแบบโครงสร้างใหม่โดยยึดหลัก Clean Architecture และ Free-Tier Optimization:
 
@@ -64,17 +71,18 @@ flowchart TB
     User(("👤 Telegram User / Admin")):::actor
 
     subgraph FlyIO ["☁️ Application Tier - Hosted on Fly.io"]
-        Bot["🤖 DCABot Entrypoint<br/>(APScheduler)"]:::app
+        Bot["🤖 DCABot Entrypoint<br/>(APScheduler & Memory Cleanup)"]:::app
+        Fetcher["⚡ MarketDataFetcher<br/>(3-Min TTL Cache)"]:::app
         
         subgraph Handlers ["Modular Bot Handlers (Mixins)"]
             Common["Common"]:::handler
             Watchlist["Watchlist"]:::handler
-            Scanning["Scanning<br/>(Pre-Market Digest)"]:::handler
+            Scanning["Scanning<br/>(Analyze-Once, Distribute-Many)"]:::handler
             Portfolio["Portfolio<br/>(/paper_portfolio)"]:::handler
         end
         Bot --> Handlers
 
-        Pipeline["⚙️ Insight Pipeline<br/>(Throttled Async)"]:::app
+        Pipeline["⚙️ Insight Pipeline<br/>(Multi-Agent)"]:::app
         NewsService["📰 News Service<br/>(JunkFilter)"]:::app
         Sniper["🎯 Alpaca Sniper<br/>(Auto-Execution)"]:::app
     end
@@ -84,7 +92,9 @@ flowchart TB
     end
 
     subgraph AI_Layer ["🧠 AI & Intelligence Layer"]
+        LLMCaller["LLM Caller<br/>(Exponential Backoff & Retry)"]:::ai
         Gemini["Google Gemini API<br/>(Flash 3.6 & Pro)"]:::ai
+        LLMCaller --> Gemini
     end
 
     subgraph External_Sources ["🌐 External Providers"]
@@ -96,23 +106,27 @@ flowchart TB
 
     %% Connections
     User <-->|"Commands & Callbacks"| Handlers
+    Handlers <-->|"DB Cache Hit/Miss"| DB
     Handlers -->|"Trigger Deep Dive"| Pipeline
     Handlers -->|"Fetch Radar"| NewsService
     Pipeline -->|"Get Cleaned Context"| NewsService
     
-    Pipeline <-->|"Async HTTP"| Market
-    Pipeline <-->|"Deep Dive Reasoning"| Gemini
+    Handlers -->|"Fetch Quote"| Fetcher
+    Pipeline -->|"Fetch Quote"| Fetcher
+    Fetcher <-->|"Async HTTP"| Market
+    
+    Pipeline <-->|"Deep Dive Reasoning"| LLMCaller
+    Scanning <-->|"Async Grading"| LLMCaller
+    NewsService -->|"Filter & Tag Sentiment"| LLMCaller
     
     NewsService -->|"Fetch Raw Articles"| News
-    NewsService <-->|"Read/Write Cache"| DB
-    NewsService -->|"Filter & Tag Sentiment"| Gemini
     
     Sniper <-->|"Live Ticks & Paper Trades"| Alpaca
     Sniper <-->|"Operating Hours & Orders"| DB
     Sniper -->|"Target Hit / Auto-Execution"| User
 
-    Bot <-->|"SQLAlchemy ORM"| DB
-    Bot -->|"System Crash Alerts"| Sentry
+    Bot <-->|"SQLAlchemy ORM & Daily Cleanup"| DB
+    Bot -->|"System Crash Alerts<br/>(Error Fingerprinting)"| Sentry
     Sentry -.->|"AI Error Diagnostics"| User
 ```
 
