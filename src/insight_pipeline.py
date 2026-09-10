@@ -133,8 +133,9 @@ class LLMCaller:
         self.models = models
 
     def call(self, prompt: str) -> str:
-        """Try every (client × model) combination. Raise on total failure."""
+        """Try every (client × model) combination with backoff. Raise on total failure."""
         last_error: Exception | None = None
+        attempt = 0
 
         for client in self.clients:
             for model_name in self.models:
@@ -145,7 +146,11 @@ class LLMCaller:
                     )
                     return response.text.strip()
                 except Exception as e:
-                    logger.warning(f"LLMCaller: {model_name} failed — {e}")
+                    attempt += 1
+                    backoff = min(2 ** attempt, 8)  # 2, 4, 8 seconds max
+                    logger.warning(f"LLMCaller: {model_name} failed — {e}. Backoff {backoff}s")
+                    import time
+                    time.sleep(backoff)
                     last_error = e
                     continue
 

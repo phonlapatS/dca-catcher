@@ -169,29 +169,42 @@ class DCABot(CommonMixin, SurveyMixin, WatchlistMixin, ScanningMixin,
             except Exception:
                 pass
                 
-        # 3. Analyze Error with LLM
+        # 3. Analyze Error with LLM (with fingerprinting to prevent spam)
         try:
             if event.update.bot:
                 admin_id = 8942457900
                 tb_str = "".join(traceback.format_exception(type(event.exception), event.exception, event.exception.__traceback__))
                 
-                # LLM Analysis
-                from google import genai
-                client = genai.Client(api_key=self.config.gemini_api_key)
-                prompt = f"""
-You are an expert Python Backend Developer. Analyze the following traceback from our Telegram DCA Trading Bot.
+                # Error Fingerprinting: skip LLM if same error within 5 min
+                import hashlib
+                if not hasattr(self, '_error_fingerprints'):
+                    self._error_fingerprints = {}
+                error_hash = hashlib.md5(f"{type(event.exception).__name__}:{str(event.exception)[:200]}".encode()).hexdigest()[:8]
+                now_ts = time.time()
+                
+                ai_analysis = None
+                if error_hash in self._error_fingerprints and now_ts - self._error_fingerprints[error_hash] < 300:
+                    ai_analysis = "(ข้อผิดพลาดซ้ำ — ข้ามการวิเคราะห์ AI เพื่อประหยัด Token)"
+                else:
+                    self._error_fingerprints[error_hash] = now_ts
+                    # Cleanup old fingerprints
+                    self._error_fingerprints = {k: v for k, v in self._error_fingerprints.items() if now_ts - v < 600}
+                    
+                    from google import genai
+                    client = genai.Client(api_key=self.config.gemini_api_key)
+                    prompt = f"""You are an expert Python Backend Developer. Analyze the following traceback from our Telegram DCA Trading Bot.
 Explain exactly what went wrong and how to fix it in 2-3 short, clear sentences in Thai language. 
 Be highly technical but concise. Do not use markdown backticks in your response.
                 
 Traceback:
 {tb_str[-2000:]}
 """
-                ai_analysis = "ไม่สามารถวิเคราะห์ได้ในขณะนี้"
-                try:
-                    response = await asyncio.to_thread(client.models.generate_content, model='gemini-3.5-flash', contents=prompt)
-                    ai_analysis = response.text
-                except Exception as e:
-                    logger.error(f"Failed to analyze error with LLM: {e}")
+                    try:
+                        response = await asyncio.to_thread(client.models.generate_content, model='gemini-3.5-flash', contents=prompt)
+                        ai_analysis = response.text
+                    except Exception as e:
+                        logger.error(f"Failed to analyze error with LLM: {e}")
+                        ai_analysis = "ไม่สามารถวิเคราะห์ได้ในขณะนี้"
 
                 error_msg = f"🚨 **[ADMIN ALERT] System Crash Detected!** 🚨\n"
                 error_msg += f"**Error:** `{type(event.exception).__name__}`\n"
@@ -329,11 +342,19 @@ Traceback:
             await self.sniper.start()
 
     async def _daily_cleanup(self):
-        """Periodic cleanup of expired caches and old catalyst entries."""
+        """Periodic cleanup of expired caches, old catalysts, and in-memory dicts."""
         try:
             cache_deleted = await self.db.cleanup_expired_cache()
             catalyst_deleted = await self.db.cleanup_old_catalysts()
-            logger.info(f"Daily cleanup: {cache_deleted} expired caches, {catalyst_deleted} old catalysts removed")
+            
+            # C2: Cleanup unbounded in-memory dicts
+            now = time.time()
+            old_size = len(self._user_cooldowns)
+            self._user_cooldowns = {uid: ts for uid, ts in self._user_cooldowns.items() if now - ts < 3600}
+            if hasattr(self, '_error_fingerprints'):
+                self._error_fingerprints = {k: v for k, v in self._error_fingerprints.items() if now - v < 600}
+            
+            logger.info(f"Daily cleanup: {cache_deleted} caches, {catalyst_deleted} catalysts, {old_size - len(self._user_cooldowns)} cooldowns purged")
         except Exception as e:
             logger.error(f"Daily cleanup failed: {e}")
 
@@ -345,20 +366,20 @@ Traceback:
         self.scheduler = AsyncIOScheduler(timezone='Asia/Bangkok')
         self.scheduler.add_job(self.broadcast_scan, 'cron', hour=self.
             config.broadcast_morning_hour, minute=self.config.
-            broadcast_morning_minute)
+            broadcast_morning_minute, max_instances=1, coalesce=True)
         self.scheduler.add_job(self.broadcast_scan, 'cron', hour=self.
             config.broadcast_th_hour, minute=self.config.
-            broadcast_th_minute, args=['TH'])
+            broadcast_th_minute, args=['TH'], max_instances=1, coalesce=True)
         self.scheduler.add_job(self.broadcast_scan, 'cron', hour=self.
             config.broadcast_us_hour, minute=self.config.
-            broadcast_us_minute, args=['US'])
+            broadcast_us_minute, args=['US'], max_instances=1, coalesce=True)
         self.scheduler.add_job(self.catalyst_hunter.run_scan_cycle, 'cron',
-            hour='17-20', minute='*/2')
+            hour='17-20', minute='*/2', max_instances=1, coalesce=True)
         self.scheduler.add_job(self.catalyst_hunter.run_scan_cycle, 'cron',
-            hour='8-16', minute='*/30')
+            hour='8-16', minute='*/30', max_instances=1, coalesce=True)
         self.scheduler.add_job(self.catalyst_hunter.send_daily_digest,
-            'cron', hour=19, minute=0)
-        self.scheduler.add_job(self.send_premarket_watchlist_digest, 'cron', hour=19, minute=30)
+            'cron', hour=19, minute=0, max_instances=1, coalesce=True)
+        self.scheduler.add_job(self.send_premarket_watchlist_digest, 'cron', hour=19, minute=30, max_instances=1, coalesce=True)
         self.scheduler.add_job(self._daily_cleanup, 'cron', hour=4, minute=0)
         self.scheduler.start()
         await self.on_startup()
@@ -366,7 +387,10 @@ Traceback:
         await self.dp.start_polling(self.bot)
 
     async def stop(self):
-        """Cleanup: stop sniper and close database connections."""
+        """Cleanup: stop sniper, scheduler, and close database connections."""
+        if hasattr(self, 'scheduler'):
+            logger.info('Shutting down scheduler...')
+            self.scheduler.shutdown(wait=False)
         if self.sniper:
             logger.info('Stopping AlpacaSniper...')
             await self.sniper.stop()
