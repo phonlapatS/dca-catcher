@@ -224,7 +224,7 @@ class Database:
                 return False
 
     
-    async def get_cached_scan(self, symbol: str, scan_type: str) -> Optional[dict]:
+    async def get_cached_scan(self, symbol: str, scan_type: str, max_age_hours: float = None) -> Optional[dict]:
         async with self.session() as session:
             now = datetime.now(timezone.utc)
             stmt = select(ScanCache).where(
@@ -233,7 +233,14 @@ class Database:
                 ScanCache.expires_at > now
             )
             result = (await session.execute(stmt)).scalar_one_or_none()
+            
             if result:
+                if max_age_hours:
+                    from datetime import timedelta
+                    age = now - result.created_at
+                    if age > timedelta(hours=max_age_hours):
+                        return None # Force cache miss if it's too old
+                        
                 import json
                 meta = json.loads(result.metadata_json) if result.metadata_json else None
                 return {"response_text": result.response_text, "metadata": meta}
@@ -269,6 +276,15 @@ class Database:
                 )
                 session.add(new_cache)
             await session.commit()
+    async def clear_cached_scan(self, symbol: str, scan_type: str = None):
+        from sqlalchemy import delete
+        async with self.session() as session:
+            stmt = delete(ScanCache).where(ScanCache.symbol == symbol)
+            if scan_type:
+                stmt = stmt.where(ScanCache.scan_type == scan_type)
+            await session.execute(stmt)
+            await session.commit()
+
 
     async def is_catalyst_seen(self, headline_hash: str) -> bool:
         """Checks whether a catalyst hash has already been processed."""

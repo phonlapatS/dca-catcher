@@ -451,7 +451,7 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             
             # Check DB Cache first
             try:
-                cached = await self.db.get_cached_scan(symbol, "BASIC")
+                cached = await self.db.get_cached_scan(symbol, "BASIC", max_age_hours=0.5)
                 if cached and cached.get("metadata") and "grade_dict" in cached["metadata"]:
                     grade_dict = cached["metadata"]["grade_dict"]
                     grade_result = GradeResult(**grade_dict)

@@ -98,12 +98,16 @@ class CatalystHunter:
 
                     # 4. 3-Tier Alert Routing Framework:
                     # Tier S (Score >= 9.0): Instant Urgent Alert
-                    if verdict.is_material and verdict.materiality_score >= 9.0:
-                        await self._dispatch_catalyst_alert(article, verdict)
-                        processed_count += 1
-                    # Tier A (7.5 <= Score < 9.0): Batched into 19:00 Daily Digest
-                    elif verdict.is_material and verdict.materiality_score >= 7.5:
-                        self.digest_queue.append((article, verdict))
+                    if verdict.is_material and verdict.materiality_score >= 7.5:
+                        # Breaking news invalidates existing analysis cache!
+                        await self.db.clear_cached_scan(article.symbol)
+                        
+                        if verdict.materiality_score >= 9.0:
+                            # Tier S: Instant Urgent Alert
+                            await self._dispatch_catalyst_alert(article, verdict)
+                        else:
+                            # Tier A: Batched into Daily Digest
+                            self.digest_queue.append((article, verdict))
                         processed_count += 1
 
                     # 5. Record Hash & Metadata in Database
