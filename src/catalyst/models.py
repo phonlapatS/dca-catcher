@@ -34,6 +34,8 @@ class CatalystVerdict(BaseModel):
     bear_risks: str = Field(description="ปัจจัยลบ ความเสี่ยงที่ซ่อนอยู่ และความเสี่ยงราคาเปิดกระโดด")
     dca_guidance: str = Field(description="มุมมองกลยุทธ์ DCA แนวรับที่ปลอดภัย ไม่สนับสนุนการไล่ราคา")
     thai_summary: str = Field(description="สรุปเนื้อหาข่าวภาษาไทย 1-2 ประโยค")
+    source_url: str = Field(default="", description="Source URL of the article")
+    publisher: str = Field(default="", description="Publisher of the article")
     connected_stocks: List[ConnectedAsset] = Field(
         default_factory=list,
         description="รายชื่อหุ้นที่เชื่อมโยงในห่วงโซ่อุปทาน (Supply Chain / Economic Links) หรือ Sympathy Plays ที่ได้รับผลกระทบทางอ้อม"

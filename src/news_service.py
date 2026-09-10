@@ -59,6 +59,7 @@ class NewsService:
             for row in result.scalars():
                 try:
                     data = json.loads(row.metadata_json)
+                    data['publisher'] = row.publisher or ""
                     verdicts.append(CatalystVerdict(**data))
                 except Exception as e:
                     logger.debug(f"Failed to parse metadata_json for {symbol}: {e}")
@@ -105,6 +106,7 @@ class NewsService:
                             article.headline_hash, article.symbol, article.headline, 
                             article.publisher, metadata_json=verdict.model_dump_json()
                         )
+                        verdict.publisher = article.publisher or ""
                         live_verdicts.append(verdict)
                 else:
                     # Fallback to single if batch method missing
@@ -114,6 +116,7 @@ class NewsService:
                             article.headline_hash, article.symbol, article.headline, 
                             article.publisher, metadata_json=verdict.model_dump_json()
                         )
+                        verdict.publisher = article.publisher or ""
                         live_verdicts.append(verdict)
             except Exception as e:
                 logger.error(f"Error evaluating batched live news: {e}")
@@ -201,9 +204,11 @@ class NewsService:
                     sent_tag = "⚪[กลาง]"
                     
                 scope_tag = f"[{getattr(item, 'scope', 'MICRO')}]"
+                publisher = getattr(item, 'publisher', '')
+                pub_tag = f" 📝(Source: {publisher})" if publisher else ""
                 lines.append(
-                    f"• {scope_tag} {sent_tag} *{item.thai_summary}* "
-                    f"\n   ↳ 💡 Impact: {item.impact_summary} (Conf: {item.confidence_score}%)"
+                    f"• {scope_tag} {sent_tag} *{item.thai_summary}*{pub_tag}"
+                    f"\n   ↳ 💡 Impact: {item.impact_summary}"
                 )
             return "\n".join(lines)
             

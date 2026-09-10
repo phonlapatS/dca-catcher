@@ -164,21 +164,21 @@ Return strict JSON adhering to this schema:
         import json
         articles_str = json.dumps(articles_json, ensure_ascii=False, indent=2)
 
-        prompt = f"""You are an institutional financial analyst. Evaluate the following batch of breaking corporate news.
+        prompt = f"""You are an institutional financial analyst. Evaluate this batch of news. Keep text in Thai extremely concise (Get to the point).
 
 Articles:
 {articles_str}
 {timeline_context}
 
 Instructions for EACH article:
-1. Is this a material event? (is_material: boolean, materiality_score: 1.0 to 10.0). Reject clickbait with is_material=False and low score.
-2. Classify scope: MACRO, SECTOR, or MICRO.
-3. Classify event_category: CLINICAL_TRIAL, EARNINGS, M_AND_A, REGULATORY, CONTRACT, RISK_EVENT, MACRO_EVENT.
-4. Assess confidence_score (0-100).
-5. impact_summary in Thai (1-2 sentences).
-6. sentiment: POSITIVE, NEGATIVE, or NEUTRAL.
-7. Dual-Perspective Analysis in Thai: bull_catalysts, bear_risks, dca_guidance, thai_summary (factual summary).
-8. Supply Chain: connected_stocks (list of dicts with symbol, relationship).
+1. is_material: boolean, materiality_score: 1.0-10.0.
+2. scope: MACRO, SECTOR, MICRO.
+3. event_category: CLINICAL_TRIAL, EARNINGS, M_AND_A, etc.
+4. confidence_score (0-100).
+5. impact_summary: strictly 1 short sentence.
+6. sentiment: POSITIVE, NEGATIVE, NEUTRAL.
+7. bull_catalysts, bear_risks, dca_guidance, thai_summary: strictly 1 short sentence each.
+8. connected_stocks: array of dicts (symbol, relationship, impact_direction, rationale_thai).
 
 Return a strict JSON ARRAY where each object corresponds to an article ID and adheres exactly to this schema:
 [
@@ -217,14 +217,14 @@ Return a strict JSON ARRAY where each object corresponds to an article ID and ad
                         verdicts.append(CatalystVerdict(**v_dict))
                     except Exception as err:
                         logger.error(f"Failed to parse verdict {i}: {err}")
-                        verdicts.append(CatalystVerdict(is_material=False, materiality_score=0.0, thai_summary=article.headline))
+                        verdicts.append(CatalystVerdict(is_material=False, materiality_score=0.0, confidence_score=0.0, scope="MICRO", sentiment="NEUTRAL", event_category="RISK_EVENT", impact_summary="Parsing Error", bull_catalysts="-", bear_risks="-", dca_guidance="-", thai_summary=article.headline, connected_stocks=[]))
                 else:
-                    verdicts.append(CatalystVerdict(is_material=False, materiality_score=0.0, thai_summary=article.headline))
+                    verdicts.append(CatalystVerdict(is_material=False, materiality_score=0.0, confidence_score=0.0, scope="MICRO", sentiment="NEUTRAL", event_category="RISK_EVENT", impact_summary="Parsing Error", bull_catalysts="-", bear_risks="-", dca_guidance="-", thai_summary=article.headline, connected_stocks=[]))
                     
             return verdicts
             
         except Exception as e:
             logger.error(f"Error evaluating batch catalysts: {e}")
             # Fallback to empty verdicts
-            return [CatalystVerdict(is_material=False, materiality_score=0.0, thai_summary=a.headline) for a in articles]
+            return [CatalystVerdict(is_material=False, materiality_score=0.0, confidence_score=0.0, scope="MICRO", sentiment="NEUTRAL", event_category="RISK_EVENT", impact_summary="Error evaluating batch catalysts", bull_catalysts="-", bear_risks="-", dca_guidance="-", thai_summary=a.headline, connected_stocks=[]) for a in articles]
 

@@ -97,42 +97,29 @@ class SignalGrader:
             
         profile_text = f"\nUser Risk Profile:\n- The user's preferred DCA strategy is: '{risk_profile}'. Please adjust your Buy Targets and Advice to align with this strategy." if risk_profile else ""
 
-        prompt = f"""You are a professional financial analyst AI assisting with Dollar-Cost Averaging (DCA) investment decisions. All explanations, reasons, and advice must be in Thai.
+        prompt = f"""You are a professional financial AI assisting with DCA investments. All explanations must be in Thai and extremely concise (Get to the point).
 
-Analyze the stock signal for symbol: {signal.symbol}
-
-Market Snapshot:
-- Current Price: ${signal.snapshot.current_price}
-- Volume: {signal.snapshot.volume}
-- ATH Price: ${signal.snapshot.ath_price}
-- Drawdown from ATH: {signal.snapshot.drawdown_pct}%
+Analyze: {signal.symbol}
+- Price: ${signal.snapshot.current_price}
+- ATH Drawdown: {signal.snapshot.drawdown_pct}%
 {profile_text}
-
-Fundamental Data (if available):
-- P/E Ratio (Trailing): {getattr(signal.snapshot, 'trailing_pe', 'N/A')}
-- PEG Ratio: {getattr(signal.snapshot, 'peg_ratio', 'N/A')}
-- Revenue Growth: {getattr(signal.snapshot, 'revenue_growth', 'N/A')}
-- Profit Margins: {getattr(signal.snapshot, 'profit_margins', 'N/A')}
-- Debt to Equity: {getattr(signal.snapshot, 'debt_to_equity', 'N/A')}
-
-Indicators:
-{indicators_text}
-
-Dimensions:
-{dims_str}
+Fundamental: P/E: {getattr(signal.snapshot, 'trailing_pe', 'N/A')}, PEG: {getattr(signal.snapshot, 'peg_ratio', 'N/A')}, Margin: {getattr(signal.snapshot, 'profit_margins', 'N/A')}
+Indicators: {indicators_text}
 {news_text}
 
-1. Evaluate the combined dimensions (PRICE, FLOW, CONTEXT), indicators, and news.
-2. Filter the news using NER (Named Entity Recognition) to ensure the news is truly about {signal.symbol} and not just noise. Only consider "true news" in your analysis.
-3. Calculate an overall "Investment Attractiveness Score" from 1 to 10 (1 = Avoid, 10 = Strong Buy).
-4. Calculate exactly 3 suggested buy target prices (DCA entry points). **CRITICAL:** The targets must be REALISTIC based on current volatility, volume, and news sentiment. Do not place them too close to the current price (e.g. less than 1% drop) unless the trend is extremely strong. Do not place them unrealistically far (e.g. 50% drop) unless there is a severe crisis. Ensure consistency with the user's risk profile.
-5. Output concise Thai reasoning.
-6. Return ONLY a valid raw JSON object (without markdown code formatting or extraneous text) matching this lean schema:
+Instructions:
+1. Evaluate indicators and news.
+2. Calculate "score" (1-10) and "confidence" (0-100).
+3. Determine exactly 3 "buy_targets" (prices) that are realistic.
+4. Keep 'advice' to exactly 1 short sentence summarizing the trend and action (e.g., "🟢 น่าสะสมแนวรับ เพราะงบแข็งแกร่ง").
+5. Keep 'reasons' to exactly 2 short bullet points (1 fundamental, 1 technical).
+
+Return ONLY valid JSON matching this schema:
 {{
     "score": <integer 1 to 10>,
     "confidence": <integer 0 to 100>,
-    "advice": "<Thai string containing practical DCA investment advice>",
-    "reasons": ["<Thai tag string 1 with ✅ or ⚠️>", "<Thai tag string 2>"],
+    "advice": "<1 short sentence>",
+    "reasons": ["<tag 1>", "<tag 2>"],
     "buy_targets": [<float>, <float>, <float>]
 }}
 """
@@ -204,32 +191,28 @@ Dimensions:
             A formatted Markdown string containing the AI's stock recommendations and plan.
         """
         sectors_str = ", ".join(sectors)
-        prompt = f"""You are a professional wealth manager and financial AI assistant. All explanations must be in Thai.
+        prompt = f"""You are a professional wealth manager. Keep output in Thai and extremely concise (Get to the point).
 
-The user needs a customized stock portfolio recommendation. Here is their profile:
-- Risk Profile: {risk_profile if risk_profile else 'ไม่ได้ระบุ'}
-- Time Horizon: {horizon}
-- Investment Goal: {goal}
-- Preferred Sectors: {sectors_str}
-- Number of Stocks Requested: {count}
-- Monthly DCA Budget: {budget}
+User Profile:
+- Risk: {risk_profile if risk_profile else 'ไม่ได้ระบุ'}
+- Horizon: {horizon}
+- Goal: {goal}
+- Sectors: {sectors_str}
+- Size: {count} stocks
+- Budget: {budget}
 
-Please generate a highly professional and tailored investment plan. Your output must exactly follow this Markdown structure:
+Output exactly this Markdown structure:
 
-📊 **พอร์ตการลงทุนที่ออกแบบมาเพื่อคุณโดยเฉพาะ**
-(โปรไฟล์: [สรุปโปรไฟล์สั้นๆ] | งบลงทุน: {budget})
+📊 **พอร์ตการลงทุน (Budget: {budget})**
 
-**🎯 รายชื่อหุ้น {count} ตัว (Custom Portfolio):**
-1. **[Ticker 1]** - [เหตุผลที่ตรงกับความต้องการและธีมที่เลือก 1-2 บรรทัด]
-... (List exactly {count} stocks)
+**🎯 หุ้นแนะนำ {count} ตัว:**
+1. **[Ticker 1]** ([Allocation %]) - [เหตุผล 1 ประโยค พร้อมระบุ P/E ปัจจุบัน หรือข้อมูลซัพพอร์ตสั้นๆ]
+...
 
-**📝 แผนการลงทุน & สัดส่วนพอร์ต (Action Plan):**
-[แนะนำว่าควรแบ่งเงินซื้อตัวไหนกี่เปอร์เซ็นต์ (เช่น Core & Satellite) และวิธีการแบ่งเงิน {budget} ไปลงทุนในหุ้นแต่ละตัวต่อเดือน]
+**📝 สรุปกลยุทธ์:**
+[1-2 ประโยคสรุปการจัดสรร (เช่น 70% Growth / 30% Dividend) พร้อมประมาณการผลตอบแทนคาดหวังแบบสั้นสุดๆ]
 
-**📈 คาดการณ์การเติบโต vs เงินเฟ้อ (Growth Projection):**
-[วิเคราะห์เปรียบเทียบผลตอบแทนคาดหวังของพอร์ตนี้เทียบกับเงินเฟ้อเฉลี่ย 3% ต่อปี ให้เห็นภาพว่าเงินทุนรวมจากการ DCA เดือนละ {budget} จะงอกเงยประมาณเท่าไหร่ตาม Time Horizon ({horizon}) ที่กำหนด]
-
-Make sure the {count} recommended stocks are real, well-known US or global stocks that strictly fit their risk profile, horizon, goal, and the 3 chosen sectors. Provide the output directly, no introductory or concluding chat.
+Make sure the {count} stocks fit the profile. Provide the output directly, no introductory chat.
 """
         
         try:
