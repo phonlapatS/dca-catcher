@@ -306,10 +306,10 @@ User Risk Profile: {context.get('risk_profile', 'ไม่ได้ระบุ'
 {timeline_history}
 
 --- Fundamental Analysis (from Agent 1) ---
-{json.dumps(fundamental, ensure_ascii=False, indent=2) if fundamental else 'ไม่มีข้อมูล (Agent 1 ล้มเหลว)'}
+{json.dumps(fundamental, ensure_ascii=False, separators=(",",":")) if fundamental else 'ไม่มีข้อมูล (Agent 1 ล้มเหลว)'}
 
 --- News Sentiment (from Agent 2) ---
-{json.dumps(news, ensure_ascii=False, indent=2) if news else 'ไม่มีข้อมูล (Agent 2 ล้มเหลว)'}
+{json.dumps(news, ensure_ascii=False, separators=(",",":")) if news else 'ไม่มีข้อมูล (Agent 2 ล้มเหลว)'}
 
 Rules:
 - Target 1: Conservative entry (small dip, {ranges['conservative'][0]}-{ranges['conservative'][1]}% below current price)
@@ -369,13 +369,13 @@ Fear & Greed Index: {context.get('fear_greed', 'Unknown')}
 {timeline_history}
 
 --- Agent 1: Fundamental Analysis ---
-{json.dumps(fundamental, ensure_ascii=False, indent=2)}
+{json.dumps(fundamental, ensure_ascii=False, separators=(",",":"))}
 
 --- Agent 2: News & Sentiment ---
-{json.dumps(news, ensure_ascii=False, indent=2)}
+{json.dumps(news, ensure_ascii=False, separators=(",",":"))}
 
 --- Agent 3: Risk & Target Strategy ---
-{json.dumps(targets, ensure_ascii=False, indent=2)}
+{json.dumps(targets, ensure_ascii=False, separators=(",",":"))}
 
 Writing Guidelines:
 1. Write in normal, easy-to-understand Thai (ภาษาคนธรรมดา เข้าใจง่าย) with deep expertise.

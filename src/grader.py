@@ -164,12 +164,22 @@ Return ONLY valid JSON matching this schema:
             compatibility only.
         """
         logger.warning("generate_insight_report is deprecated — use InsightPipeline.generate() instead.")
-        prompt = self._build_prompt(signal, news, risk_profile)
-        prompt += f"\n\n--- INSTRUCTION OVERRIDE ---\n"
-        prompt += f"The AI previously selected these 3 buy targets: {targets}\n"
-        prompt += f"The current CNN Fear & Greed Index is: {fear_greed}\n"
-        prompt += "Write a comprehensive Thai-language Deep Dive Report.\n"
-        prompt += "Output ONLY a beautifully formatted Markdown report with emojis. No JSON."
+        indicators_str = []
+        if getattr(signal.snapshot, 'rsi', None) is not None:
+            indicators_str.append(f"RSI: {signal.snapshot.rsi}")
+        if getattr(signal.snapshot, 'ma_50', None) is not None:
+            indicators_str.append(f"MA50: {signal.snapshot.ma_50}")
+        indicators_text = ", ".join(indicators_str) if indicators_str else "N/A"
+        news_text = "\n".join(f"- {n}" for n in (news or [])[:3])
+
+        prompt = f"""Write a Thai Deep Dive investment report for {signal.symbol}.
+Price: ${signal.snapshot.current_price} | ATH Drawdown: {signal.snapshot.drawdown_pct}%
+P/E: {getattr(signal.snapshot, 'trailing_pe', 'N/A')} | Indicators: {indicators_text}
+Buy Targets: {targets}
+Fear & Greed Index: {fear_greed}
+News: {news_text}
+
+Output ONLY a beautifully formatted Markdown report with emojis. No JSON. No introductory chat."""
 
         try:
             return self.advice_llm.call(prompt)

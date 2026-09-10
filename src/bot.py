@@ -328,6 +328,15 @@ Traceback:
             logger.info('Starting AlpacaSniper background task...')
             await self.sniper.start()
 
+    async def _daily_cleanup(self):
+        """Periodic cleanup of expired caches and old catalyst entries."""
+        try:
+            cache_deleted = await self.db.cleanup_expired_cache()
+            catalyst_deleted = await self.db.cleanup_old_catalysts()
+            logger.info(f"Daily cleanup: {cache_deleted} expired caches, {catalyst_deleted} old catalysts removed")
+        except Exception as e:
+            logger.error(f"Daily cleanup failed: {e}")
+
     async def start(self):
         """Initialize database, scheduler, sniper, and start polling."""
         logger.info('Initializing database tables...')
@@ -350,6 +359,7 @@ Traceback:
         self.scheduler.add_job(self.catalyst_hunter.send_daily_digest,
             'cron', hour=19, minute=0)
         self.scheduler.add_job(self.send_premarket_watchlist_digest, 'cron', hour=19, minute=30)
+        self.scheduler.add_job(self._daily_cleanup, 'cron', hour=4, minute=0)
         self.scheduler.start()
         await self.on_startup()
         logger.info('Starting Telegram bot polling...')

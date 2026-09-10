@@ -578,8 +578,20 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
         for (symbol, rp), users in symbol_risk_users.items():
             if symbol not in enriched:
                 continue
-            signal = enriched[symbol]
-            result = self.grader.grade(signal, risk_profile=rp)
+            
+            # Check cache first to avoid redundant AI calls
+            from src.grader import GradeResult
+            result = None
+            try:
+                cached = await self.db.get_cached_scan(symbol, "BASIC")
+                if cached and cached.get("metadata") and "grade_dict" in cached["metadata"]:
+                    result = GradeResult(**cached["metadata"]["grade_dict"])
+            except Exception:
+                pass
+            
+            if not result:
+                signal = enriched[symbol]
+                result = self.grader.grade(signal, risk_profile=rp)
             targets_str = '\n'.join(f'  • ${t}' for t in result.buy_targets
                 ) if getattr(result, 'buy_targets', None) else '  • N/A'
             conf = result.confidence

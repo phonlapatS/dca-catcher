@@ -310,6 +310,21 @@ class Database:
                 logger.info(f"Cleaned up {deleted} old catalyst entries (>{retention_days} days)")
             return deleted
 
+    async def cleanup_expired_cache(self) -> int:
+        """Delete expired scan_cache entries to prevent unbounded table growth."""
+        import logging
+        from sqlalchemy import delete
+        logger = logging.getLogger(__name__)
+        now = datetime.now(timezone.utc)
+        async with self.session() as session:
+            stmt = delete(ScanCache).where(ScanCache.expires_at < now)
+            result = await session.execute(stmt)
+            await session.commit()
+            deleted = result.rowcount
+            if deleted:
+                logger.info(f"Cleaned up {deleted} expired cache entries")
+            return deleted
+
     async def get_user(self, telegram_id: int, username: str | None = None) -> User:
         """Get or create user safely. Handles race conditions with a try/except IntegrityError."""
         from sqlalchemy.exc import IntegrityError

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 import yfinance as yf
 
@@ -27,11 +28,14 @@ class StockSnapshot:
     eps_ttm: float | None = None
     free_cash_flow: float | None = None
     debt_to_equity: float | None = None
-    debt_to_equity: float | None = None
 
 
 class MarketDataFetcher:
     """Fetches market data from yfinance for US and TH (.BK) stocks."""
+
+    def __init__(self, cache_ttl: int = 180):
+        self._cache: dict[str, tuple[StockSnapshot, float]] = {}
+        self._cache_ttl = cache_ttl  # 3 minutes default
 
     async def fetch_async(self, symbols: list[str]) -> dict[str, StockSnapshot]:
         """Async version of fetch() — runs yfinance calls in thread pool to avoid blocking event loop.
@@ -61,9 +65,22 @@ class MarketDataFetcher:
 
         Returns a dict keyed by symbol. Symbols that fail to fetch are
         silently skipped (logged, not raised).
+        Uses a TTL memory cache to avoid duplicate API calls within a short window.
         """
         snapshots: dict[str, StockSnapshot] = {}
+        symbols_to_fetch: list[str] = []
+        now = time.time()
+
+        # Check cache first
         for symbol in symbols:
+            if symbol in self._cache:
+                snap, ts = self._cache[symbol]
+                if now - ts < self._cache_ttl:
+                    snapshots[symbol] = snap
+                    continue
+            symbols_to_fetch.append(symbol)
+
+        for symbol in symbols_to_fetch:
             try:
                 ticker = yf.Ticker(symbol)
                 df = ticker.history(period="max")
@@ -116,6 +133,9 @@ class MarketDataFetcher:
                         snapshots[symbol].is_volume_anomaly = bool(last_row["is_volume_anomaly"]) if pd.notna(last_row.get("is_volume_anomaly")) else None
                 except Exception as e:
                     logger.warning(f"Failed to compute indicators for {symbol}: {e}")
+                
+                # Store in memory cache
+                self._cache[symbol] = (snapshots[symbol], now)
             except Exception as e:
                 logger.warning(f"Failed to fetch market data for symbol '{symbol}': {e}")
                 continue
