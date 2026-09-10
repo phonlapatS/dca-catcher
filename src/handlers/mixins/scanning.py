@@ -401,13 +401,11 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
 
 
     async def send_premarket_watchlist_digest(self):
-        """Send a single optimized daily digest to the broadcast channel 1 hour before US market opens."""
-        logger.info("Starting Pre-Market Watchlist Digest (Broadcast Mode)...")
-        if not self.config.broadcast_channel_id:
-            logger.info("BROADCAST_CHANNEL_ID not set. Skipping digest broadcast.")
-            return
-
+        """Send a personalized daily digest via DM, analyzing each unique stock only ONCE to save tokens."""
+        logger.info("Starting Pre-Market Watchlist Digest (Optimized DM Mode)...")
+        
         async with self.db.session() as session:
+            # Get users who want DMs and their US symbols
             stmt = select(User, Watchlist).join(Watchlist, User.id == Watchlist.user_id).where(User.notify_dm == True, Watchlist.market == 'US')
             res = await session.execute(stmt)
             rows = res.all()
@@ -416,15 +414,17 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             logger.info("No users with notify_dm=True found for US digest.")
             return
 
-        # Group by symbol
-        symbol_users = {}
+        # 1. Map users to their symbols and find unique symbols
+        user_symbols = {} # {user_obj: [symbol1, symbol2]}
+        unique_symbols = set()
+        
         for user, wl in rows:
-            if wl.symbol not in symbol_users:
-                symbol_users[wl.symbol] = []
-            mention = f"@{user.username}" if user.username else f"User_{user.id}"
-            symbol_users[wl.symbol].append(mention)
+            if user not in user_symbols:
+                user_symbols[user] = []
+            user_symbols[user].append(wl.symbol)
+            unique_symbols.add(wl.symbol)
             
-        us_symbols = list(symbol_users.keys())
+        us_symbols = list(unique_symbols)
         loop = asyncio.get_running_loop()
         snapshots = await loop.run_in_executor(None, self.fetcher.fetch, us_symbols)
         
@@ -433,16 +433,15 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             
         enriched = self.transformer.enrich(snapshots)
         
-        digest_msg = "🔔 **Pre-Market Watchlist Digest (19:30 น.)**\nอัปเดตสถานการณ์หุ้น US ก่อนตลาดเปิด:\n\n"
-        
-        for symbol, users_list in symbol_users.items():
+        # 2. Analyze each unique symbol EXACTLY ONCE (saves LLM tokens)
+        analyzed_blocks = {}
+        for symbol in us_symbols:
             if symbol not in enriched:
                 continue
                 
-            mentions_str = " ".join(users_list)
             snap = snapshots[symbol]
             
-            # Grade once generically to save tokens
+            # Grade once generically
             grade_result = self.grader.grade(enriched[symbol], risk_profile="ทั่วไป (Aggregated)")
             score_val = f"{grade_result.score}/10"
             
@@ -452,9 +451,11 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             except:
                 news_str = ""
             
-            digest_msg += f"🔹 **{symbol}** (${snap.current_price:,.2f} | 📉 {snap.drawdown_pct}%)\n🗣️ สำหรับ: {mentions_str}\n🤖 AI Score: {score_val}{news_str}\n\n"
+            # Format the block for this stock
+            block = f"🔹 **{symbol}** (${snap.current_price:,.2f} | 📉 {snap.drawdown_pct}%)\n🤖 AI Score: {score_val}{news_str}\n"
+            analyzed_blocks[symbol] = block
             
-            # Log Fundamental Health
+            # Log Fundamental Health in background
             try:
                 from src.database import FundamentalHealth
                 async with self.db.session() as h_session:
@@ -473,10 +474,22 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             except Exception as e:
                 logger.error(f"Failed to log FundamentalHealth for {symbol}: {e}")
                 
-        try:
-            await self.bot.send_message(chat_id=self.config.broadcast_channel_id, text=digest_msg, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"Failed to broadcast pre-market digest: {e}")
+        # 3. Distribute personalized DMs to each user
+        for user, symbols in user_symbols.items():
+            digest_msg = "🔔 **Pre-Market Watchlist Digest (19:30 น.)**\nอัปเดตสถานการณ์หุ้น US ก่อนตลาดเปิด:\n\n"
+            has_data = False
+            
+            for symbol in symbols:
+                if symbol in analyzed_blocks:
+                    digest_msg += analyzed_blocks[symbol] + "\n"
+                    has_data = True
+                    
+            if has_data:
+                try:
+                    await self.bot.send_message(chat_id=user.telegram_id, text=digest_msg, parse_mode='Markdown')
+                    await asyncio.sleep(0.5) # Throttling for Telegram limits
+                except Exception as e:
+                    logger.error(f"Failed to send DM digest to {user.telegram_id}: {e}")
             
         logger.info("Pre-Market Watchlist Digest completed.")
 
