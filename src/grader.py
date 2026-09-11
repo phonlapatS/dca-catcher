@@ -111,8 +111,8 @@ Instructions:
 1. Evaluate indicators and news.
 2. Calculate "score" (1-10) and "confidence" (0-100).
 3. Determine exactly 3 "buy_targets" (prices) that are realistic.
-4. Keep 'advice' to exactly 1 short sentence summarizing the trend and action (e.g., "🟢 น่าสะสมแนวรับ เพราะงบแข็งแกร่ง").
-5. Keep 'reasons' to exactly 2 short bullet points (1 fundamental, 1 technical).
+4. Keep 'advice' to exactly 1 short sentence summarizing the trend and action based strictly on data. Do not repeat obvious phrases like "เหมาะกับ DCA" because the user already knows this.
+5. Keep 'reasons' to exactly 2 short bullet points (1 fundamental, 1 technical). You MUST use the exact metrics/numbers provided above to support your reason and prevent hallucination.
 
 Return ONLY valid JSON matching this schema:
 {{
