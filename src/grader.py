@@ -103,8 +103,9 @@ Analyze: {signal.symbol}
 - Price: ${signal.snapshot.current_price}
 - ATH Drawdown: {signal.snapshot.drawdown_pct}%
 {profile_text}
-Fundamental: P/E: {getattr(signal.snapshot, 'trailing_pe', 'N/A')}, PEG: {getattr(signal.snapshot, 'peg_ratio', 'N/A')}, Margin: {getattr(signal.snapshot, 'profit_margins', 'N/A')}
+Fundamental: P/E: {getattr(signal.snapshot, 'trailing_pe', 'N/A')}, PEG: {getattr(signal.snapshot, 'peg_ratio', 'N/A')}, Margin: {getattr(signal.snapshot, 'profit_margins', 'N/A')}, D/E: {getattr(signal.snapshot, 'debt_to_equity', 'N/A')}, FCF: {getattr(signal.snapshot, 'free_cash_flow', 'N/A')}
 Indicators: {indicators_text}
+Volume Flow: Anomaly={getattr(signal.snapshot, 'is_volume_anomaly', False)}, Current={signal.snapshot.volume}, 20dAvg={getattr(signal.snapshot, 'volume_20d_avg', 'N/A')}
 {news_text}
 
 Instructions:

@@ -116,7 +116,8 @@ class MarketDataFetcher:
                     peg_ratio=info.get("pegRatio"),
                     revenue_growth=info.get("revenueGrowth"),
                     profit_margins=info.get("profitMargins"),
-                    debt_to_equity=info.get("debtToEquity")
+                    debt_to_equity=info.get("debtToEquity"),
+                    free_cash_flow=info.get("freeCashflow")
                 )
                 
                 # After creating the StockSnapshot, compute indicators from the DataFrame
