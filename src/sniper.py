@@ -483,11 +483,13 @@ class AlpacaSniper:
                             await self.handle_message(msg_str)
                         except asyncio.TimeoutError:
                             continue
-                        except websockets.ConnectionClosed:
-                            logger.warning("Alpaca WebSocket connection closed normally.")
+                        except (websockets.ConnectionClosed, AttributeError) as e:
+                            # AttributeError ('NoneType' object has no attribute 'resume_reading')
+                            # occurs when asyncio SSL transport is unexpectedly disconnected
+                            logger.warning(f"Alpaca WebSocket disconnected ({type(e).__name__}). Reconnecting...")
                             break
                         except Exception as inner_e:
-                            logger.error(f"Critical inner loop error (possibly SSL disconnect): {inner_e}")
+                            logger.error(f"Critical inner loop error: {inner_e}")
                             if self.bot:
                                 asyncio.create_task(AdminAlertManager.send_alert(
                                     bot=self.bot,

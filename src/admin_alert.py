@@ -18,10 +18,25 @@ class AdminAlertManager:
             
             ai_analysis = "ไม่สามารถวิเคราะห์ได้ในขณะนี้"
             if gemini_api_key:
-                from google import genai
-                try:
-                    client = genai.Client(api_key=gemini_api_key)
-                    prompt = f"""
+                import hashlib
+                import time
+                if not hasattr(AdminAlertManager, '_alert_fingerprints'):
+                    AdminAlertManager._alert_fingerprints = {}
+                
+                error_hash = hashlib.md5(f"{context}:{error_type}:{str(error)[:100]}".encode()).hexdigest()[:8]
+                now_ts = time.time()
+                
+                if error_hash in AdminAlertManager._alert_fingerprints and now_ts - AdminAlertManager._alert_fingerprints[error_hash] < 300:
+                    ai_analysis = "(ข้อผิดพลาดซ้ำ — ข้ามการวิเคราะห์ AI เพื่อประหยัด Token)"
+                else:
+                    AdminAlertManager._alert_fingerprints[error_hash] = now_ts
+                    # Cleanup old fingerprints
+                    AdminAlertManager._alert_fingerprints = {k: v for k, v in AdminAlertManager._alert_fingerprints.items() if now_ts - v < 600}
+                    
+                    from google import genai
+                    try:
+                        client = genai.Client(api_key=gemini_api_key)
+                        prompt = f"""
 You are an expert Python Backend Developer monitoring a DCA Trading Bot.
 A background task crashed.
 Context: {context}
@@ -31,11 +46,11 @@ Traceback:
 
 Please explain this error in simple, highly technical Thai for the admin. Explain exactly what went wrong and how to fix it in 2-3 short, clear sentences. Do not use markdown backticks in your response.
 """
-                    response = await asyncio.to_thread(client.models.generate_content, model='gemini-3.5-flash', contents=prompt)
-                    if response.text:
-                        ai_analysis = response.text.strip()
-                except Exception as llm_e:
-                    logger.error(f"LLM Alert generation failed: {llm_e}")
+                        response = await asyncio.to_thread(client.models.generate_content, model='gemini-3.5-flash', contents=prompt)
+                        if response.text:
+                            ai_analysis = response.text.strip()
+                    except Exception as llm_e:
+                        logger.error(f"LLM Alert generation failed: {llm_e}")
 
             msg = (
                 f"🚨 **ADMIN ALERT (Background Watchdog)** 🚨\n"
