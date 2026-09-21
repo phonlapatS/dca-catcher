@@ -16,6 +16,7 @@ class StockSnapshot:
     drawdown_pct: float  # negative value, e.g. -20.0
     rsi: float | None = None
     ma_50: float | None = None
+    sma_200: float | None = None
     volume_20d_avg: float | None = None
     is_volume_anomaly: bool | None = None
     
@@ -130,6 +131,7 @@ class MarketDataFetcher:
                         last_row = df_indicators.iloc[-1]
                         snapshots[symbol].rsi = float(last_row["rsi"]) if pd.notna(last_row.get("rsi")) else None
                         snapshots[symbol].ma_50 = float(last_row["ma_50"]) if pd.notna(last_row.get("ma_50")) else None
+                        snapshots[symbol].sma_200 = float(last_row["sma_200"]) if pd.notna(last_row.get("sma_200")) else None
                         snapshots[symbol].volume_20d_avg = float(last_row["volume_20d_avg"]) if pd.notna(last_row.get("volume_20d_avg")) else None
                         snapshots[symbol].is_volume_anomaly = bool(last_row["is_volume_anomaly"]) if pd.notna(last_row.get("is_volume_anomaly")) else None
                 except Exception as e:

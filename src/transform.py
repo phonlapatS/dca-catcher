@@ -48,6 +48,7 @@ class DataTransformer:
 
         df["rsi"] = ta.momentum.rsi(close=close_series, window=14)
         df["ma_50"] = ta.trend.sma_indicator(close=close_series, window=50)
+        df["sma_200"] = ta.trend.sma_indicator(close=close_series, window=200)
         df["volume_20d_avg"] = ta.trend.sma_indicator(close=volume_series, window=20)
         df["is_volume_anomaly"] = volume_series > (1.5 * df["volume_20d_avg"])
 

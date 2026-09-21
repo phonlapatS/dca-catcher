@@ -85,6 +85,8 @@ class SignalGrader:
             indicators_str.append(f"- RSI: {signal.snapshot.rsi}")
         if getattr(signal.snapshot, 'ma_50', None) is not None:
             indicators_str.append(f"- MA_50: {signal.snapshot.ma_50}")
+        if getattr(signal.snapshot, 'sma_200', None) is not None:
+            indicators_str.append(f"- SMA_200: {signal.snapshot.sma_200}")
         if getattr(signal.snapshot, 'bb_lower', None) is not None:
             indicators_str.append(f"- BB_lower: {signal.snapshot.bb_lower}")
         indicators_text = "\n".join(indicators_str) if indicators_str else "- No calculated indicators available"
@@ -108,20 +110,26 @@ Indicators: {indicators_text}
 Volume Flow: Anomaly={getattr(signal.snapshot, 'is_volume_anomaly', False)}, Current={signal.snapshot.volume}, 20dAvg={getattr(signal.snapshot, 'volume_20d_avg', 'N/A')}
 {news_text}
 
-Instructions:
-1. Evaluate indicators and news.
-2. Calculate "score" (1-10) and "confidence" (0-100).
-3. Determine exactly 3 "buy_targets" (prices) that are realistic.
+Instructions (Act as a Quant Engineer):
+1. Think step-by-step (Chain of Thought).
+   - Step 1 (Trend): Evaluate Price vs SMA_200 and MA_50. Is it in a macro uptrend, sideways, or downtrend?
+   - Step 2 (Value): Evaluate PEG, P/E, and FCF. Is it fundamentally sound and fairly priced?
+   - Step 3 (Timing): Evaluate RSI and Volume Anomaly. Is it overbought, oversold, or finding support?
+2. Synthesize exactly 2 short bullet points for 'reasons' (1 fundamental, 1 technical). You MUST use the exact metrics/numbers provided above to support your reason and prevent hallucination.
+3. Calculate "score" (1-10) using this logic: Start at 5. Add points for strong fundamentals (e.g. PEG < 1.5) or strong macro trend (Price > SMA_200). Subtract points for broken trends (Price < SMA_200) or severe overvaluation.
 4. Keep 'advice' to exactly 1 short sentence summarizing the trend and action based strictly on data. Do not repeat obvious phrases like "เหมาะกับ DCA" because the user already knows this.
-5. Keep 'reasons' to exactly 2 short bullet points (1 fundamental, 1 technical). You MUST use the exact metrics/numbers provided above to support your reason and prevent hallucination.
+5. Determine exactly 3 "buy_targets" (prices) that are realistic (e.g., near MA_50 or SMA_200 supports).
+
+CRITICAL: You MUST output JSON in the EXACT order below (Auto-Regressive Anchoring). Write 'analysis_steps' and 'reasons' FIRST so you can think before you output 'advice' and 'score'.
 
 Return ONLY valid JSON matching this schema:
 {{
-    "score": <integer 1 to 10>,
-    "confidence": <integer 0 to 100>,
-    "advice": "<1 short sentence>",
+    "analysis_steps": "<1-2 sentences of your internal chain of thought>",
     "reasons": ["<tag 1>", "<tag 2>"],
-    "buy_targets": [<float>, <float>, <float>]
+    "buy_targets": [<float>, <float>, <float>],
+    "advice": "<1 short sentence>",
+    "score": <integer 1 to 10>,
+    "confidence": <integer 0 to 100>
 }}
 """
         return prompt
