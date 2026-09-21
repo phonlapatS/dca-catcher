@@ -294,14 +294,20 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
 
             buttons = []
             if getattr(grade_result, 'buy_targets', None):
+                for t in grade_result.buy_targets:
+                    buttons.append([InlineKeyboardButton(
+                        text=f"[ ] ${float(t):.2f}", 
+                        callback_data=f"tgt_toggle_{grade_result.symbol}_{t}"
+                    )])
+                buttons.append([
+                    InlineKeyboardButton(text="✅ ยืนยันเป้าหมาย", callback_data=f"tgt_confirm_{grade_result.symbol}"),
+                    InlineKeyboardButton(text="❌ ข้าม", callback_data=f"tgt_dismiss_{grade_result.symbol}")
+                ])
+            else:
                 buttons.append([InlineKeyboardButton(text=
-                    '🎯 นำเป้าหมายนี้ไปตั้งแจ้งเตือน (Add Watchlist)', callback_data=
-                    f'watch_{grade_result.symbol}')])
-            buttons.append([InlineKeyboardButton(text=
-                '📖 เจาะลึกบทวิเคราะห์ (Deep Dive)', callback_data=
-                f'insight_{grade_result.symbol}')])
-            keyboard = InlineKeyboardMarkup(inline_keyboard=buttons
-                ) if buttons else None
+                    '📖 เจาะลึกบทวิเคราะห์ (Deep Dive)', callback_data=
+                    f'insight_{grade_result.symbol}')])
+            keyboard = InlineKeyboardMarkup(inline_keyboard=buttons) if buttons else None
             try:
                 await message.reply(report_text, parse_mode='Markdown',
                     reply_markup=keyboard)
