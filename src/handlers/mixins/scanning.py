@@ -240,6 +240,26 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
                     logger.error(f'Failed to fetch news teaser for {grade_result.symbol}: {e}')
                     news_teaser_text = ''
                 
+                pe = getattr(snapshot, 'trailing_pe', None)
+                pe_str = f"{pe:.2f}" if pe else "N/A"
+                roe = getattr(snapshot, 'return_on_equity', None)
+                roe_str = f"{roe*100:.1f}%" if roe else "N/A"
+                fcf_val = getattr(snapshot, 'free_cash_flow', None)
+                if isinstance(fcf_val, (int, float)):
+                    if abs(fcf_val) >= 1e9: fcf_str = f"{fcf_val/1e9:.1f}B"
+                    elif abs(fcf_val) >= 1e6: fcf_str = f"{fcf_val/1e6:.1f}M"
+                    else: fcf_str = f"{fcf_val:.2f}"
+                else: fcf_str = "N/A"
+                rsi = getattr(snapshot, 'rsi', None)
+                rsi_str = f"{rsi:.2f}" if rsi else "N/A"
+                sma200 = getattr(snapshot, 'sma_200', None)
+                sma200_str = f"${sma200:.2f}" if sma200 else "N/A"
+                vol_anom = "⚠️ พุ่งผิดปกติ" if getattr(snapshot, 'is_volume_anomaly', False) else "ปกติ"
+                
+                market_data_block = f"""📈 **ข้อมูลสถิติเบื้องต้น:**
+  • **Funda:** P/E {pe_str} | ROE {roe_str} | FCF {fcf_str}
+  • **Tech:** RSI {rsi_str} | SMA200 {sma200_str} | Vol {vol_anom}"""
+                
                 report_text = f"""🗣️ **สำหรับ {mention}**
 📊 **{grade_result.symbol} Analysis**
 
@@ -253,7 +273,9 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
 💡 **คำแนะนำจาก AI:**
 {grade_result.advice}
 
-📌 **จุดสังเกต:**
+{market_data_block}
+
+📌 **จุดสังเกตเชิงลึกจาก AI:**
 {reasons_str}
 
 🛒 **ราคาเป้าหมาย (Buy Targets):**

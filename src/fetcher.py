@@ -29,6 +29,8 @@ class StockSnapshot:
     eps_ttm: float | None = None
     free_cash_flow: float | None = None
     debt_to_equity: float | None = None
+    return_on_equity: float | None = None
+    dividend_yield: float | None = None
 
 
 class MarketDataFetcher:
@@ -118,7 +120,9 @@ class MarketDataFetcher:
                     revenue_growth=info.get("revenueGrowth"),
                     profit_margins=info.get("profitMargins"),
                     debt_to_equity=info.get("debtToEquity"),
-                    free_cash_flow=info.get("freeCashflow")
+                    free_cash_flow=info.get("freeCashflow"),
+                    return_on_equity=info.get("returnOnEquity"),
+                    dividend_yield=info.get("dividendYield")
                 )
                 
                 # After creating the StockSnapshot, compute indicators from the DataFrame

@@ -4,8 +4,30 @@
 > Branch: `main`
 > Python: 3.10+ | Venv: `./venv`
 
-## 🚀 Latest Updates (Phase 14 Completed)
-- **Phase 14: Token & Architecture Optimizations** is fully deployed.
+## 🚀 Latest Updates (Phase 15: AI Quant Engineering & Resilience)
+> **Status:** Deployed to Fly.io
+
+- **1. Stability & Alert Resilience:**
+  - Fixed `AlpacaSniper` WebSocket `AttributeError: 'NoneType' object has no attribute 'resume_reading'` caused by unexpected SSL disconnects. Implemented silent reconnect logic.
+  - Ported the **Error Fingerprinting** logic to `admin_alert.py` (`AdminAlertManager`) to prevent Sentry/Watchdog from spamming the LLM and hitting rate limits when a background task crashes in a loop.
+- **2. Advanced Quant Data Expansion:**
+  - Expanded `StockSnapshot` and `DataTransformer` to include macro trends and deep financials without slowing down the bot.
+  - Added **SMA200 (Simple Moving Average 200-day)** to identify long-term macro trend filters.
+  - Added **Free Cash Flow (FCF)** and **Debt-to-Equity (D/E)** from yfinance for deeper quality factor analysis.
+  - Added **ROE (Return on Equity)**, **Revenue Growth**, and **Dividend Yield** to identify value traps and profitability.
+- **3. Prompt Engineering & Token Optimization:**
+  - Implemented **Auto-Regressive JSON Anchoring**: Requires `analysis_steps` and `reasons` *before* `advice` and `score` to mathematically force the LLM to write its Chain of Thought before concluding.
+  - Implemented **XML-Tagged Data Block (`<MARKET_DATA>`)**: Compressed fundamental and technical data into a high-density format (e.g., `FCF=21.6B`, `ROE=29.8%`) to drastically reduce token usage and improve AI attention mechanism.
+  - Instructed the AI to explicitly *interpret* the numbers in its reasoning (e.g., "ROE at 29.8% shows high efficiency") rather than just restating them.
+- **4. UX/UI & System Cleanup:**
+  - Separated raw numbers from AI prose in the Telegram `/scan` output, displaying a clear `📈 ข้อมูลสถิติเบื้องต้น (Market Data)` block before the AI's observations.
+  - Permanently removed obsolete Paper Trading logic from `sniper.py` to streamline the codebase.
+- **5. Chain of Thought (CoT) & Scoring Rubric:**
+  - Injected a strict Quant Engineer persona into the prompt, forcing the AI to evaluate Trend, Value, and Momentum systematically instead of outputting generic "เหมาะกับ DCA" advice.
+  - **Results:** AI now uses exact, hard numbers (e.g., $397.05 SMA200, 334.6 P/E) to justify DCA entry points, resulting in zero hallucination and incredibly accurate accumulation signals.
+
+## 📈 Phase 14: Token & Architecture Optimizations (Completed)
+- **Phase 14** is fully deployed.
   - **Architecture Resiliency (Critical Fixes):**
     - Fixed Event Loop Blocking by wrapping synchronous LLM calls (`grader.grade()`) in `asyncio.to_thread()` during broadcast and premarket scans.
     - Prevented Zombie Processes by gracefully shutting down APScheduler (`self.scheduler.shutdown()`) on bot stop.

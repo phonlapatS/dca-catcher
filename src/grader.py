@@ -99,15 +99,45 @@ class SignalGrader:
             
         profile_text = f"\nUser Risk Profile:\n- The user's preferred DCA strategy is: '{risk_profile}'. Please adjust your Buy Targets and Advice to align with this strategy." if risk_profile else ""
 
+        def _fmt(val):
+            if val is None or val == 'N/A': return 'N/A'
+            if isinstance(val, float): return f"{val:.2f}"
+            return str(val)
+            
+        fcf = getattr(signal.snapshot, 'free_cash_flow', 'N/A')
+        if isinstance(fcf, (int, float)):
+            if abs(fcf) >= 1e9: fcf_str = f"{fcf/1e9:.1f}B"
+            elif abs(fcf) >= 1e6: fcf_str = f"{fcf/1e6:.1f}M"
+            else: fcf_str = _fmt(fcf)
+        else:
+            fcf_str = 'N/A'
+            
+        vol = getattr(signal.snapshot, 'volume', 'N/A')
+        vol_str = f"{vol/1e6:.1f}M" if isinstance(vol, (int, float)) and abs(vol) >= 1e6 else _fmt(vol)
+        vol_avg = getattr(signal.snapshot, 'volume_20d_avg', 'N/A')
+        vol_avg_str = f"{vol_avg/1e6:.1f}M" if isinstance(vol_avg, (int, float)) and abs(vol_avg) >= 1e6 else _fmt(vol_avg)
+            
+        def _pct(val):
+            if val is None or val == 'N/A': return 'N/A'
+            if isinstance(val, (int, float)): return f"{val*100:.1f}%"
+            return str(val)
+            
+        def _div_pct(val):
+            if val is None or val == 'N/A': return 'N/A'
+            if isinstance(val, (int, float)): return f"{val:.1f}%" # yfinance dividendYield is already in percentage format (e.g. 0.32 means 0.32%)
+            return str(val)
+            
+        data_block = f"""<MARKET_DATA>
+[TICKER]: {signal.symbol} | Px: ${_fmt(signal.snapshot.current_price)} | ATH_DD: {_fmt(signal.snapshot.drawdown_pct)}%
+[FUNDA]: PE={_fmt(getattr(signal.snapshot, 'trailing_pe', 'N/A'))}, PEG={_fmt(getattr(signal.snapshot, 'peg_ratio', 'N/A'))}, ROE={_pct(getattr(signal.snapshot, 'return_on_equity', 'N/A'))}, RevGro={_pct(getattr(signal.snapshot, 'revenue_growth', 'N/A'))}, Div={_div_pct(getattr(signal.snapshot, 'dividend_yield', 'N/A'))}, Mgn={_fmt(getattr(signal.snapshot, 'profit_margins', 'N/A'))}, DE={_fmt(getattr(signal.snapshot, 'debt_to_equity', 'N/A'))}, FCF={fcf_str}
+[TECH]: RSI={_fmt(getattr(signal.snapshot, 'rsi', 'N/A'))}, MA50={_fmt(getattr(signal.snapshot, 'ma_50', 'N/A'))}, SMA200={_fmt(getattr(signal.snapshot, 'sma_200', 'N/A'))}
+[VOL]: Anomaly={getattr(signal.snapshot, 'is_volume_anomaly', False)}, Cur={vol_str}, 20dAvg={vol_avg_str}
+</MARKET_DATA>"""
+
         prompt = f"""You are a professional financial AI assisting with DCA investments. All explanations must be in Thai and extremely concise (Get to the point).
 
-Analyze: {signal.symbol}
-- Price: ${signal.snapshot.current_price}
-- ATH Drawdown: {signal.snapshot.drawdown_pct}%
+{data_block}
 {profile_text}
-Fundamental: P/E: {getattr(signal.snapshot, 'trailing_pe', 'N/A')}, PEG: {getattr(signal.snapshot, 'peg_ratio', 'N/A')}, Margin: {getattr(signal.snapshot, 'profit_margins', 'N/A')}, D/E: {getattr(signal.snapshot, 'debt_to_equity', 'N/A')}, FCF: {getattr(signal.snapshot, 'free_cash_flow', 'N/A')}
-Indicators: {indicators_text}
-Volume Flow: Anomaly={getattr(signal.snapshot, 'is_volume_anomaly', False)}, Current={signal.snapshot.volume}, 20dAvg={getattr(signal.snapshot, 'volume_20d_avg', 'N/A')}
 {news_text}
 
 Instructions (Act as a Quant Engineer):
@@ -115,7 +145,7 @@ Instructions (Act as a Quant Engineer):
    - Step 1 (Trend): Evaluate Price vs SMA_200 and MA_50. Is it in a macro uptrend, sideways, or downtrend?
    - Step 2 (Value): Evaluate PEG, P/E, and FCF. Is it fundamentally sound and fairly priced?
    - Step 3 (Timing): Evaluate RSI and Volume Anomaly. Is it overbought, oversold, or finding support?
-2. Synthesize exactly 2 short bullet points for 'reasons' (1 fundamental, 1 technical). You MUST use the exact metrics/numbers provided above to support your reason and prevent hallucination.
+2. Synthesize exactly 2 short bullet points for 'reasons' (1 fundamental, 1 technical). You MUST include the exact numbers AND clearly interpret what they mean for the investor (e.g. "ROE at 29.8% shows highly efficient profitability, but RSI at 78.43 indicates the price is currently overbought and risky to enter right now").
 3. Calculate "score" (1-10) using this logic: Start at 5. Add points for strong fundamentals (e.g. PEG < 1.5) or strong macro trend (Price > SMA_200). Subtract points for broken trends (Price < SMA_200) or severe overvaluation.
 4. Keep 'advice' to exactly 1 short sentence summarizing the trend and action based strictly on data. Do not repeat obvious phrases like "เหมาะกับ DCA" because the user already knows this.
 5. Determine exactly 3 "buy_targets" (prices) that are realistic (e.g., near MA_50 or SMA_200 supports).
