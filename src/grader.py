@@ -19,6 +19,7 @@ class GradeResult:
     advice: str         # Thai-language advice from Gemini
     reasons: list[str]  # Reason tags, e.g. ["✅ RSI < 30", "⚠️ Low volume"]
     buy_targets: list[float] # e.g. [170.0, 160.0, 150.0]
+    decision_status: str = "WATCHLIST" # ACCUMULATE, WATCHLIST, or REJECT
 
 
 class SignalGrader:
@@ -140,21 +141,28 @@ class SignalGrader:
 {profile_text}
 {news_text}
 
-Instructions (Act as a Quant Engineer):
-1. Think step-by-step (Chain of Thought).
-   - Step 1 (Trend): Evaluate Price vs SMA_200 and MA_50. Is it in a macro uptrend, sideways, or downtrend?
-   - Step 2 (Value): Evaluate PEG, P/E, and FCF. Is it fundamentally sound and fairly priced?
-   - Step 3 (Timing): Evaluate RSI and Volume Anomaly. Is it overbought, oversold, or finding support?
-2. Synthesize exactly 2 short bullet points for 'reasons' (1 fundamental, 1 technical). You MUST include the exact numbers AND clearly interpret what they mean for the investor (e.g. "ROE at 29.8% shows highly efficient profitability, but RSI at 78.43 indicates the price is currently overbought and risky to enter right now").
-3. Calculate "score" (1-10) using this logic: Start at 5. Add points for strong fundamentals (e.g. PEG < 1.5) or strong macro trend (Price > SMA_200). Subtract points for broken trends (Price < SMA_200) or severe overvaluation.
-4. Keep 'advice' to exactly 1 short sentence summarizing the trend and action based strictly on data. Do not repeat obvious phrases like "เหมาะกับ DCA" because the user already knows this.
-5. Determine exactly 3 "buy_targets" (prices) that are realistic (e.g., near MA_50 or SMA_200 supports).
+Instructions (Act as a Quant Engineer / Decision Engine JEV):
+1. Think step-by-step (Chain of Thought) checking for "Red Flags".
+   - Step 1 (Trend): Evaluate Price vs SMA_200. Is it in a macro uptrend, sideways, or downtrend?
+   - Step 2 (Value): Evaluate PEG, P/E, RevGro, ROE, FCF. Is it a Value Trap or a Growth stock?
+   - Step 3 (Timing): Evaluate RSI and Volume. Is it severely overbought (RSI > 75) or dropping?
+2. Determine 'decision_status' based on flags:
+   - "ACCUMULATE": Solid fundamentals, reasonable valuation, good timing.
+   - "WATCHLIST": Good company but currently overpriced or overbought (RSI > 75).
+   - "REJECT": Fatal flaws (e.g., P/E > 100 with shrinking revenue, severe downtrend).
+3. Synthesize exactly 2 short bullet points for 'reasons'. 
+   - If REJECT, you MUST explain the "Fatal Risks" clearly using the exact numbers (e.g., "P/E is 150 but RevGro is -10%, indicating a severe Value Trap").
+   - If ACCUMULATE/WATCHLIST, interpret the numbers (e.g., "ROE at 29.8% shows high efficiency").
+4. Calculate "score" (1-10). Start at 5. Add for strong trends/growth, subtract for flags.
+5. Provide 'advice' in 1 short Thai sentence summarizing the action.
+6. Determine exactly 3 "buy_targets". If REJECT, output an empty list [].
 
-CRITICAL: You MUST output JSON in the EXACT order below (Auto-Regressive Anchoring). Write 'analysis_steps' and 'reasons' FIRST so you can think before you output 'advice' and 'score'.
+CRITICAL: You MUST output JSON in the EXACT order below (Auto-Regressive Anchoring).
 
 Return ONLY valid JSON matching this schema:
 {{
     "analysis_steps": "<1-2 sentences of your internal chain of thought>",
+    "decision_status": "<ACCUMULATE or WATCHLIST or REJECT>",
     "reasons": ["<tag 1>", "<tag 2>"],
     "buy_targets": [<float>, <float>, <float>],
     "advice": "<1 short sentence>",
@@ -173,6 +181,7 @@ Return ONLY valid JSON matching this schema:
             advice=str(data.get("advice", "No advice provided")),
             reasons=list(data.get("reasons", [])),
             buy_targets=list(data.get("buy_targets", [])),
+            decision_status=str(data.get("decision_status", "WATCHLIST")).upper(),
         )
 
     def _parse_response(self, text: str, symbol: str) -> GradeResult:

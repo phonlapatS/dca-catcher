@@ -260,6 +260,18 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
   • **Funda:** P/E {pe_str} | ROE {roe_str} | FCF {fcf_str}
   • **Tech:** RSI {rsi_str} | SMA200 {sma200_str} | Vol {vol_anom}"""
                 
+                decision_status = getattr(grade_result, 'decision_status', 'WATCHLIST')
+                
+                if decision_status == 'REJECT':
+                    decision_str = f"🔴 **Decision:** REJECT (หลีกเลี่ยงการลงทุน / ปัดตก)"
+                    reasons_title = "⚠️ **ความเสี่ยงร้ายแรงที่ทำให้ถูกปัดตก (Fatal Risks):**"
+                    targets_text = "❌ *ไม่มีแนวรับที่ปลอดภัยเพียงพอสำหรับการทำ DCA ในขณะนี้*"
+                else:
+                    status_emoji = "🟢" if decision_status == 'ACCUMULATE' else "🟡"
+                    decision_str = f"{status_emoji} **Decision:** {decision_status}"
+                    reasons_title = "📌 **จุดสังเกตเชิงลึกจาก JEV:**"
+                    targets_text = targets_str + news_teaser_text
+                
                 report_text = f"""🗣️ **สำหรับ {mention}**
 📊 **{grade_result.symbol} Analysis**
 
@@ -268,18 +280,18 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
 
 🤖 **AI Score (ความน่าลงทุน):** {score_val}/10
 [{score_bar}]
-🎯 **Confidence:** {conf}% [{bar}]
+{decision_str}
 
-💡 **คำแนะนำจาก AI:**
+💡 **คำแนะนำจาก JEV:**
 {grade_result.advice}
 
 {market_data_block}
 
-📌 **จุดสังเกตเชิงลึกจาก AI:**
+{reasons_title}
 {reasons_str}
 
 🛒 **ราคาเป้าหมาย (Buy Targets):**
-{targets_str}{news_teaser_text}"""
+{targets_text}"""
                 
                 # Save to cache
                 try:
