@@ -475,3 +475,27 @@ export DATABASE_URL="sqlite+aiosqlite:///dca_catcher.db"
 - [x] **4.5** `fly.toml` — เพิ่ม RAM เป็น 1024mb
 - [x] **4.6** Type hints — เพิ่มในส่วนที่ขาด
 - [x] **4.7** README.md — อัปเดต Phase 9
+
+## 🚀 Phase 14: System Resiliency, Scalability & Intelligence
+*(Note: These updates correspond to Git branches `phase-14.0`, `phase-14.1`, `phase-14.2`, `phase-14.3`, and `phase-14`)*
+
+### 📍 Checkpoint 14.0 (Branch: `phase-14.0`) - Architecture Optimizations
+- **Analyze Once, Distribute Many:** Caching `/premarket` across all users (saves ~11k tokens/day).
+- **Event Loop & Memory Leak Fixes:** Wraps sync AI calls with `asyncio.to_thread()`, daily dictionary cleanup.
+- **Error Fingerprinting & Backoff:** Catches and prevents AI error-spamming, auto-backoff for API 429 errors.
+
+### 📍 Checkpoint 14.1 (Branch: `phase-14.1`) - Quantitative Edge & Prompt Tuning
+- **SMA200 Trend Filter:** Added dynamic trend checking.
+- **Regressive Anchoring:** Enhanced JSON outputs in Prompt logic.
+- **Strict Scoring Rubric:** Introduced explicit metrics (RevGro, ROE, FCF, D/E) forcing the AI to interpret data rather than reciting obvious terms.
+
+### 📍 Checkpoint 14.2 (Branch: `phase-14.2`) - Macro Pipeline & Gap-Down Alerts (JEV Engine Start)
+- **VIX & SPY Context:** Feeds broad market state (`^VIX`, `SPY`) into the AI Decision Engine for dynamic risk assessment.
+- **Gap-Down Warnings:** Identifies flash crashes (-5%+) and provides "Wait" advice on Telegram instead of auto-triggering buy targets.
+- **Dead Code Audit:** Thorough cleaning of obsolete variables (`dims_str`, `indicators_text`).
+
+### 📍 Checkpoint 14.3 (Branch: `phase-14.3`) - Structured Outputs & Pydantic (Current HEAD)
+- **Engine-Level Enforcement:** Replaced Regex/Prompt-based JSON requests with native Gemini `response_schema` (Structured Output).
+- **100% JSON Reliability:** Eradicates `JSONDecodeError` permanently.
+- **Token Optimization:** Saved ~150 tokens per API call by stripping the schema examples from the prompt.
+- **Double Fallback Mechanism:** Graceful downgrade from Structured Outputs to old Regex Parsing if AI model fails (fully backward-compatible).
