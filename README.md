@@ -72,9 +72,9 @@ Phase 14 ยกระดับสถาปัตยกรรมของระ�
 ---
 
 
-## ⚙️ ภาพรวมการทำงานของระบบ (System Overview - Phase 14)
+## ⚙️ ภาพรวมการทำงานของระบบ (System Overview - Phase 16)
 
-ระบบออกแบบโครงสร้างใหม่โดยยึดหลัก Clean Architecture และ Free-Tier Optimization:
+ระบบออกแบบโครงสร้างใหม่โดยยึดหลัก Clean Architecture และ JEV Decision Engine:
 
 ```mermaid
 flowchart TB
@@ -91,23 +91,23 @@ flowchart TB
 
     subgraph FlyIO ["☁️ Application Tier - Hosted on Fly.io"]
         Bot["🤖 DCABot Entrypoint<br/>(APScheduler & Memory Cleanup)"]:::app
-        Fetcher["⚡ MarketDataFetcher<br/>(3-Min TTL Cache)"]:::app
+        Fetcher["⚡ MarketDataFetcher<br/>(3-Min TTL Cache + Macro VIX/SPY)"]:::app
         
         subgraph Handlers ["Modular Bot Handlers (Mixins)"]
             Common["Common"]:::handler
             Watchlist["Watchlist"]:::handler
-            Scanning["Scanning<br/>(Analyze-Once, Distribute-Many)"]:::handler
-            Portfolio["Portfolio<br/>(/paper_portfolio)"]:::handler
+            Scanning["Scanning<br/>(JEV Decision Engine)"]:::handler
+            Portfolio["Portfolio<br/>(/portfolio)"]:::handler
         end
         Bot --> Handlers
 
         Pipeline["⚙️ Insight Pipeline<br/>(Multi-Agent)"]:::app
         NewsService["📰 News Service<br/>(JunkFilter)"]:::app
-        Sniper["🎯 Alpaca Sniper<br/>(Auto-Execution)"]:::app
+        Sniper["🎯 Alpaca Sniper<br/>(Real-time Gap-Down Warnings & Alerts)"]:::app
     end
 
     subgraph Persistence ["🗄️ Data Tier - Supabase PostgreSQL"]
-        DB[("Users, Watchlists,<br/>Signals, Memory,<br/>ScanCache, Health,<br/>PaperTradeOrders")]:::db
+        DB[("Users, Watchlists,<br/>Signals, Memory,<br/>ScanCache, Health")]:::db
     end
 
     subgraph AI_Layer ["🧠 AI & Intelligence Layer"]
@@ -117,9 +117,9 @@ flowchart TB
     end
 
     subgraph External_Sources ["🌐 External Providers"]
-        Market["yfinance<br/>(Market Data)"]:::external
+        Market["yfinance<br/>(Market Data & Macro)"]:::external
         News["DuckDuckGo / Yahoo<br/>(News APIs)"]:::external
-        Alpaca["Alpaca API<br/>(WSS Ticks & REST Orders)"]:::external
+        Alpaca["Alpaca API<br/>(WSS Ticks)"]:::external
         Sentry["Sentry<br/>(Crash Tracking)"]:::monitor
     end
 
@@ -130,19 +130,19 @@ flowchart TB
     Handlers -->|"Fetch Radar"| NewsService
     Pipeline -->|"Get Cleaned Context"| NewsService
     
-    Handlers -->|"Fetch Quote"| Fetcher
+    Handlers -->|"Fetch Quote & Macro"| Fetcher
     Pipeline -->|"Fetch Quote"| Fetcher
     Fetcher <-->|"Async HTTP"| Market
     
     Pipeline <-->|"Deep Dive Reasoning"| LLMCaller
-    Scanning <-->|"Async Grading"| LLMCaller
+    Scanning <-->|"Async JEV Grading"| LLMCaller
     NewsService -->|"Filter & Tag Sentiment"| LLMCaller
     
     NewsService -->|"Fetch Raw Articles"| News
     
-    Sniper <-->|"Live Ticks & Paper Trades"| Alpaca
-    Sniper <-->|"Operating Hours & Orders"| DB
-    Sniper -->|"Target Hit / Auto-Execution"| User
+    Sniper <-->|"Live Ticks (WSS)"| Alpaca
+    Sniper <-->|"Operating Hours & Bounds"| DB
+    Sniper -->|"Target Hit / Gap-Down Warnings"| User
 
     Bot <-->|"SQLAlchemy ORM & Daily Cleanup"| DB
     Bot -->|"System Crash Alerts<br/>(Error Fingerprinting)"| Sentry
