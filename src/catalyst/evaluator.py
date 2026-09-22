@@ -74,12 +74,12 @@ Return strict JSON:
   "scope": "<MACRO|SECTOR|MICRO>",
   "sentiment": "<POSITIVE|NEGATIVE|NEUTRAL>",
   "event_category": "<CLINICAL_TRIAL|EARNINGS|M_AND_A|REGULATORY|CONTRACT|RISK_EVENT|MACRO_EVENT>",
-  "impact_summary": "<1 Thai sentence: how/why this affects price>",
-  "bull_catalysts": "<1 Thai sentence: growth opportunity>",
-  "bear_risks": "<1 Thai sentence: hidden risks>",
-  "dca_guidance": "<1 Thai sentence: entry advice>",
-  "thai_summary": "<1 Thai sentence: factual news summary>",
-  "connected_stocks": [{{"symbol":"TICKER","relationship":"SUPPLIER|CUSTOMER|COMPETITOR|SYMPATHY_PEER","impact_direction":"POSITIVE|NEGATIVE","rationale_thai":"..."}}]
+  "impact_summary": "<1 THAI sentence ONLY: how/why this affects price>",
+  "bull_catalysts": "<1 THAI sentence ONLY: growth opportunity>",
+  "bear_risks": "<1 THAI sentence ONLY: hidden risks>",
+  "dca_guidance": "<1 THAI sentence ONLY: entry advice>",
+  "thai_summary": "<1 THAI sentence ONLY: factual news summary>",
+  "connected_stocks": [{{"symbol":"TICKER","relationship":"SUPPLIER|CUSTOMER|COMPETITOR|SYMPATHY_PEER","impact_direction":"POSITIVE|NEGATIVE","rationale_thai":"1 THAI sentence ONLY"}}]
 }}
 """
         try:
@@ -149,9 +149,9 @@ Instructions for EACH article:
 2. scope: MACRO, SECTOR, MICRO.
 3. event_category: CLINICAL_TRIAL, EARNINGS, M_AND_A, etc.
 4. confidence_score (0-100).
-5. impact_summary: strictly 1 short sentence.
+5. impact_summary: strictly 1 short THAI sentence ONLY. Make it easy to understand.
 6. sentiment: POSITIVE, NEGATIVE, NEUTRAL.
-7. bull_catalysts, bear_risks, dca_guidance, thai_summary: strictly 1 short sentence each.
+7. bull_catalysts, bear_risks, dca_guidance, thai_summary: strictly 1 short THAI sentence ONLY for each.
 8. connected_stocks: array of dicts (symbol, relationship, impact_direction, rationale_thai).
 
 Return a strict JSON ARRAY where each object corresponds to an article ID and adheres exactly to this schema:

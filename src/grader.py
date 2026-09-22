@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 
 class JevGradeSchema(BaseModel):
     """Pydantic schema for Gemini Structured Output — enforces valid JSON at the engine level."""
-    analysis_steps: str = Field(description="1-2 sentences of internal chain-of-thought reasoning")
+    analysis_steps: str = Field(description="1-2 sentences of internal chain-of-thought reasoning (can be in any language)")
     decision_status: str = Field(description="ACCUMULATE or WATCHLIST or REJECT")
-    reasons: list[str] = Field(description="Exactly 2 short bullet points explaining the decision")
+    reasons: list[str] = Field(description="Exactly 2 short bullet points explaining the decision IN THAI LANGUAGE ONLY. Make it easy for beginners to understand.")
     buy_targets: list[float] = Field(description="3 buy target prices as floats, or empty list if REJECT")
-    advice: str = Field(description="1 short Thai sentence summarizing the action")
+    advice: str = Field(description="1 short THAI sentence summarizing the action")
     score: int = Field(description="Investment attractiveness score from 1 to 10")
     confidence: int = Field(description="Confidence level from 0 to 100")
 
@@ -153,14 +153,14 @@ Instructions (Act as a Quant Engineer / Decision Engine JEV):
    - "ACCUMULATE": Solid fundamentals, reasonable valuation, good timing.
    - "WATCHLIST": Good company but currently overpriced or overbought (RSI > 75).
    - "REJECT": Fatal flaws (e.g., P/E > 100 with shrinking revenue, severe downtrend).
-3. Synthesize exactly 2 short bullet points for 'reasons'. 
-   - If REJECT, you MUST explain the "Fatal Risks" clearly using the exact numbers (e.g., "P/E is 150 but RevGro is -10%, indicating a severe Value Trap").
-   - If ACCUMULATE/WATCHLIST, interpret the numbers (e.g., "ROE at 29.8% shows high efficiency").
+3. Synthesize exactly 2 short bullet points for 'reasons' IN THAI LANGUAGE. Translate complex numbers into easy-to-understand insights for beginners.
+   - If REJECT, you MUST explain the "Fatal Risks" clearly (e.g. "P/E สูงถึง 150 เท่า แต่รายได้ติดลบ 10% ถือเป็นหุ้น Value Trap").
+   - If ACCUMULATE/WATCHLIST, interpret the numbers (e.g. "ROE สูงถึง 29.8% สะท้อนประสิทธิภาพการทำกำไรที่ยอดเยี่ยม").
 4. Calculate "score" (1-10). Start at 5. Add for strong trends/growth, subtract for flags.
-5. Provide 'advice' in 1 short Thai sentence summarizing the action.
+5. Provide 'advice' in 1 short THAI sentence summarizing the action.
 6. Determine exactly 3 "buy_targets". If REJECT, output an empty list [].
 
-Output your analysis in the structured JSON format provided.
+Output your analysis in the structured JSON format provided. Make sure to use THAI language for user-facing fields.
 """
         return prompt
 
