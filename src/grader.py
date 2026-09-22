@@ -43,14 +43,14 @@ class SignalGrader:
         self.scan_llm = LLMCaller(clients, self.config.lite_models)
         self.advice_llm = LLMCaller(clients, self.config.smart_models)
 
-    def grade(self, signal: EnrichedSignal, news: list[str] = None, risk_profile: str = None) -> GradeResult:
-        """Send enriched signal dimensions to Gemini for grading.
+    def grade(self, signal: EnrichedSignal, news: list[str] = None, risk_profile: str = None, macro_data: dict = None) -> GradeResult:
+        """Grade an enriched signal using Gemini and return a GradeResult.
 
-        Constructs a prompt with the 3 dimension scores and asks Gemini
+        Instructs Gemini with a structured CoT (Chain of Thought) prompt
         to return a JSON response with score, confidence, advice, and reasons.
         Uses shared LLMCaller for automatic model fallback.
         """
-        prompt = self._build_prompt(signal, news, risk_profile)
+        prompt = self._build_prompt(signal, news, risk_profile, macro_data)
         try:
             data = self.scan_llm.call_json(prompt)
             return self._parse_data(data, signal.symbol)
@@ -65,33 +65,14 @@ class SignalGrader:
                 buy_targets=[],
             )
 
-    def _build_prompt(self, signal: EnrichedSignal, news: list[str] = None, risk_profile: str = None) -> str:
-        """Build the Gemini prompt from enriched signal data and news.
+    def _build_prompt(self, signal: EnrichedSignal, news: list[str] = None, risk_profile: str = None, macro_data: dict = None) -> str:
+        """Build the Gemini prompt from enriched signal data, news, and macro context.
 
         The prompt instructs Gemini to:
-        1. Analyze the 3 dimensions (PRICE, FLOW, CONTEXT), indicators, and news
-        2. Filter news using NER (Named Entity Recognition)
-        3. Return JSON with: score (1-10), confidence (0-100),
-           advice (Thai string), reasons (list of strings), and exactly 3 buy_targets.
+        1. Analyze MACRO context, FUNDAMENTAL, TECHNICAL, and NEWS
+        2. Return JSON with: score, decision_status, confidence,
+           advice (Thai string), reasons (list of strings), and buy_targets.
         """
-        dimensions_summary = []
-        for name, score in signal.dimensions.items():
-            dimensions_summary.append(
-                f"- {name}: Label={score.label}, Score={score.score}, Reason={score.reason}"
-            )
-        dims_str = "\n".join(dimensions_summary)
-
-        indicators_str = []
-        if getattr(signal.snapshot, 'rsi', None) is not None:
-            indicators_str.append(f"- RSI: {signal.snapshot.rsi}")
-        if getattr(signal.snapshot, 'ma_50', None) is not None:
-            indicators_str.append(f"- MA_50: {signal.snapshot.ma_50}")
-        if getattr(signal.snapshot, 'sma_200', None) is not None:
-            indicators_str.append(f"- SMA_200: {signal.snapshot.sma_200}")
-        if getattr(signal.snapshot, 'bb_lower', None) is not None:
-            indicators_str.append(f"- BB_lower: {signal.snapshot.bb_lower}")
-        indicators_text = "\n".join(indicators_str) if indicators_str else "- No calculated indicators available"
-
         news_text = ""
         if news:
             top_news = news[:5]
@@ -127,12 +108,21 @@ class SignalGrader:
             if val is None or val == 'N/A': return 'N/A'
             if isinstance(val, (int, float)): return f"{val:.1f}%" # yfinance dividendYield is already in percentage format (e.g. 0.32 means 0.32%)
             return str(val)
+
+        # Build macro line
+        macro_line = ""
+        if macro_data and macro_data.get("vix") is not None:
+            vix = macro_data.get("vix", "N/A")
+            spy_chg = macro_data.get("spy_change_pct", "N/A")
+            spy_px = macro_data.get("spy_price", "N/A")
+            state = macro_data.get("market_state", "N/A")
+            macro_line = f"\n[MACRO]: VIX={vix}, SPY=${spy_px} ({spy_chg:+.2f}%), MarketState={state}" if isinstance(spy_chg, (int, float)) else f"\n[MACRO]: VIX={vix}, SPY=${spy_px}, MarketState={state}"
             
         data_block = f"""<MARKET_DATA>
 [TICKER]: {signal.symbol} | Px: ${_fmt(signal.snapshot.current_price)} | ATH_DD: {_fmt(signal.snapshot.drawdown_pct)}%
 [FUNDA]: PE={_fmt(getattr(signal.snapshot, 'trailing_pe', 'N/A'))}, PEG={_fmt(getattr(signal.snapshot, 'peg_ratio', 'N/A'))}, ROE={_pct(getattr(signal.snapshot, 'return_on_equity', 'N/A'))}, RevGro={_pct(getattr(signal.snapshot, 'revenue_growth', 'N/A'))}, Div={_div_pct(getattr(signal.snapshot, 'dividend_yield', 'N/A'))}, Mgn={_fmt(getattr(signal.snapshot, 'profit_margins', 'N/A'))}, DE={_fmt(getattr(signal.snapshot, 'debt_to_equity', 'N/A'))}, FCF={fcf_str}
 [TECH]: RSI={_fmt(getattr(signal.snapshot, 'rsi', 'N/A'))}, MA50={_fmt(getattr(signal.snapshot, 'ma_50', 'N/A'))}, SMA200={_fmt(getattr(signal.snapshot, 'sma_200', 'N/A'))}
-[VOL]: Anomaly={getattr(signal.snapshot, 'is_volume_anomaly', False)}, Cur={vol_str}, 20dAvg={vol_avg_str}
+[VOL]: Anomaly={getattr(signal.snapshot, 'is_volume_anomaly', False)}, Cur={vol_str}, 20dAvg={vol_avg_str}{macro_line}
 </MARKET_DATA>"""
 
         prompt = f"""You are a professional financial AI assisting with DCA investments. All explanations must be in Thai and extremely concise (Get to the point).
@@ -143,9 +133,10 @@ class SignalGrader:
 
 Instructions (Act as a Quant Engineer / Decision Engine JEV):
 1. Think step-by-step (Chain of Thought) checking for "Red Flags".
-   - Step 1 (Trend): Evaluate Price vs SMA_200. Is it in a macro uptrend, sideways, or downtrend?
-   - Step 2 (Value): Evaluate PEG, P/E, RevGro, ROE, FCF. Is it a Value Trap or a Growth stock?
-   - Step 3 (Timing): Evaluate RSI and Volume. Is it severely overbought (RSI > 75) or dropping?
+   - Step 1 (Macro): If [MACRO] data is available, assess overall market conditions (VIX level, SPY trend). Factor this into your Margin of Safety — if BEARISH/PANIC, add a small volatility buffer to buy targets but keep them realistic (US stocks rarely drop >15% without fundamental breakdown).
+   - Step 2 (Trend): Evaluate Price vs SMA_200. Is it in a macro uptrend, sideways, or downtrend?
+   - Step 3 (Value): Evaluate PEG, P/E, RevGro, ROE, FCF. Is it a Value Trap or a Growth stock?
+   - Step 4 (Timing): Evaluate RSI and Volume. Is it severely overbought (RSI > 75) or dropping?
 2. Determine 'decision_status' based on flags:
    - "ACCUMULATE": Solid fundamentals, reasonable valuation, good timing.
    - "WATCHLIST": Good company but currently overpriced or overbought (RSI > 75).

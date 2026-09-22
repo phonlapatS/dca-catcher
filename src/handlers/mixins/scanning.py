@@ -182,6 +182,10 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             user = res.scalar_one_or_none()
             if user:
                 risk_profile = user.risk_profile
+
+        # Fetch macro context once for all symbols (cached 30 min)
+        macro_data = await loop.run_in_executor(None, self.fetcher.fetch_macro)
+
         for symbol, enriched in enriched_signals.items():
             snapshot = enriched.snapshot
             username = message.from_user.username
@@ -200,7 +204,7 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
             else:
                 # Use a task wrapper for the sync grader function to let progress update
                 async def run_grade():
-                    return await asyncio.to_thread(self.grader.grade, enriched, risk_profile=risk_profile)
+                    return await asyncio.to_thread(self.grader.grade, enriched, risk_profile=risk_profile, macro_data=macro_data)
                 
                 grade_task = asyncio.create_task(run_grade())
                 steps = [
@@ -259,6 +263,15 @@ Specify a symbol to scan (e.g. /scan NVDA) or add stocks to your watchlist with 
                 market_data_block = f"""📈 **ข้อมูลสถิติเบื้องต้น:**
   • **Funda:** P/E {pe_str} | ROE {roe_str} | FCF {fcf_str}
   • **Tech:** RSI {rsi_str} | SMA200 {sma200_str} | Vol {vol_anom}"""
+                
+                # Add macro context if available
+                if macro_data and macro_data.get("vix") is not None:
+                    vix_val = macro_data.get("vix", "N/A")
+                    spy_chg = macro_data.get("spy_change_pct")
+                    state = macro_data.get("market_state", "N/A")
+                    state_emoji = {"BULLISH": "🟢", "CAUTIOUS": "🟡", "BEARISH": "🟠", "PANIC": "🔴"}.get(state, "⚪")
+                    spy_str = f"{spy_chg:+.2f}%" if isinstance(spy_chg, (int, float)) else "N/A"
+                    market_data_block += f"\n  • **Macro:** VIX {vix_val} | SPY {spy_str} | {state_emoji} {state}"
                 
                 decision_status = getattr(grade_result, 'decision_status', 'WATCHLIST')
                 

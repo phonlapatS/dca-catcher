@@ -148,3 +148,59 @@ class MarketDataFetcher:
                 continue
 
         return snapshots
+
+    def fetch_macro(self) -> dict:
+        """Fetch market-wide macro indicators (VIX, SPY) for contextual analysis.
+        
+        Returns a dict with raw numbers for AI to interpret:
+        {
+            "vix": 18.5,
+            "spy_change_pct": -1.2,
+            "spy_price": 540.0,
+            "market_state": "BULLISH" | "CAUTIOUS" | "BEARISH" | "PANIC"
+        }
+        Uses memory cache (TTL = 30 min) to avoid redundant API calls.
+        """
+        cache_key = "__MACRO__"
+        now = time.time()
+        
+        if cache_key in self._cache:
+            cached_data, ts = self._cache[cache_key]
+            if now - ts < 1800:  # 30-minute TTL for macro
+                return cached_data
+        
+        result = {"vix": None, "spy_change_pct": None, "spy_price": None, "market_state": "N/A"}
+        
+        try:
+            vix_ticker = yf.Ticker("^VIX")
+            vix_df = vix_ticker.history(period="5d")
+            if vix_df is not None and not vix_df.empty:
+                result["vix"] = round(float(vix_df["Close"].iloc[-1]), 2)
+        except Exception as e:
+            logger.warning(f"Failed to fetch VIX: {e}")
+        
+        try:
+            spy_ticker = yf.Ticker("SPY")
+            spy_df = spy_ticker.history(period="5d")
+            if spy_df is not None and not spy_df.empty and len(spy_df) >= 2:
+                today_close = float(spy_df["Close"].iloc[-1])
+                prev_close = float(spy_df["Close"].iloc[-2])
+                result["spy_price"] = round(today_close, 2)
+                result["spy_change_pct"] = round(((today_close - prev_close) / prev_close) * 100, 2)
+        except Exception as e:
+            logger.warning(f"Failed to fetch SPY: {e}")
+        
+        # Determine market state from VIX
+        vix = result.get("vix")
+        if vix is not None:
+            if vix < 15:
+                result["market_state"] = "BULLISH"
+            elif vix < 20:
+                result["market_state"] = "CAUTIOUS"
+            elif vix < 30:
+                result["market_state"] = "BEARISH"
+            else:
+                result["market_state"] = "PANIC"
+        
+        self._cache[cache_key] = (result, now)
+        return result
