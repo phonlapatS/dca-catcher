@@ -77,17 +77,28 @@ class AlertManager:
                 item.last_notified_zone = active_zone_str
             await session.commit()
             
+            gap_pct = ((active_zone['price'] - current_price) / active_zone['price']) * 100
+            warning_msg = ""
+            if gap_pct >= 5.0:
+                warning_msg = (
+                    f"\n\n🚨 **GAP-DOWN WARNING (เบรกฉุกเฉิน)**\n"
+                    f"ราคาปัจจุบันรูดต่ำกว่าเป้าหมายที่ตั้งไว้ถึง **{gap_pct:.1f}%** อย่างกะทันหัน\n"
+                    f"⚠️ ระบบแนะนำให้ **ชะลอการเข้าซื้อ** และตรวจสอบข่าวร้ายระดับ Macro หรือระดับบริษัทด่วน! (ระวังการรับมีด)"
+                )
+                
             # Format message
             if next_zone:
                 msg = (
                     f"🎯 **เป้าหมายที่ถึงแล้ว:** ${active_zone['price']} ({active_zone['label']})\n\n"
                     f"💬 ท่านสามารถเข้าซื้อที่ราคาเป้าหมายตอนนี้ได้แล้ว {active_zone['price']} ({active_zone['label']}) "
-                    f"รอดูสถานการณ์ว่าราคาจะขยับลงต่อถึงเป้าหมายถัดไปที่ {next_zone['price']} ({next_zone['label']}) หรือไม่"
+                    f"รอดูสถานการณ์ว่าราคาจะขยับลงต่อถึงเป้าหมายถัดไปที่ ${next_zone['price']} ({next_zone['label']}) หรือไม่"
+                    f"{warning_msg}"
                 )
             else:
                 msg = (
                     f"🎯 **เป้าหมายที่ถึงแล้ว:** ${active_zone['price']} ({active_zone['label']})\n\n"
                     f"💬 ท่านสามารถเข้าซื้อที่ราคาเป้าหมายตอนนี้ได้แล้ว {active_zone['price']} ({active_zone['label']}) (นี่คือเป้าหมายสุดท้ายที่คุณตั้งไว้)"
+                    f"{warning_msg}"
                 )
             return True, msg
 
