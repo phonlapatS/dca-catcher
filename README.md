@@ -1,7 +1,6 @@
-# DCA Catcher 📈 (Phase 14: Token & Architecture Optimizations)
+# DCA Catcher 📈 (Phase 17: JEV Engine & Structured Outputs)
 
 **DCA Catcher** คือระบบ Telegram Bot สำหรับช่วยวิเคราะห์หุ้นและแจ้งเตือนราคาเป้าหมายสำหรับการลงทุนแบบ DCA (Dollar-Cost Averaging) 
-
 
 ## 💡 Concept & Vision (แนวคิดภาพรวมของระบบ)
 
@@ -20,59 +19,37 @@
 
 ---
 
+## 🚀 What's New in Phase 17 (JEV Engine & Structured Outputs)
+
+Phase 17 ยกระดับความเสถียรของระบบด้วยสถาปัตยกรรม **"JEV Decision Engine"** แบบ 100% Guaranteed JSON:
+
+1. **Engine-Level Schema Enforcement:**
+   - เปลี่ยนจาก Prompt Engineering (Free-text) ไปใช้ **Gemini Structured Outputs (`response_schema`)** ผ่าน Pydantic Models
+   - การันตีโครงสร้าง JSON 100% ตัดปัญหา `JSONDecodeError` ถาวร 
+2. **Token & Performance Optimization:**
+   - ถอดคำสั่งบังคับ JSON Schema ออกจาก Prompt ประหยัดไปได้ ~150 Tokens/Request
+   - มีระบบ Fallback 2 ชั้น (Structured Output → Legacy Regex Parse) เพื่อความทนทานของระบบ
+3. **Macro-to-Micro Pipeline:**
+   - เพิ่มการดึงข้อมูล `^VIX` และ `SPY` มาร่วมเป็น Context ตัดสินใจของ AI (Macro Adjustment)
+   - ปรับแนวรับและเป้าหมายเข้าซื้อแบบไดนามิกอิงตามระดับความผันผวนของตลาด
 
 ---
-
-
-## 🚀 What's New in Phase 14 (Token & Architecture Optimizations)
-
-Phase 14 ยกระดับสถาปัตยกรรมของระบบให้เสถียรและประหยัดทรัพยากรมากที่สุดบนสภาพแวดล้อม Cloud ฟรี:
-
-1. **Architecture Resiliency (Critical Fixes):**
-   - **Event Loop Unblocking:** ย้ายการประมวลผล LLM ทั้งหมด (เช่น `grader.grade()`) ไปรันบน `asyncio.to_thread()` ทำให้บอทไม่ค้างระหว่าง Broadcast หรือสร้างรายงาน Pre-market
-   - **Scheduler Graceful Shutdown:** ระบบเคลียร์ cron jobs ของ `APScheduler` สะอาดหมดจดเมื่อปิดบอท ป้องกันปัญหา Zombie Process บน Fly.io
-   - **Error Fingerprinting & LLM Backoff:** เพิ่มระบบคัดกรอง Error ป้องกันการส่ง AI วิเคราะห์ Error ซ้ำซ้อน (ลด Spam) และเพิ่ม Exponential Backoff จัดการปัญหา Gemini Rate Limit (429) แบบนุ่มนวล
-   - **Memory Leak Prevention:** เพิ่ม Daily Cleanup สำหรับล้าง TTL Dictionary (เช่น Cooldowns) คืนหน่วยความจำให้ระบบ
-2. **Token & Performance Optimizations (ประหยัด ~11,500+ Tokens/วัน):**
-   - **Analyze Once, Distribute Many:** เปลี่ยนวิธีการทำงานของ `/premarket` และ `broadcast` เป็นการวิเคราะห์ผล 1 ครั้งแล้วดึงจาก Cache มากระจายให้ทุกคนแทนที่จะให้ AI วิเคราะห์ซ้ำ
-   - **Cross-Command DB Caching:** ระบบสามารถอ่านค่า Cache ข้ามฟีเจอร์ได้สมบูรณ์ (ลด 1 AI call = 6,000 tokens/day)
-   - **Compact JSON Formats:** บีบอัด Payload สื่อสารระหว่าง Multi-Agent Pipeline ลดช่องว่าง Token สิ้นเปลืองได้ ~1,500 tokens/day
-   - **Fetcher Memory Cache (3 mins TTL):** ลดการชน API yfinance ลดเวลาโหลดซ้ำ 3-5 วินาทีต่อครั้ง
-3. **Database Maintenance:** สั่งล้างข้อมูล Cache เก่าออกจากฐานข้อมูล Supabase อัตโนมัติทุกเช้า ป้องกันปัญหาตารางบวม (DB Bloat)
-
----
-
 
 ## 📜 Development History (ประวัติการพัฒนา)
 
-ระบบถูกพัฒนาและยกระดับอย่างต่อเนื่องผ่าน 10 เฟสหลัก ดังนี้:
+ระบบถูกพัฒนาและยกระดับอย่างต่อเนื่องผ่านเฟสหลัก ดังนี้:
 
-- **Phase 1-5 (Core Foundation):** สร้างระบบดึงข้อมูลจาก `yfinance`, คำนวณ DCA Targets ด้วย AI, วาดกราฟแท่งเทียน, และใช้ฐานข้อมูล SQLite
-- **Phase 6 (Multi-Agent & Memory):** อัปเกรด AI เป็น Multi-Agent Pipeline (แบ่งหน้าที่วิเคราะห์กราฟ, ข่าว, งบการเงิน) และเพิ่ม Adaptive Memory ให้บอทจำพอร์ตผู้ใช้ได้
-- **Phase 7 (Catalyst Hunter):** เปลี่ยนสถาปัตยกรรมสู่ Cloud (Fly.io + Supabase PostgreSQL) เพื่อรองรับดึงข้อมูลคู่ขนาน พร้อมเพิ่มบอทดักจับข่าวด่วน Pre-Market (Tier S/A/B)
-- **Phase 8 (Slip & Portfolio):** เพิ่มระบบ AI อ่านสลิปโอนเงิน (Slip Parser) เพื่อบันทึกต้นทุน DCA ในพอร์ตแบบอัตโนมัติ 
-- **Phase 9 (System Hardening):** ย้ายการทำงานกราฟไปเป็นแบบ `asyncio.to_thread()` ป้องกันบอทค้าง, เพิ่ม Cooldown กันสแปม, จัดการ Rate Limit ของ Telegram
-- **Phase 10 (News Engine & Modular):**
-  - **Multi-Source News:** เพิ่ม `DuckDuckGo News` เป็นระบบสำรองเพื่อป้องกัน Error 429 จาก Yahoo
-  - **Modular Architecture:** รื้อระบบ `bot.py` (1,600+ บรรทัด) ออกเป็น 5 Router/Mixins (Common, Watchlist, Scanning, Portfolio, Survey) เพื่อความสะอาดของโค้ด
-- **Phase 11 (Stability & Observability):**
-  - **Global Response Caching:** สร้างระบบจดจำผลลัพธ์ของ `/scan` และ `/news` ด้วยตาราง `scan_cache` บน Supabase (ลด API Quota 100% หากดึงข้อมูลซ้ำภายใน 1-2 ชม. พร้อมฟื้นฟู Interactive Buttons & Charts สมบูรณ์)
-  - **Sentry & AI Error Analysis:** ติดตั้ง `sentry-sdk` ดักจับ System Crash ทุกจุด พร้อมระบบวิเคราะห์ Error ด้วย **Gemini AI** เพื่อแจ้งเตือน Telegram Admin โดยตรงด้วยคำอธิบายภาษาไทยและวิธีแก้ปัญหา
-  - **Test Suite Repair:** ซ่อมแซมและอัปเดตระบบ Mock Tests ครอบคลุม Mixins ทั้งหมด (91 Tests Passed)
-- **Phase 12 (Pre-Market Calendar & Health Tracker):**
-  - **Pre-Market Daily Digest:** ตั้งเวลา `APScheduler` ส่งสรุปข่าวพร้อมราคาหุ้นแบบ DM ล่วงหน้า 1 ชม. ก่อนตลาด US เปิด (19:30 น.) เฉพาะหุ้นใน Watchlist ของผู้ใช้แต่ละคน
-  - **Fundamental Health Tracker:** ดึงและบันทึกข้อมูลด้านงบการเงิน (P/E, EPS, Profit Margin, Revenue Growth) ลงฐานข้อมูลทุกวันเพื่อใช้ประเมินเทรนด์การเติบโต
-- **Phase 13 (Alpaca Paper Trading):**
-  - **Auto-Execution Sniper:** อัปเกรด Sniper Alert ให้สามารถยิงออเดอร์จำลอง (Paper Trade) ซื้อหุ้นอัตโนมัติผ่าน `Alpaca API` เมื่อราคาชนโซนแนวรับที่ตั้งไว้ (Fail-safe architecture ไม่กระทบระบบแจ้งเตือนหลัก)
-  - **Paper Portfolio Tracker:** เพิ่มคำสั่ง `/paper_portfolio` เช็คประวัติการยิงออเดอร์และสรุปกำไร/ขาดทุน (P/L) จากการเทรดจำลองแบบ Real-time
-- **Phase 14 (Architecture Resiliency & Token Optimization):**
-  - **Analyze Once, Distribute Many:** ปรับโครงสร้าง /premarket และ broadcast ให้อ่านจาก Cache ข้ามคำสั่ง เพื่อลดการคำนวณซ้ำซ้อน ประหยัด 11,500+ tokens/day
-  - **Event Loop & Memory Leak Fixes:** ห่อ synchronous AI calls ด้วย `asyncio.to_thread()`, ล้าง TTL memory อัตโนมัติ, และเพิ่ม Exponential Backoff ป้องกัน 429 cascade
+- **Phase 1-5 (Core Foundation):** ระบบดึงข้อมูลจาก `yfinance`, คำนวณเป้าหมายด้วย AI, วาดกราฟแท่งเทียน, และใช้ฐานข้อมูล SQLite
+- **Phase 6-10 (Multi-Agent & Scale):** อัปเกรด AI เป็นทีมวิเคราะห์ (Insight Pipeline), เปลี่ยนฐานข้อมูลเป็น PostgreSQL บน Fly.io, ระบบอ่านสลิป (Vision AI), และจัดการ Telegram Rate Limits
+- **Phase 11-13 (Observability & Trading):** ระบบ Cache ลด API Quota, ต่อ Sentry ดักจับ Error ด้วย AI, ปฏิทิน Pre-Market สรุปข่าวรายวัน, และ Paper Trading พอร์ตจำลอง
+- **Phase 14 (Resiliency & Tuning):** ทำ Analyze Once / Distribute Many (ประหยัด Token หมื่นกว่า/วัน), แก้ไข Memory Leaks และ unblocking event loop
+- **Phase 15 (Dead Code Audit & Cleanups):** เคลียร์โค้ดขยะ, ตรวจสอบ Code Quality ของโมดูล Core ทั้งหมด
+- **Phase 16 (Macro Context & Sniper Warn):** รับข้อมูล Macro (VIX/SPY) เข้ามาใช้ในการให้คะแนนหุ้น, แจ้งเตือน 🚨 GAP-DOWN พิเศษหากหุ้นตกอย่างรุนแรง
+- **Phase 17 (JEV Engine & Structured Outputs):** ใช้ Pydantic บังคับ JSON ออกจากระดับ Engine (100% Reliability) พร้อมลด Token ใช้งานขาเข้า
 
 ---
 
-
-## ⚙️ ภาพรวมการทำงานของระบบ (System Overview - Phase 16)
+## ⚙️ ภาพรวมการทำงานของระบบ (System Overview - Phase 17)
 
 ระบบออกแบบโครงสร้างใหม่โดยยึดหลัก Clean Architecture และ JEV Decision Engine:
 
@@ -111,9 +88,9 @@ flowchart TB
     end
 
     subgraph AI_Layer ["🧠 AI & Intelligence Layer"]
-        LLMCaller["LLM Caller<br/>(Exponential Backoff & Retry)"]:::ai
-        Gemini["Google Gemini API<br/>(Flash 3.6 & Pro)"]:::ai
-        LLMCaller --> Gemini
+        LLMCaller["LLM Caller<br/>(Structured Outputs + Fallbacks)"]:::ai
+        Gemini["Google Gemini API<br/>(Pydantic Schema Enforced)"]:::ai
+        LLMCaller -->|"call_structured(schema)"| Gemini
     end
 
     subgraph External_Sources ["🌐 External Providers"]
