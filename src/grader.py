@@ -4,11 +4,23 @@ import re
 from dataclasses import dataclass
 
 from google import genai
+from pydantic import BaseModel, Field
 
 from src.transform import EnrichedSignal
 from src.insight_pipeline import LLMCaller, PipelineConfig
 
 logger = logging.getLogger(__name__)
+
+
+class JevGradeSchema(BaseModel):
+    """Pydantic schema for Gemini Structured Output — enforces valid JSON at the engine level."""
+    analysis_steps: str = Field(description="1-2 sentences of internal chain-of-thought reasoning")
+    decision_status: str = Field(description="ACCUMULATE or WATCHLIST or REJECT")
+    reasons: list[str] = Field(description="Exactly 2 short bullet points explaining the decision")
+    buy_targets: list[float] = Field(description="3 buy target prices as floats, or empty list if REJECT")
+    advice: str = Field(description="1 short Thai sentence summarizing the action")
+    score: int = Field(description="Investment attractiveness score from 1 to 10")
+    confidence: int = Field(description="Confidence level from 0 to 100")
 
 
 @dataclass
@@ -52,7 +64,7 @@ class SignalGrader:
         """
         prompt = self._build_prompt(signal, news, risk_profile, macro_data)
         try:
-            data = self.scan_llm.call_json(prompt)
+            data = self.scan_llm.call_structured(prompt, JevGradeSchema)
             return self._parse_data(data, signal.symbol)
         except Exception as e:
             logger.error(f"All Gemini models failed for {signal.symbol}: {e}")
@@ -148,18 +160,7 @@ Instructions (Act as a Quant Engineer / Decision Engine JEV):
 5. Provide 'advice' in 1 short Thai sentence summarizing the action.
 6. Determine exactly 3 "buy_targets". If REJECT, output an empty list [].
 
-CRITICAL: You MUST output JSON in the EXACT order below (Auto-Regressive Anchoring).
-
-Return ONLY valid JSON matching this schema:
-{{
-    "analysis_steps": "<1-2 sentences of your internal chain of thought>",
-    "decision_status": "<ACCUMULATE or WATCHLIST or REJECT>",
-    "reasons": ["<tag 1>", "<tag 2>"],
-    "buy_targets": [<float>, <float>, <float>],
-    "advice": "<1 short sentence>",
-    "score": <integer 1 to 10>,
-    "confidence": <integer 0 to 100>
-}}
+Output your analysis in the structured JSON format provided.
 """
         return prompt
 

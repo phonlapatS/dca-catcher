@@ -162,6 +162,55 @@ class LLMCaller:
         from src.utils import extract_json_from_llm
         return extract_json_from_llm(raw)
 
+    def call_structured(self, prompt: str, schema) -> dict:
+        """Call LLM with Gemini Structured Output (response_schema) for guaranteed valid JSON.
+        
+        Uses response_mime_type='application/json' + response_schema to enforce
+        output format at the engine level. Falls back to call_json() if structured
+        call fails (e.g. model doesn't support it).
+        
+        Args:
+            prompt: The prompt text.
+            schema: A Pydantic BaseModel class defining the expected output shape.
+        
+        Returns:
+            A dict parsed from the structured JSON response.
+        """
+        last_error: Exception | None = None
+        attempt = 0
+
+        for client in self.clients:
+            for model_name in self.models:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config={
+                            "response_mime_type": "application/json",
+                            "response_schema": schema,
+                        },
+                    )
+                    # response.parsed returns a Pydantic object if schema was provided
+                    if hasattr(response, 'parsed') and response.parsed is not None:
+                        return response.parsed.model_dump()
+                    # Fallback: parse text manually
+                    if response.text:
+                        import json
+                        return json.loads(response.text.strip())
+                    raise ValueError("Empty response from Gemini structured call")
+                except Exception as e:
+                    attempt += 1
+                    backoff = min(2 ** attempt, 8)
+                    logger.warning(f"LLMCaller.call_structured: {model_name} failed — {e}. Backoff {backoff}s")
+                    import time
+                    time.sleep(backoff)
+                    last_error = e
+                    continue
+
+        # If all structured attempts fail, try legacy call_json as final fallback
+        logger.warning(f"Structured output failed, falling back to call_json. Last error: {last_error}")
+        return self.call_json(prompt)
+
 
 # ---------------------------------------------------------------------------
 # Abstract Base Agent
